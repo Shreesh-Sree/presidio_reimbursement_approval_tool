@@ -1,6 +1,6 @@
 """Scope reimbursement policies to a single organization.
 
-Revision ID: 006_scope_policies_to_organizations
+Revision ID: 006_policy_tenant_scope
 Revises: 005_delegated_approvals
 Create Date: 2026-07-15
 
@@ -24,7 +24,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "006_scope_policies_to_organizations"
+revision = "006_policy_tenant_scope"
 down_revision = "005_delegated_approvals"
 branch_labels = None
 depends_on = None

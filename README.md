@@ -168,7 +168,7 @@ cd ../policy_assistant_service && uv run pytest -q
 
 The backend migration chain is `001_baseline → 002_add_policies →
 003_reports_workflow → 004_payment_operations → 005_delegated_approvals →
-006_scope_policies_to_organizations` and
+006_policy_tenant_scope` and
 is checked against the SQLAlchemy metadata.
 
 Migration 006 never guesses a tenant for legacy policies: ambiguous historical

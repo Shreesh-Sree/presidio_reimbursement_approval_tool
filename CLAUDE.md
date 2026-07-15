@@ -14,7 +14,7 @@ The database migration chain is:
 ```text
 001_baseline -> 002_add_policies -> 003_add_reports_workflow_and_collaboration
              -> 004_payment_operations -> 005_add_delegated_approval_audit
-             -> 006_scope_policies_to_organizations
+             -> 006_policy_tenant_scope
 ```
 
 ## Repository map

@@ -226,7 +226,9 @@ export const reportsApi = {
 };
 
 export const approvalsApi = {
-  queue: () => unwrap(apiClient.get<ApprovalQueueItem[]>("/approvals/queue")),
+  queue: () => unwrap(apiClient.get<ApprovalQueueItem[] | { queue: ApprovalQueueItem[] }>("/approvals/queue")).then((data) =>
+    Array.isArray(data) ? data : data.queue ?? [],
+  ),
   approve: (reportId: string, remarks: string) =>
     unwrap(apiClient.post<Report>(`/approvals/${reportId}/approve`, { remarks })),
   reject: (reportId: string, remarks: string) =>

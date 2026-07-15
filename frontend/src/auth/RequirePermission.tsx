@@ -16,10 +16,6 @@ const permissionsByRole: Record<string, string[]> = {
 
 function hasPermission(user: { roles: string[]; permissions?: string[] } | null, permission: string) {
   if (!user) return false;
-  // Some deployments leave role expansion to the server. In that case the API's
-  // require_permission dependency remains authoritative instead of blocking a
-  // known authenticated user prematurely in the browser.
-  if (user.roles.length === 0 && user.permissions === undefined) return true;
   if (user.permissions?.includes("*") || user.permissions?.includes(permission)) return true;
   return user.roles.some((role) => permissionsByRole[role.toLowerCase()]?.includes("*") || permissionsByRole[role.toLowerCase()]?.includes(permission));
 }

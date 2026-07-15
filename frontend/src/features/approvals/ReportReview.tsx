@@ -25,7 +25,10 @@ export function ReportReview({ reportId }: ReportReviewProps) {
   const reportQuery = useQuery({ queryKey: ["report", id], queryFn: () => reportsApi.get(id as string), enabled: Boolean(id) });
   const itemQuery = useQuery({ queryKey: ["report", id, "items"], queryFn: () => reportsApi.listItems(id as string), enabled: Boolean(id) });
   const report = reportQuery.data;
-  const items = useMemo(() => report?.line_items ?? report?.items ?? itemQuery.data ?? [], [itemQuery.data, report]);
+  const items = useMemo(() => {
+    const reportItems = report?.line_items ?? report?.items;
+    return reportItems && reportItems.length > 0 ? reportItems : itemQuery.data ?? reportItems ?? [];
+  }, [itemQuery.data, report]);
   const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const violations = Array.from(new Set([
     ...(report?.violations ?? []),

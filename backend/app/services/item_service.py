@@ -1,76 +1,65 @@
-from sqlalchemy.orm import Session
+
 from decimal import Decimal
-from datetime import datetime
+from sqlalchemy.orm import Session
 from app.models.expense_item import ExpenseItem
 from app.models.expense_report import ExpenseReport
+from app.services.audit_service import record_audit
 
 
-def add_line_item(db: Session, report_id: str, category_id: str, merchant_name: str, amount: float, expense_date: str):
-    """Add a line item to a report."""
+def add_item(db: Session, report_id, category_id, vendor_id, amount, description, user_id):
     report = db.query(ExpenseReport).filter(ExpenseReport.id == report_id).first()
     if not report:
-        raise ValueError(f"Report {report_id} not found")
-    
-    # Get next line number
-    max_line = db.query(ExpenseItem).filter(ExpenseItem.expense_report_id == report_id).count()
-    line_number = max_line + 1
+        raise ValueError("Report not found")
+    if report.status != "draft":
+        raise ValueError("Can only add items to draft reports")
     
     item = ExpenseItem(
         expense_report_id=report_id,
-        line_number=line_number,
-        category_id=category_id,
-        merchant_name=merchant_name,
-        amount=Decimal(str(amount)),
-        expense_date=expense_date,
+        expense_category_id=category_id,
+        vendor_id=vendor_id,
+        amount=amount,
+        description=description,
+        line_number=len(report.items) + 1 if report.items else 1
     )
     db.add(item)
-    db.flush()
-    
-    # Recompute report total
-    _recompute_report_total(db, report_id)
+    report.total_amount = (report.total_amount or Decimal("0")) + amount
     db.commit()
     db.refresh(item)
+    record_audit(db, "ExpenseItem", str(item.id), "insert", None, {"amount": str(amount)}, user_id, {})
     return item
 
 
-def update_line_item(db: Session, item_id: str, **kwargs):
-    """Update a line item."""
-    item = db.query(ExpenseItem).filter(ExpenseItem.id == item_id, ExpenseItem.is_deleted == False).first()
-    if not item:
-        raise ValueError(f"Item {item_id} not found")
-    
-    for key, value in kwargs.items():
-        if hasattr(item, key) and key != "id":
-            setattr(item, key, value)
-    
-    db.flush()
-    _recompute_report_total(db, item.expense_report_id)
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def delete_line_item(db: Session, item_id: str):
-    """Soft-delete a line item."""
+def update_item(db: Session, item_id, amount, description, user_id):
     item = db.query(ExpenseItem).filter(ExpenseItem.id == item_id).first()
     if not item:
-        raise ValueError(f"Item {item_id} not found")
+        raise ValueError("Item not found")
     
-    item.is_deleted = True
-    db.flush()
-    _recompute_report_total(db, item.expense_report_id)
+    report = item.expense_report
+    if report.status != "draft":
+        raise ValueError("Can only edit items in draft reports")
+    
+    before_state = {"amount": str(item.amount), "description": item.description}
+    report.total_amount = (report.total_amount or Decimal("0")) - item.amount + amount
+    item.amount = amount
+    item.description = description
     db.commit()
+    db.refresh(item)
+    record_audit(db, "ExpenseItem", str(item.id), "update", before_state, {"amount": str(amount), "description": description}, user_id, {})
     return item
 
 
-def _recompute_report_total(db: Session, report_id: str):
-    """Recalculate report total from non-deleted items."""
-    total = db.query(ExpenseItem).filter(
-        ExpenseItem.expense_report_id == report_id,
-        ExpenseItem.is_deleted == False,
-    ).with_entities(
-        db.func.sum(ExpenseItem.amount)
-    ).scalar() or Decimal(0)
+def delete_item(db: Session, item_id, user_id):
+    item = db.query(ExpenseItem).filter(ExpenseItem.id == item_id).first()
+    if not item:
+        raise ValueError("Item not found")
     
-    report = db.query(ExpenseReport).filter(ExpenseReport.id == report_id).first()
-    report.total_amount = float(total)
+    report = item.expense_report
+    report.total_amount = (report.total_amount or Decimal("0")) - item.amount
+    item.is_deleted = True
+    item.deleted_at = datetime.utcnow()
+    db.commit()
+    record_audit(db, "ExpenseItem", str(item.id), "delete", {"amount": str(item.amount)}, None, user_id, {})
+
+
+def list_items(db: Session, report_id):
+    return db.query(ExpenseItem).filter(ExpenseItem.expense_report_id == report_id, ExpenseItem.is_deleted == False).all()

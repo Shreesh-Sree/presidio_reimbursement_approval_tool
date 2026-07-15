@@ -1,71 +1,72 @@
-from sqlalchemy.orm import Session
+
 from datetime import datetime
+from decimal import Decimal
+from sqlalchemy.orm import Session
 from app.models.expense_report import ExpenseReport
 from app.models.policy import Policy
-import uuid
+from app.services.audit_service import record_audit
 
 
-def create_draft_report(db: Session, employee_user_id: str, department_id: str, title: str):
-    """Create a new draft report."""
+def create_draft(db: Session, employee_user_id, department_id, title):
     report = ExpenseReport(
-        report_number=f"RPT-{uuid.uuid4().hex[:8]}",
+        report_number=f"RPT-{int(datetime.utcnow().timestamp())}",
         employee_user_id=employee_user_id,
         department_id=department_id,
         title=title,
         status="draft",
-        total_amount=0,
+        total_amount=Decimal("0"),
+        last_saved_at=datetime.utcnow()
     )
     db.add(report)
     db.commit()
     db.refresh(report)
+    record_audit(db, "ExpenseReport", str(report.id), "insert", None, {"status": "draft"}, employee_user_id, {})
     return report
 
 
-def submit_report(db: Session, report_id: str):
-    """Submit a report (snapshot active policy, set submitted_at)."""
-    report = db.query(ExpenseReport).filter(ExpenseReport.id == report_id, ExpenseReport.is_deleted == False).first()
+def submit_report(db: Session, report_id, user_id):
+    report = db.query(ExpenseReport).filter(ExpenseReport.id == report_id).first()
     if not report:
-        raise ValueError(f"Report {report_id} not found")
+        raise ValueError("Report not found")
     
-    # Snapshot active policy
-    active_policy = db.query(Policy).filter(Policy.is_active == True).first()
+    active_policy = db.query(Policy).filter(Policy.is_active == True).order_by(Policy.created_at.desc()).first()
     if not active_policy:
-        raise ValueError("No active policy to snapshot")
+        raise ValueError("No active policy")
     
-    report.applied_policy_id = active_policy.id
+    before_state = {"status": report.status, "submitted_at": None}
     report.status = "submitted"
-    report.submitted_at = datetime.utcnow().isoformat()
+    report.submitted_at = datetime.utcnow()
+    report.applied_policy_id = active_policy.id
     db.commit()
     db.refresh(report)
+    record_audit(db, "ExpenseReport", str(report.id), "update", before_state, {"status": "submitted", "applied_policy_id": str(active_policy.id)}, user_id, {})
     return report
 
 
-def withdraw_report(db: Session, report_id: str):
-    """Withdraw a report (revert to draft if submitted)."""
-    report = db.query(ExpenseReport).filter(ExpenseReport.id == report_id, ExpenseReport.is_deleted == False).first()
+def withdraw_report(db: Session, report_id, user_id):
+    report = db.query(ExpenseReport).filter(ExpenseReport.id == report_id).first()
     if not report:
-        raise ValueError(f"Report {report_id} not found")
-    
+        raise ValueError("Report not found")
     if report.status != "submitted":
-        raise ValueError(f"Cannot withdraw report in {report.status} status")
+        raise ValueError("Only submitted reports can be withdrawn")
     
+    before_state = {"status": report.status}
     report.status = "draft"
     report.submitted_at = None
     db.commit()
     db.refresh(report)
+    record_audit(db, "ExpenseReport", str(report.id), "update", before_state, {"status": "draft"}, user_id, {})
     return report
 
 
-def list_reports(db: Session, user_id: str = None, department_id: str = None):
-    """List reports filtered by user/department."""
+def list_reports(db: Session, org_id, filters=None):
     query = db.query(ExpenseReport).filter(ExpenseReport.is_deleted == False)
-    if user_id:
-        query = query.filter(ExpenseReport.employee_user_id == user_id)
-    if department_id:
-        query = query.filter(ExpenseReport.department_id == department_id)
+    if filters and "employee_id" in filters:
+        query = query.filter(ExpenseReport.employee_user_id == filters["employee_id"])
+    if filters and "status" in filters:
+        query = query.filter(ExpenseReport.status == filters["status"])
     return query.all()
 
 
-def get_report(db: Session, report_id: str):
-    """Get a specific report."""
+def get_report(db: Session, report_id):
     return db.query(ExpenseReport).filter(ExpenseReport.id == report_id, ExpenseReport.is_deleted == False).first()

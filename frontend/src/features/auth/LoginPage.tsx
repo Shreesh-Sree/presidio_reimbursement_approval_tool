@@ -13,7 +13,7 @@ export function LoginPage() {
     try {
       await login(email, password);
       navigate("/reports");
-    } catch (err) {
+    } catch {
       alert("Login failed");
     }
   };

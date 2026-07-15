@@ -1,10 +1,9 @@
-import React, { createContext, useContext, useState } from "react";
+/* oxlint-disable react/only-export-components */
+import { createContext, useContext, useState } from "react";
+import type { ReactNode } from "react";
+import { authApi, setApiToken, type SessionUser } from "../lib/api";
 
-interface User {
-  user_id: string;
-  email: string;
-  roles: string[];
-}
+export type User = SessionUser;
 
 interface AuthContextType {
   user: User | null;
@@ -15,23 +14,33 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = window.localStorage.getItem("session_user");
+    if (!storedUser) return null;
+    try {
+      return JSON.parse(storedUser) as User;
+    } catch {
+      window.localStorage.removeItem("session_user");
+      return null;
+    }
+  });
+  const [token, setToken] = useState<string | null>(() => window.localStorage.getItem("access_token"));
 
   const login = async (email: string, password: string) => {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      body: new URLSearchParams({ email, password }),
-    });
-    const data = await res.json();
+    const data = await authApi.login(email, password);
+    setApiToken(data.access_token);
     setToken(data.access_token);
-    setUser({ user_id: "test", email, roles: ["admin"] });
+    const sessionUser = data.user ?? await authApi.me();
+    setUser(sessionUser);
+    window.localStorage.setItem("session_user", JSON.stringify(sessionUser));
   };
 
   const logout = () => {
+    setApiToken(null);
     setUser(null);
     setToken(null);
+    window.localStorage.removeItem("session_user");
   };
 
   return (

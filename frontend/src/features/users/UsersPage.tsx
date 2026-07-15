@@ -1,44 +1,36 @@
-import { useEffect, useState } from "react";
-import { useAuth } from "../../auth/AuthContext";
-
-interface User {
-  id: string;
-  email: string;
-  full_name: string;
-  status: string;
-}
+import { useQuery } from "@tanstack/react-query";
+import { usersApi } from "../../lib/api";
 
 export function UsersPage() {
-  const { token } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-
-  useEffect(() => {
-    fetch("/api/users", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then(setUsers);
-  }, [token]);
+  const users = useQuery({ queryKey: ["users"], queryFn: usersApi.list });
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Users</h1>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+    <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
+      <header className="border-b border-slate-200 pb-5 dark:border-slate-800">
+        <h1 className="text-2xl font-semibold text-slate-950 dark:text-white">Users</h1>
+      </header>
+      {users.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading users…</p>}
+      {users.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load users.</p>}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+      <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-slate-800">
         <thead>
-          <tr style={{ borderBottom: "1px solid #ddd" }}>
-            <th>Email</th>
-            <th>Name</th>
-            <th>Status</th>
+          <tr className="bg-slate-50 dark:bg-slate-900">
+            <th className="px-4 py-3 font-medium">Email</th>
+            <th className="px-4 py-3 font-medium">Name</th>
+            <th className="px-4 py-3 font-medium">Status</th>
           </tr>
         </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr key={u.id} style={{ borderBottom: "1px solid #ddd" }}>
-              <td>{u.email}</td>
-              <td>{u.full_name || "N/A"}</td>
-              <td>{u.status}</td>
+        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+          {users.data?.map((user) => (
+            <tr key={user.id}>
+              <td className="px-4 py-3">{user.email}</td>
+              <td className="px-4 py-3">{user.full_name || "N/A"}</td>
+              <td className="px-4 py-3">{user.status}</td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </main>
   );
 }

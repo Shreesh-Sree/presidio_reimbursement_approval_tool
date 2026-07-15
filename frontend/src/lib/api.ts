@@ -121,6 +121,26 @@ export type ReportComment = {
   created_at: string;
 };
 
+export type SessionUser = {
+  user_id: string;
+  email: string;
+  roles: string[];
+  permissions?: string[];
+};
+
+export type LoginResponse = {
+  access_token: string;
+  token_type?: string;
+  user?: SessionUser;
+};
+
+export type ManagedUser = {
+  id: string;
+  email: string;
+  full_name?: string;
+  status: string;
+};
+
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? "/api",
   headers: { "Content-Type": "application/json" },
@@ -158,6 +178,16 @@ export const policiesApi = {
       }),
     );
   },
+};
+
+export const authApi = {
+  login: (email: string, password: string) => unwrap(apiClient.post<LoginResponse>("/auth/login", { email, password })),
+  me: () => unwrap(apiClient.get<SessionUser>("/auth/me")),
+  logout: () => unwrap(apiClient.post<void>("/auth/logout")),
+};
+
+export const usersApi = {
+  list: () => unwrap(apiClient.get<ManagedUser[]>("/users")),
 };
 
 export const categoriesApi = {

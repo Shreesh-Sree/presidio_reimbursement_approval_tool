@@ -14,7 +14,7 @@ const draftReport: Report = {
   line_items: [],
 };
 
-function renderEditor(report: Report = draftReport) {
+function renderEditor() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -60,7 +60,7 @@ describe("ReportEditor", () => {
     };
     vi.mocked(reportsApi.get).mockResolvedValue(violatingReport);
     vi.mocked(reportsApi.listItems).mockResolvedValue(violatingReport.line_items ?? []);
-    renderEditor(violatingReport);
+    renderEditor();
 
     expect((await screen.findAllByText(/receipt is required above \$100/i)).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /^submit report$/i })).toBeDisabled();

@@ -11,6 +11,15 @@ from app.models.vendor import Vendor
 from app.models.expense_report import ExpenseReport
 from app.models.expense_item import ExpenseItem
 from app.models.audit_log import AuditLog
+from app.models.approval_level import ApprovalLevel
+from app.models.approval_history import ApprovalHistory
+from app.models.attachment import Attachment
+from app.models.comment import Comment
+from app.models.delegation import Delegation
+from app.models.notification import Notification
+from app.models.payment_record import PaymentRecord
+from app.models.session import Session
+from app.models.workflow_rule import WorkflowRule
 
 __all__ = [
     "Organization",
@@ -27,4 +36,13 @@ __all__ = [
     "ExpenseReport",
     "ExpenseItem",
     "AuditLog",
+    "ApprovalLevel",
+    "ApprovalHistory",
+    "Attachment",
+    "Comment",
+    "Delegation",
+    "Notification",
+    "PaymentRecord",
+    "Session",
+    "WorkflowRule",
 ]

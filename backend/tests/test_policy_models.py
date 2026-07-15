@@ -1,4 +1,5 @@
 import pytest
+from datetime import UTC, datetime
 from app.models.policy import Policy, PolicyRule
 from app.models.expense_category import ExpenseCategory
 
@@ -9,7 +10,7 @@ def test_policy_model_create(db):
         name="Travel Policy",
         version_label="v1.0",
         is_active=True,
-        effective_from="2026-07-15",
+        effective_from=datetime(2026, 7, 15, tzinfo=UTC),
     )
     db.add(policy)
     db.commit()
@@ -26,7 +27,7 @@ def test_policy_rule_model_create(db):
         name="Travel Policy",
         version_label="v1.0",
         is_active=True,
-        effective_from="2026-07-15",
+        effective_from=datetime(2026, 7, 15, tzinfo=UTC),
     )
     db.add(policy)
     db.flush()

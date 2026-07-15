@@ -1,19 +1,27 @@
 from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
+import bcrypt
 import jwt
 
 from app.core.config import get_settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 settings = get_settings()
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    encoded = password.encode("utf-8")
+    if len(encoded) > 72:
+        raise ValueError("password cannot exceed 72 UTF-8 bytes")
+    return bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    encoded = plain.encode("utf-8")
+    if len(encoded) > 72:
+        return False
+    try:
+        return bcrypt.checkpw(encoded, hashed.encode("utf-8"))
+    except (TypeError, ValueError):
+        return False
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:

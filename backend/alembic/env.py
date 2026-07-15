@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.core.config import get_settings
 from app.core.database import Base
+import app.models  # noqa: F401 - register every mapped table for migration metadata
 
 config = context.config
 

@@ -30,6 +30,7 @@ describe("ApprovalQueuePage", () => {
         submitter_name: "Maya Chen",
       },
     ]);
+    vi.spyOn(approvalsApi, "history").mockResolvedValue([]);
     vi.spyOn(approvalsApi, "approve").mockResolvedValue({ id: "report-1", title: "July client visit", status: "approved", total: 356.42 });
   });
 
@@ -50,5 +51,25 @@ describe("ApprovalQueuePage", () => {
     await user.click(screen.getByRole("button", { name: /^approve$/i }));
 
     await waitFor(() => expect(approve).toHaveBeenCalledWith("report-1", "Policy checks complete"));
+  });
+
+  it("shows completed reports in the manager's team history", async () => {
+    vi.mocked(approvalsApi.history).mockResolvedValue([
+      {
+        id: "report-history-1",
+        title: "June customer visit",
+        status: "approved_pending_payment",
+        total: 120,
+        currency: "USD",
+        submitter_name: "Maya Chen",
+        approval_status: "approved",
+        approval_decision_at: "2026-07-15T10:00:00Z",
+      },
+    ]);
+    renderWithQuery(<ApprovalQueuePage />);
+
+    expect(await screen.findByText("My team history")).toBeInTheDocument();
+    expect(await screen.findByText("June customer visit")).toBeInTheDocument();
+    expect(screen.getByText("Your decision: Approved")).toBeInTheDocument();
   });
 });

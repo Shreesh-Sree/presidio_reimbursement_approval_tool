@@ -155,6 +155,8 @@ export type ReportLineItemInput = {
 
 export type ApprovalQueueItem = Pick<Report, "id" | "title" | "status" | "total" | "currency" | "created_at" | "submitter_name"> & {
   pending_with?: string;
+  approval_status?: string;
+  approval_decision_at?: string | null;
 };
 
 export type Notification = {
@@ -342,6 +344,7 @@ export const approvalsApi = {
   queue: () => unwrap(apiClient.get<ApprovalQueueItem[] | { queue: ApprovalQueueItem[] }>("/approvals/queue")).then((data) =>
     Array.isArray(data) ? data : data.queue ?? [],
   ),
+  history: () => unwrap(apiClient.get<ApprovalQueueItem[]>("/approvals/history")),
   approve: (reportId: string, remarks: string) =>
     unwrap(apiClient.post<Report>(`/approvals/${reportId}/approve`, { remarks })),
   reject: (reportId: string, remarks: string) =>

@@ -37,6 +37,21 @@ async def approval_queue(
     return queue
 
 
+@router.get("/history")
+async def approval_history(
+    db: Session = Depends(get_db),
+    user: dict[str, object] = Depends(require_permission("report:approve")),
+):
+    entries = approval_service.history_for_approver(db, user["user_id"])
+    history = []
+    for level, report in entries:
+        payload = presentation_service.report_payload(db, report, include_items=False)
+        payload["approval_status"] = level.status
+        payload["approval_decision_at"] = level.decision_date.isoformat() if level.decision_date else None
+        history.append(payload)
+    return history
+
+
 async def _take_action(
     report_id: str,
     action: str,

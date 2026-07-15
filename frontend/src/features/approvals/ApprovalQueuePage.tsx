@@ -10,6 +10,7 @@ function formatStatus(status: string) {
 export function ApprovalQueuePage() {
   const navigate = useNavigate();
   const queue = useQuery({ queryKey: ["approval-queue"], queryFn: approvalsApi.queue });
+  const history = useQuery({ queryKey: ["approval-history"], queryFn: approvalsApi.history });
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
@@ -38,6 +39,32 @@ export function ApprovalQueuePage() {
           </article>
         ))}
       </div>
+
+      <section aria-labelledby="approval-history-heading" className="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-800">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white" id="approval-history-heading">My team history</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Review reports you have already approved, rejected, sent back, or had withdrawn.</p>
+        </div>
+        {history.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading approval history…</p>}
+        {history.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load your approval history.</p>}
+        {history.data?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No completed team reviews yet.</p>}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {history.data?.map((report) => (
+            <article className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" key={`history-${report.id}-${report.approval_decision_at ?? report.approval_status ?? "review"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-slate-950 dark:text-white">{report.title}</h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{report.submitter_name ?? "Employee not listed"}</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">{formatStatus(report.status)}</span>
+              </div>
+              <p className="mt-4 text-sm font-medium text-slate-700 dark:text-slate-200">Your decision: {formatStatus(report.approval_status ?? "recorded")}</p>
+              {report.approval_decision_at && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Reviewed {new Date(report.approval_decision_at).toLocaleDateString()}</p>}
+              <Button className="mt-5 w-full" onClick={() => navigate(`/approvals/${report.id}`)} variant="outline">View report</Button>
+            </article>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

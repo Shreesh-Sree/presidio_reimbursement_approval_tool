@@ -135,6 +135,10 @@ def test_full_reimbursement_flow(client):
     assert approved.status_code == 200, approved.text
     assert approved.json()["status"] == "approved_pending_payment"
     assert approved.json()["approval_history"][-1]["action"] == "approve"
+    history = client.get("/api/approvals/history", headers=manager_headers)
+    assert history.status_code == 200, history.text
+    assert history.json()[0]["id"] == report_id
+    assert history.json()[0]["approval_status"] == "approved"
 
     notifications = client.get("/api/notifications", headers=employee_headers)
     assert notifications.status_code == 200, notifications.text

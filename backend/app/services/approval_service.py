@@ -263,6 +263,24 @@ def queue_for_approver(db: Session, user_id: uuid.UUID | str) -> list[tuple[Appr
     )
 
 
+def history_for_approver(db: Session, user_id: uuid.UUID | str) -> list[tuple[ApprovalLevel, ExpenseReport]]:
+    """Return completed/cancelled decisions for an approver's team history."""
+
+    approver_id = _as_uuid(user_id)
+    return (
+        db.query(ApprovalLevel, ExpenseReport)
+        .join(ExpenseReport, ExpenseReport.id == ApprovalLevel.expense_report_id)
+        .filter(
+            ApprovalLevel.approver_user_id == approver_id,
+            ApprovalLevel.status.notin_(("pending", "waiting")),
+            ApprovalLevel.is_deleted.is_(False),
+            ExpenseReport.is_deleted.is_(False),
+        )
+        .order_by(ApprovalLevel.decision_date.desc(), ExpenseReport.updated_at.desc())
+        .all()
+    )
+
+
 def _pending_level(db: Session, report: ExpenseReport, user_id: uuid.UUID | str) -> ApprovalLevel:
     level = (
         db.query(ApprovalLevel)

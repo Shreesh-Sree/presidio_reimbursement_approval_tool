@@ -11,11 +11,13 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.clerk import ClerkConfigurationError, ClerkTokenError, verify_clerk_token
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.models.session import Session as AuthSession
 from app.models.user import User
-from app.services import user_service
+from app.services import oauth_access_service, user_service
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -34,7 +36,7 @@ async def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
-    """Resolve an active user from a signed, non-revoked login session."""
+    """Resolve an active allowlisted user from the configured auth provider."""
 
     if creds is None or creds.scheme.lower() != "bearer":
         raise HTTPException(
@@ -42,38 +44,71 @@ async def get_current_user(
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    payload = decode_token(creds.credentials)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    try:
-        user_id = uuid.UUID(str(payload.get("sub")))
-    except (TypeError, ValueError, AttributeError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject") from exc
+    settings = get_settings()
+    session_id = None
+    if settings.auth_provider == "clerk":
+        try:
+            identity = verify_clerk_token(creds.credentials, settings)
+        except ClerkConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="OAuth authentication is not configured",
+            ) from exc
+        except ClerkTokenError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired OAuth token",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from exc
+        try:
+            user = oauth_access_service.resolve_oauth_user(db, identity=identity, settings=settings)
+        except oauth_access_service.OAuthAccessDeniedError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "access_not_granted",
+                    "message": oauth_access_service.OAuthAccessDeniedError.public_message,
+                },
+            ) from exc
+        except oauth_access_service.OAuthBootstrapConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="OAuth access bootstrap is not configured safely",
+            ) from exc
+    else:
+        payload = decode_token(creds.credentials)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        try:
+            user_id = uuid.UUID(str(payload.get("sub")))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject") from exc
 
-    user = db.scalar(
-        select(User).where(
-            User.id == user_id,
-            User.is_deleted.is_(False),
-            User.status == "active",
+        user = db.scalar(
+            select(User).where(
+                User.id == user_id,
+                User.is_deleted.is_(False),
+                User.status == "active",
+            )
         )
-    )
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
 
-    auth_session = db.scalar(
-        select(AuthSession).where(
-            AuthSession.session_token_hash == _token_hash(creds.credentials),
-            AuthSession.user_id == user.id,
-            AuthSession.is_deleted.is_(False),
-            AuthSession.revoked_at.is_(None),
+        auth_session = db.scalar(
+            select(AuthSession).where(
+                AuthSession.session_token_hash == _token_hash(creds.credentials),
+                AuthSession.user_id == user.id,
+                AuthSession.is_deleted.is_(False),
+                AuthSession.revoked_at.is_(None),
+            )
         )
-    )
-    if auth_session is None or _is_expired(auth_session.expires_at):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is no longer active")
+        if auth_session is None or _is_expired(auth_session.expires_at):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is no longer active")
+        session_id = auth_session.id
 
     return {
         "user_id": str(user.id),
@@ -82,7 +117,7 @@ async def get_current_user(
         "department_id": str(user.department_id),
         "roles": user_service.role_codes_for_user(db, user.id),
         "permissions": user_service.permission_codes_for_user(db, user.id),
-        "session_id": auth_session.id,
+        "session_id": session_id,
         "model": user,
     }
 

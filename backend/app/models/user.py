@@ -14,6 +14,7 @@ class User(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
         UniqueConstraint("organization_id", "employee_number", name="uq_user_org_employee_number"),
         UniqueConstraint("organization_id", "username", name="uq_user_org_username"),
         UniqueConstraint("organization_id", "email", name="uq_user_org_email"),
+        UniqueConstraint("external_auth_subject", name="uq_users_external_auth_subject"),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
@@ -22,7 +23,11 @@ class User(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     employee_number: Mapped[str] = mapped_column(String(50), nullable=False)
     username: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
-    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    # Passwords are intentionally absent for OAuth-created accounts.  Existing
+    # hashes can remain during the local-auth migration window, but Clerk mode
+    # never reads or creates them.
+    password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    external_auth_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     designation: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.schemas import BootstrapRequest, LoginRequest
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.security import create_access_token, decode_token, verify_password
@@ -25,6 +26,19 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _require_local_auth() -> None:
+    """Disable password bootstrap/login whenever Clerk is the configured IdP."""
+
+    if get_settings().auth_provider != "local":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "code": "oauth_only",
+                "message": "Password authentication is disabled. Sign in through your company OAuth provider.",
+            },
+        )
 
 
 def _expiry_for_token(token: str) -> datetime:
@@ -73,6 +87,7 @@ async def bootstrap(request: BootstrapRequest, db: Session = Depends(get_db)):
     exists, preventing it from becoming an administrative back door.
     """
 
+    _require_local_auth()
     active_user = db.scalar(
         select(User.id).where(User.is_deleted.is_(False), User.status == "active").limit(1)
     )
@@ -122,6 +137,7 @@ async def bootstrap(request: BootstrapRequest, db: Session = Depends(get_db)):
 
 @router.post("/login")
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    _require_local_auth()
     user_service.ensure_system_roles_and_permissions(db)
     user = db.scalar(
         select(User).where(
@@ -151,7 +167,9 @@ async def logout(
         if auth_session is not None:
             auth_session.revoked_at = datetime.now(UTC)
             db.commit()
-    return {"message": "Logged out"}
+    # Clerk session revocation is owned by the Clerk client.  The local mode
+    # retains explicit session revocation for migration/test environments.
+    return {"message": "Logged out" if session_id else "OAuth sign-out is managed by the identity provider"}
 
 
 @router.get("/me")

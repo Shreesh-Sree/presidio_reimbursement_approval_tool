@@ -20,6 +20,7 @@ from sqlalchemy.pool import StaticPool
 # Settings are read during app imports, so set safe test defaults first.
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("JWT_SECRET", "a-very-long-secret-key-for-testing-at-least-32-bytes-long-definitely")
+os.environ.setdefault("AUTH_PROVIDER", "local")
 os.environ.setdefault("AI_REVIEW_REFERENCE_HMAC_KEY", "test-ai-review-reference-key")
 os.environ.setdefault("S3_BUCKET", "test-bucket")
 

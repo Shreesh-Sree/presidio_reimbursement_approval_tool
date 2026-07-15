@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.schemas import UserCreateRequest, UserUpdateRequest
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import require_permission
 from app.services import user_service
@@ -33,6 +34,11 @@ async def create_user(
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:create")),
 ):
+    if get_settings().auth_provider == "clerk" and request.password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password fields are unavailable when OAuth-only authentication is enabled",
+        )
     organization_id, department_id, _ = _scope(current_user)
     try:
         return user_service.create_user(
@@ -78,6 +84,11 @@ async def update_user(
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:update")),
 ):
+    if get_settings().auth_provider == "clerk" and request.password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password fields are unavailable when OAuth-only authentication is enabled",
+        )
     organization_id, _, _ = _scope(current_user)
     try:
         return user_service.update_user(

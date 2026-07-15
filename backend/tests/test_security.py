@@ -12,3 +12,7 @@ def test_token_encode_decode():
 
 def test_invalid_token():
     assert decode_token("invalid-token") is None
+
+
+def test_password_verification_rejects_passwordless_oauth_account():
+    assert verify_password("correct-horse-battery-staple", None) is False

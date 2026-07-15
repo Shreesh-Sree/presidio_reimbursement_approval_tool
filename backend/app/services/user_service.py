@@ -377,6 +377,9 @@ def user_response(db: Session, user: User) -> dict[str, object]:
         "full_name": user.full_name,
         "status": user.status,
         "roles": role_codes_for_user(db, user.id),
+        # Never expose Clerk's subject.  Administrators only need to know
+        # whether their email allowlist entry has completed first sign-in.
+        "oauth_status": "linked" if user.external_auth_subject else "invited",
         "manager_id": str(user.manager_user_id) if user.manager_user_id else None,
         "manager_name": manager.full_name if manager and not manager.is_deleted else None,
     }
@@ -388,10 +391,11 @@ def create_user(
     organization_id: uuid.UUID,
     department_id: uuid.UUID,
     email: str,
-    password: str,
     full_name: str,
     role_codes: Iterable[str],
     manager_id: uuid.UUID | None,
+    password: str | None = None,
+    external_auth_subject: str | None = None,
 ) -> dict[str, object]:
     ensure_system_roles_and_permissions(db)
     normalized_email = email.lower()
@@ -406,7 +410,8 @@ def create_user(
         employee_number=_employee_number(db, organization_id),
         username=_username_for_email(db, organization_id, normalized_email),
         email=normalized_email,
-        password_hash=hash_password(password),
+        password_hash=hash_password(password) if password else None,
+        external_auth_subject=external_auth_subject.strip() if external_auth_subject else None,
         full_name=full_name.strip(),
         status="active",
     )
@@ -423,6 +428,72 @@ def create_user(
     db.commit()
     db.refresh(user)
     return user_response(db, user)
+
+
+def ensure_administrator_role(db: Session, user: User) -> User:
+    """Grant the configured first OAuth identity the administrator role.
+
+    This is called only after a verified token email matches ``SUPER_ADMIN_EMAIL``.
+    It preserves any employee/approver roles the same person already has.
+    """
+
+    ensure_system_roles_and_permissions(db)
+    existing_roles = role_codes_for_user(db, user.id)
+    if "administrator" in existing_roles:
+        return user
+
+    _replace_roles(db, user, [*existing_roles, "administrator"])
+    record_audit(
+        db,
+        "users",
+        str(user.id),
+        "grant_super_administrator",
+        before={"roles": existing_roles},
+        after={"roles": role_codes_for_user(db, user.id)},
+    )
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def link_external_identity(db: Session, user: User, *, subject: str) -> User:
+    """Bind a verified Clerk subject once without storing provider credentials.
+
+    Email remains the allowlist key.  Binding the stable external subject on
+    first OAuth login prevents a different Clerk account with a later-reused
+    email address from silently taking over that application account.
+    """
+
+    normalized_subject = subject.strip()
+    if not normalized_subject or len(normalized_subject) > 255:
+        raise UserServiceError("OAuth identity is invalid", 401)
+    if user.external_auth_subject:
+        if user.external_auth_subject != normalized_subject:
+            raise UserServiceError("This OAuth identity is not allowed for the account", 403)
+        return user
+
+    linked_user_id = db.scalar(
+        select(User.id).where(
+            User.external_auth_subject == normalized_subject,
+            User.id != user.id,
+            User.is_deleted.is_(False),
+        )
+    )
+    if linked_user_id is not None:
+        raise UserServiceError("This OAuth identity is already linked to another account", 403)
+
+    user.external_auth_subject = normalized_subject
+    user.last_login_at = datetime.now(UTC)
+    record_audit(
+        db,
+        "users",
+        str(user.id),
+        "link_oauth_identity",
+        after={"oauth_status": "linked"},
+    )
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def list_users(db: Session, organization_id: uuid.UUID) -> list[dict[str, object]]:

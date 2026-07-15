@@ -4,9 +4,6 @@ import jwt
 
 from app.core.config import get_settings
 
-settings = get_settings()
-
-
 def hash_password(password: str) -> str:
     encoded = password.encode("utf-8")
     if len(encoded) > 72:
@@ -14,17 +11,20 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(encoded, bcrypt.gensalt()).decode("utf-8")
 
 
-def verify_password(plain: str, hashed: str) -> bool:
+def verify_password(plain: str, hashed: str | None) -> bool:
+    if not isinstance(plain, str) or not isinstance(hashed, str):
+        return False
     encoded = plain.encode("utf-8")
     if len(encoded) > 72:
         return False
     try:
         return bcrypt.checkpw(encoded, hashed.encode("utf-8"))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AttributeError):
         return False
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    settings = get_settings()
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -36,6 +36,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 
 
 def decode_token(token: str) -> dict:
+    settings = get_settings()
     try:
         return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except jwt.InvalidTokenError:

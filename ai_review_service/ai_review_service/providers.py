@@ -140,29 +140,48 @@ class GroqNarrativeProvider:
     """Optional Groq adapter using JSON Object Mode and minimized review facts.
 
     The Groq SDK is imported only when the provider is selected, keeping the
-    rule-based path dependency-free. The response is still parsed and
-    validated locally, and the recommendation remains deterministic.
+    rule-based path dependency-free. Its async client receives the same finite
+    deadline as the resilient wrapper, and SDK retries are disabled so this
+    service owns the complete retry budget. Cancellation therefore reaches the
+    HTTP request directly rather than leaving a blocking worker thread behind.
+    The response is still parsed and validated locally, and the recommendation
+    remains deterministic.
     """
 
     name = "groq"
 
-    def __init__(self, *, api_key: str, model: str = "openai/gpt-oss-20b") -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str = "openai/gpt-oss-20b",
+        timeout_seconds: float = 8.0,
+    ) -> None:
         if not api_key:
             raise ValueError("GroqNarrativeProvider requires an API key")
+        if timeout_seconds <= 0:
+            raise ValueError("GroqNarrativeProvider timeout_seconds must be positive")
         self._api_key = api_key
         self._model = model
+        self._timeout_seconds = timeout_seconds
 
     async def generate(self, context: ProviderReviewContext) -> NarrativeDraft:
         prompt = provider_prompt(context)
 
-        def request() -> str:
-            try:
-                from groq import Groq
-            except ImportError as exc:  # pragma: no cover - depends on optional install
-                raise RuntimeError("Groq support is not installed") from exc
+        try:
+            from groq import AsyncGroq
+        except ImportError as exc:  # pragma: no cover - depends on optional install
+            raise RuntimeError("Groq support is not installed") from exc
 
-            client = Groq(api_key=self._api_key)
-            response = client.chat.completions.create(
+        client = AsyncGroq(
+            api_key=self._api_key,
+            timeout=self._timeout_seconds,
+            # The resilient wrapper owns all retries. Disabling SDK retries
+            # bounds each attempt to one cancellable network request.
+            max_retries=0,
+        )
+        try:
+            response = await client.chat.completions.create(
                 model=self._model,
                 messages=(
                     {
@@ -185,9 +204,10 @@ class GroqNarrativeProvider:
                 raise RuntimeError("Groq returned an empty advisory response") from exc
             if not text or not str(text).strip():
                 raise RuntimeError("Groq returned an empty advisory response")
-            return str(text).strip()
+            raw = str(text).strip()
+        finally:
+            await client.close()
 
-        raw = await asyncio.to_thread(request)
         payload = _parse_provider_payload(raw)
         payload["recommendation"] = RuleBasedNarrativeProvider.recommendation_for(context)
         return NarrativeDraft.model_validate(payload)

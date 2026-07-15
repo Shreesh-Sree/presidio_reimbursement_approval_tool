@@ -111,7 +111,11 @@ def build_narrative_provider(settings: AIReviewSettings) -> NarrativeProvider | 
     if settings.provider == "gemini" and settings.gemini_api_key:
         return GeminiNarrativeProvider(api_key=settings.gemini_api_key, model=settings.gemini_model)
     if settings.provider == "groq" and settings.groq_api_key:
-        return GroqNarrativeProvider(api_key=settings.groq_api_key, model=settings.groq_model)
+        return GroqNarrativeProvider(
+            api_key=settings.groq_api_key,
+            model=settings.groq_model,
+            timeout_seconds=settings.provider_timeout_seconds,
+        )
     return None
 
 

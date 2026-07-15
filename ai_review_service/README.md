@@ -137,7 +137,11 @@ AI_REVIEW_PROVIDER=gemini AI_REVIEW_GEMINI_API_KEY=<secret> AI_REVIEW_GEMINI_MOD
 
 Groq uses its official Python SDK and JSON Object Mode. The default model is
 `openai/gpt-oss-20b`; set `AI_REVIEW_GROQ_MODEL` explicitly if a project-level
-model allow-list requires another supported JSON-capable model.
+model allow-list requires another supported JSON-capable model. Its async SDK
+uses `AI_REVIEW_PROVIDER_TIMEOUT_SECONDS` as a per-attempt HTTP deadline and
+disables SDK retries; the service's resilient wrapper owns the bounded retry
+budget. A timed-out attempt is cancelled directly instead of accumulating
+background vendor work.
 
 ```bash
 uv sync --extra groq

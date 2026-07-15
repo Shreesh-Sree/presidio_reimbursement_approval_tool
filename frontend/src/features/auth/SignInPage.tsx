@@ -1,4 +1,4 @@
-import { SignIn } from "@clerk/clerk-react";
+import { SignIn } from "@clerk/react";
 import { Box, Paper, Typography } from "@mui/material";
 
 /**

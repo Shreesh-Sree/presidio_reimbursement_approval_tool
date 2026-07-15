@@ -1,8 +1,7 @@
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
-import { ClerkProviderBoundary } from "./auth/clerk";
 import { RequirePermission } from "./auth/RequirePermission";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { AccessDeniedPage } from "./features/auth/AccessDeniedPage";
@@ -144,14 +143,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ClerkProviderBoundary>
-      <AuthProvider>
-        <BrowserRouter>
-          <AppErrorBoundary>
-            <AppContent />
-          </AppErrorBoundary>
-        </BrowserRouter>
-      </AuthProvider>
-    </ClerkProviderBoundary>
+    <AuthProvider>
+      <AppErrorBoundary>
+        <AppContent />
+      </AppErrorBoundary>
+    </AuthProvider>
   );
 }

@@ -1,10 +1,17 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../../App";
 import { AuthContext, type AuthContextType } from "../../../auth/AuthContext";
 import { AccessDeniedPage } from "../AccessDeniedPage";
 import { OAuthConfigurationPage } from "../OAuthConfigurationPage";
+
+vi.mock("../../../auth/clerk", () => ({
+  clerkJwtTemplate: "presidio-api",
+  clerkPublishableKey: "",
+  isClerkConfigured: false,
+}));
 
 const deniedContext: AuthContextType = {
   user: null,
@@ -20,7 +27,7 @@ const deniedContext: AuthContextType = {
 
 describe("OAuth access states", () => {
   it("shows the configuration state instead of a manual credential fallback", () => {
-    render(<App />);
+    render(<BrowserRouter><App /></BrowserRouter>);
 
     expect(screen.getByRole("heading", { name: /oauth sign-in is not configured/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();

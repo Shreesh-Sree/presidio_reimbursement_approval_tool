@@ -1,5 +1,5 @@
 /* oxlint-disable react/only-export-components */
-import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
+import { useAuth as useClerkAuth, useUser } from "@clerk/react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { clerkJwtTemplate, isClerkConfigured } from "./clerk";

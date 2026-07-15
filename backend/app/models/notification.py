@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, JSON, String, Uuid, text
+from sqlalchemy import DateTime, ForeignKey, Index, JSON, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, synonym
 
 from app.core.database import Base
@@ -37,6 +37,7 @@ class Notification(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Bas
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivery_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Retain the DBML's ``payload`` spelling for newer callers while keeping the
     # existing notification service's ``payload_json`` constructor argument.
     payload = synonym("payload_json")

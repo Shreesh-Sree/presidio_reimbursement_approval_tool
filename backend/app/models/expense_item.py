@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import Boolean, Date, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import Boolean, Date, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin
@@ -9,6 +9,12 @@ from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionM
 
 class ExpenseItem(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     __tablename__ = "expense_items"
+    __table_args__ = (
+        UniqueConstraint("expense_report_id", "line_number", name="uq_expense_items_report_line"),
+        Index("ix_expense_items_report", "expense_report_id"),
+        Index("ix_expense_items_category", "category_id"),
+        Index("ix_expense_items_is_deleted", "is_deleted"),
+    )
     
     expense_report_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("expense_reports.id"), nullable=False)
     line_number: Mapped[int] = mapped_column(nullable=False)

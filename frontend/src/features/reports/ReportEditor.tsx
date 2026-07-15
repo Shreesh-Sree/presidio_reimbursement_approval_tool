@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { Button } from "../../components/ui/button";
+import { FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Textarea } from "../../components/ui/textarea";
 import {
   categoriesApi,
   getApiErrorMessage,
@@ -50,6 +52,9 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
   const id = reportId ?? params.reportId;
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [items, setItems] = useState<ReportLineItem[]>([]);
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const [itemError, setItemError] = useState<string | null>(null);
@@ -74,6 +79,9 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
     const reportItems = report.line_items ?? report.items;
     const source = itemQuery.data ?? reportItems ?? [];
     setTitle(report.title);
+    setDescription(report.description ?? "");
+    setStartDate(report.start_date?.slice(0, 10) ?? "");
+    setEndDate(report.end_date?.slice(0, 10) ?? "");
     setItems(source.map(normaliseItem));
   }, [itemQuery.data, report]);
 
@@ -86,7 +94,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
   };
 
   const saveReport = useMutation({
-    mutationFn: (nextTitle: string) => reportsApi.update(id as string, { title: nextTitle.trim() }),
+    mutationFn: (input: { title: string; description: string; start_date?: string; end_date?: string }) => reportsApi.update(id as string, input),
     onMutate: () => setReportError(null),
     onSuccess: (updatedReport) => {
       queryClient.setQueryData<Report>(["report", id], (current) => ({ ...current, ...updatedReport }));
@@ -190,10 +198,26 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
             <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Expense report</p>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">{displayStatus(report.status)}</span>
           </div>
-          <Label htmlFor="report-title">Report title</Label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField className="sm:col-span-2">
+              <Label htmlFor="report-title">Report title</Label>
+              <Input disabled={!isEditable} id="report-title" onChange={(event) => setTitle(event.target.value)} value={title} />
+            </FormField>
+            <FormField className="sm:col-span-2">
+              <Label htmlFor="report-purpose">Business purpose</Label>
+              <Textarea disabled={!isEditable} id="report-purpose" onChange={(event) => setDescription(event.target.value)} placeholder="Why is this expense needed for the business?" value={description} />
+            </FormField>
+            <FormField>
+              <Label htmlFor="report-start-date">Report start date</Label>
+              <Input disabled={!isEditable} id="report-start-date" onChange={(event) => setStartDate(event.target.value)} type="date" value={startDate} />
+            </FormField>
+            <FormField>
+              <Label htmlFor="report-end-date">Report end date</Label>
+              <Input disabled={!isEditable} id="report-end-date" min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} type="date" value={endDate} />
+            </FormField>
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Input disabled={!isEditable} id="report-title" onChange={(event) => setTitle(event.target.value)} value={title} />
-            {isEditable && <Button disabled={saveReport.isPending || title.trim() === ""} onClick={() => saveReport.mutate(title)}>{status === "sent_back" ? "Save changes" : "Save draft"}</Button>}
+            {isEditable && <Button disabled={saveReport.isPending || title.trim() === "" || Boolean(startDate && endDate && endDate < startDate)} onClick={() => saveReport.mutate({ title: title.trim(), description: description.trim(), start_date: startDate || undefined, end_date: endDate || undefined })}>{status === "sent_back" ? "Save changes" : "Save draft"}</Button>}
           </div>
           {reportError && <p className="text-sm text-rose-600" role="alert">{reportError}</p>}
         </div>

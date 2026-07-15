@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AuthenticatedAttachmentLink } from "../../components/AuthenticatedAttachmentLink";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -38,9 +39,7 @@ export function PolicyUpload({ policyId, currentDocumentUrl, onUploaded }: Polic
         </Button>
       </div>
       {currentDocumentUrl && (
-        <a className="inline-flex text-sm font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-300" href={currentDocumentUrl} rel="noreferrer" target="_blank">
-          View current document
-        </a>
+        <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-indigo-600 underline underline-offset-2 hover:bg-transparent dark:text-indigo-300" url={currentDocumentUrl}>View current document</AuthenticatedAttachmentLink>
       )}
       {upload.isError && <p className="text-sm text-rose-600">Unable to upload the document. Please try again.</p>}
     </div>

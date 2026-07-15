@@ -16,8 +16,9 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str = "no-reply@presidio.com"
     aws_region: str = "us-east-1"
-    s3_bucket: str
-    gemini_api_key: str | None = None
+    # S3 is required only when STORAGE_BACKEND=s3; local storage is the safe
+    # development default and should not require placeholder cloud credentials.
+    s3_bucket: str = ""
 
 
 @functools.lru_cache

@@ -7,9 +7,10 @@ import { Form, FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Select } from "../../components/ui/select";
+import { Textarea } from "../../components/ui/textarea";
 import { reportsApi } from "../../lib/api";
 
-const statuses = ["all", "draft", "submitted", "approved", "rejected", "sent_back"];
+const statuses = ["all", "draft", "submitted", "approved_pending_payment", "rejected", "sent_back"];
 
 function formatStatus(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -21,13 +22,24 @@ export function ReportsListPage() {
   const [status, setStatus] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const reports = useQuery({ queryKey: ["reports", status], queryFn: () => reportsApi.list(status === "all" ? undefined : status) });
   const createReport = useMutation({
-    mutationFn: () => reportsApi.create({ title: title.trim() }),
+    mutationFn: () => reportsApi.create({
+      title: title.trim(),
+      description: description.trim() || undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+    }),
     onSuccess: (report) => {
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       setDialogOpen(false);
       setTitle("");
+      setDescription("");
+      setStartDate("");
+      setEndDate("");
       navigate(`/reports/${report.id}`);
     },
   });
@@ -81,10 +93,24 @@ export function ReportsListPage() {
               <Label htmlFor="new-report-title">Report title</Label>
               <Input id="new-report-title" onChange={(event) => setTitle(event.target.value)} placeholder="e.g. July client visit" required value={title} />
             </FormField>
+            <FormField>
+              <Label htmlFor="new-report-purpose">Business purpose</Label>
+              <Textarea id="new-report-purpose" onChange={(event) => setDescription(event.target.value)} placeholder="Why is this expense needed for the business?" required value={description} />
+            </FormField>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField>
+                <Label htmlFor="new-report-start-date">Report start date</Label>
+                <Input id="new-report-start-date" onChange={(event) => setStartDate(event.target.value)} required type="date" value={startDate} />
+              </FormField>
+              <FormField>
+                <Label htmlFor="new-report-end-date">Report end date</Label>
+                <Input id="new-report-end-date" min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} required type="date" value={endDate} />
+              </FormField>
+            </div>
             {createReport.isError && <p className="text-sm text-rose-600">Unable to create this report.</p>}
             <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
               <Button onClick={() => setDialogOpen(false)} variant="outline">Cancel</Button>
-              <Button disabled={createReport.isPending || title.trim() === ""} type="submit">{createReport.isPending ? "Creating…" : "Create report"}</Button>
+              <Button disabled={createReport.isPending || title.trim() === "" || description.trim() === "" || !startDate || !endDate} type="submit">{createReport.isPending ? "Creating…" : "Create report"}</Button>
             </div>
           </Form>
         </DialogContent>

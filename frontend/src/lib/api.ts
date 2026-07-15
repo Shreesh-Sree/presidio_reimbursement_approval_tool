@@ -87,6 +87,9 @@ export type ApprovalHistoryEntry = {
 export type Report = {
   id: string;
   title: string;
+  description?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   status: "draft" | "submitted" | "approved" | "rejected" | "sent_back" | string;
   total: number;
   currency?: string;
@@ -104,6 +107,9 @@ export type Report = {
 export type ReportInput = {
   title: string;
   description?: string;
+  start_date?: string;
+  end_date?: string;
+  currency?: string;
 };
 
 export type ReportLineItemInput = {
@@ -273,6 +279,19 @@ export const reportsApi = {
       }),
     );
   },
+};
+
+function attachmentPath(url: string) {
+  const baseUrl = String(apiClient.defaults.baseURL ?? "");
+  const basePath = baseUrl.startsWith("http") ? new URL(baseUrl).pathname : baseUrl;
+  const normalizedBasePath = basePath.replace(/\/$/, "");
+  return normalizedBasePath && url.startsWith(`${normalizedBasePath}/`)
+    ? url.slice(normalizedBasePath.length)
+    : url;
+}
+
+export const attachmentsApi = {
+  download: (url: string) => unwrap(apiClient.get<Blob>(attachmentPath(url), { responseType: "blob" })),
 };
 
 export const approvalsApi = {

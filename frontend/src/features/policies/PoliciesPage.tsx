@@ -61,7 +61,7 @@ export function PoliciesPage() {
       )}
       <div className="grid gap-4 lg:grid-cols-2">
         {policies.data?.map((policy) => {
-          const isActive = policy.status.toLowerCase() === "active";
+          const isActivated = ["active", "scheduled"].includes(policy.status.toLowerCase());
           return (
             <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" key={policy.id}>
               <div className="flex items-start justify-between gap-3">
@@ -71,7 +71,7 @@ export function PoliciesPage() {
                     {policy.version_label} · Effective {policy.effective_from}
                   </p>
                 </div>
-                <span className={isActive ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"}>
+                <span className={isActivated ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"}>
                   {labelForStatus(policy.status)}
                 </span>
               </div>
@@ -79,10 +79,10 @@ export function PoliciesPage() {
                 {policy.rules.length} {policy.rules.length === 1 ? "rule" : "rules"}
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <Button onClick={() => openEdit(policy)} variant="outline">
+                <Button disabled={isActivated} onClick={() => openEdit(policy)} variant="outline">
                   Edit version
                 </Button>
-                {!isActive && (
+                {!isActivated && (
                   <Button
                     aria-label={`Activate ${policy.name}`}
                     disabled={activatePolicy.isPending}

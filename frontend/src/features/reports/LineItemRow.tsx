@@ -3,6 +3,7 @@ import { FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Select } from "../../components/ui/select";
+import { AuthenticatedAttachmentLink } from "../../components/AuthenticatedAttachmentLink";
 import type { Category, ReportLineItem, Vendor } from "../../lib/api";
 import { ReceiptUpload } from "./ReceiptUpload";
 
@@ -175,9 +176,9 @@ export function LineItemRow({
             }}
           />
           {receiptUrl && (
-            <a className="text-sm font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-300" href={receiptUrl} rel="noreferrer" target="_blank">
+            <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-indigo-600 underline underline-offset-2 hover:bg-transparent dark:text-indigo-300" url={receiptUrl}>
               View receipt{item.receipt?.file_name ? ` (${item.receipt.file_name})` : ""}
-            </a>
+            </AuthenticatedAttachmentLink>
           )}
         </div>
       )}

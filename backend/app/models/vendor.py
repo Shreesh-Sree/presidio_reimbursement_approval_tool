@@ -1,4 +1,4 @@
-from sqlalchemy import String
+from sqlalchemy import Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin
@@ -6,6 +6,7 @@ from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionM
 
 class Vendor(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     __tablename__ = "vendors"
+    __table_args__ = (Index("ix_vendors_is_deleted", "is_deleted"),)
     
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     normalized_name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)

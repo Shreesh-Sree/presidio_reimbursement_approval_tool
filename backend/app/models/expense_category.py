@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, ForeignKey, Numeric, String, Uuid
+import uuid
+
+from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin
@@ -6,8 +8,9 @@ from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionM
 
 class ExpenseCategory(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     __tablename__ = "expense_categories"
+    __table_args__ = (Index("ix_expense_categories_is_deleted", "is_deleted"),)
     
-    parent_category_id: Mapped[object | None] = mapped_column(
+    parent_category_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("expense_categories.id"), nullable=True
     )
     code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)

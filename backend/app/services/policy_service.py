@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.expense_category import ExpenseCategory
 from app.models.policy import Policy, PolicyRule
 from app.models.vendor import Vendor
+from app.services.audit_service import record_audit
 from app.services import storage_service
 from app.services.vendor_service import normalize_vendor_name
 
@@ -229,6 +230,13 @@ def create_policy_version(
     db.flush()
     supplied_rules = rules_data.get("rules", []) if isinstance(rules_data, dict) else (rules_data or [])
     _replace_rules(db, policy, supplied_rules)
+    record_audit(
+        db,
+        "policies",
+        str(policy.id),
+        "create",
+        after={"name": policy.name, "version_label": policy.version_label, "is_active": policy.is_active},
+    )
     db.commit()
     return _active_policy(db, policy.id)
 
@@ -244,6 +252,12 @@ def update_policy_version(
     rules_data: Iterable[Any] | None = None,
 ) -> Policy:
     policy = _active_policy(db, policy_id)
+    before = {
+        "name": policy.name,
+        "version_label": policy.version_label,
+        "effective_from": str(policy.effective_from),
+        "effective_to": str(policy.effective_to) if policy.effective_to else None,
+    }
     if policy.is_active:
         raise PolicyConflictError("Active policy versions are immutable; create a new version for future claims")
     if name is not None:
@@ -260,29 +274,68 @@ def update_policy_version(
         raise PolicyConflictError("effective_to cannot be before effective_from")
     if rules_data is not None:
         _replace_rules(db, policy, rules_data)
+    record_audit(
+        db,
+        "policies",
+        str(policy.id),
+        "update",
+        before=before,
+        after={
+            "name": policy.name,
+            "version_label": policy.version_label,
+            "effective_from": str(policy.effective_from),
+            "effective_to": str(policy.effective_to) if policy.effective_to else None,
+        },
+    )
     db.commit()
     return _active_policy(db, policy.id)
 
 
 def activate_policy(db: Session, policy_id: str | uuid.UUID) -> Policy:
-    """Make exactly one non-deleted policy version active."""
+    """Activate a policy version without creating a future-effective gap.
+
+    A future version can be scheduled alongside the policy that is currently
+    effective.  At its effective date ``get_active_policy`` selects the newer
+    version, while existing submitted reports retain their own snapshot.
+    """
 
     policy = _active_policy(db, policy_id)
-    db.query(Policy).filter(
-        Policy.is_active.is_(True),
-        Policy.id != policy.id,
-        Policy.is_deleted.is_(False),
-    ).update({Policy.is_active: False}, synchronize_session=False)
+    now = datetime.now(UTC)
+    effective_from = _as_datetime(policy.effective_from, field_name="effective_from", required=True)
+    if effective_from <= now:
+        # Keep any separately scheduled future version active.  It will become
+        # selected naturally when its effective window opens.
+        db.query(Policy).filter(
+            Policy.is_active.is_(True),
+            Policy.id != policy.id,
+            Policy.is_deleted.is_(False),
+            Policy.effective_from <= now,
+        ).update({Policy.is_active: False}, synchronize_session=False)
     policy.is_active = True
+    record_audit(
+        db,
+        "policies",
+        str(policy.id),
+        "activate",
+        after={"is_active": True},
+    )
     db.commit()
     return _active_policy(db, policy.id)
 
 
-def get_active_policy(db: Session) -> Policy | None:
+def get_active_policy(db: Session, at: datetime | None = None) -> Policy | None:
+    """Return the active version that is effective at ``at`` (default: now)."""
+
+    at = at or datetime.now(UTC)
     return db.scalar(
         select(Policy)
         .options(selectinload(Policy.rules))
-        .where(Policy.is_active.is_(True), Policy.is_deleted.is_(False))
+        .where(
+            Policy.is_active.is_(True),
+            Policy.is_deleted.is_(False),
+            Policy.effective_from <= at,
+            (Policy.effective_to.is_(None) | (Policy.effective_to >= at)),
+        )
         .order_by(Policy.effective_from.desc())
     )
 
@@ -327,13 +380,24 @@ def policy_payload(db: Session, policy: Policy) -> dict[str, Any]:
     rules = [rule for rule in policy.rules if not rule.is_deleted]
     category_names, vendor_names = _lookup_names(db, rules)
     document = storage_service.get_attachment(db, policy.uploaded_document_attachment_id)
+    now = datetime.now(UTC)
+    effective_from = _as_datetime(policy.effective_from, field_name="effective_from", required=True)
+    effective_to = _as_datetime(policy.effective_to, field_name="effective_to")
+    if policy.is_active and effective_from > now:
+        display_status = "scheduled"
+    elif policy.is_active and (effective_to is None or effective_to >= now):
+        display_status = "active"
+    elif policy.is_active:
+        display_status = "expired"
+    else:
+        display_status = "draft"
     return {
         "id": str(policy.id),
         "name": policy.name,
         "version_label": policy.version_label,
         "effective_from": policy.effective_from.isoformat() if policy.effective_from else None,
         "effective_to": policy.effective_to.isoformat() if policy.effective_to else None,
-        "status": "active" if policy.is_active else "draft",
+        "status": display_status,
         "document_url": storage_service.attachment_url(document),
         "document": storage_service.attachment_payload(document) if document else None,
         "rules": [

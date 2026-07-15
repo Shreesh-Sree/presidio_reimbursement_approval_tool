@@ -125,4 +125,29 @@ describe("ReportEditor", () => {
 
     expect(await screen.findByText("Active policy requires a receipt for this item.")).toBeInTheDocument();
   });
+
+  it("saves the report purpose and date range with the draft", async () => {
+    const user = userEvent.setup();
+    const update = vi.spyOn(reportsApi, "update").mockResolvedValue({
+      ...draftReport,
+      description: "On-site client workshops",
+      start_date: "2026-08-01",
+      end_date: "2026-08-03",
+    });
+    renderEditor();
+
+    await screen.findByLabelText(/report title/i);
+    await user.type(screen.getByLabelText(/business purpose/i), "On-site client workshops");
+    fireEvent.change(screen.getByLabelText(/report start date/i), { target: { value: "2026-08-01" } });
+    fireEvent.change(screen.getByLabelText(/report end date/i), { target: { value: "2026-08-03" } });
+    await user.click(screen.getByRole("button", { name: /save draft/i }));
+
+    await expect.poll(() => update.mock.calls.length).toBe(1);
+    expect(update).toHaveBeenCalledWith("report-1", {
+      title: "July client visit",
+      description: "On-site client workshops",
+      start_date: "2026-08-01",
+      end_date: "2026-08-03",
+    });
+  });
 });

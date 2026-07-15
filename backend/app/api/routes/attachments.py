@@ -11,10 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_permission
+from app.core.deps import get_current_user, require_permission
 from app.models.expense_item import ExpenseItem
 from app.models.expense_report import ExpenseReport
-from app.services import storage_service
+from app.services import report_service, storage_service
 
 
 router = APIRouter(tags=["attachments"])
@@ -105,11 +105,36 @@ async def upload_receipt(
 async def download_attachment(
     attachment_id: str,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("report:read")),
+    user: dict[str, object] = Depends(get_current_user),
 ):
     attachment = storage_service.get_attachment(db, attachment_id)
     if attachment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    if attachment.entity_type == "expense_item_receipt":
+        item = db.scalar(
+            select(ExpenseItem).where(
+                ExpenseItem.id == attachment.entity_id,
+                ExpenseItem.is_deleted.is_(False),
+            )
+        )
+        report = (
+            db.scalar(
+                select(ExpenseReport).where(
+                    ExpenseReport.id == item.expense_report_id,
+                    ExpenseReport.is_deleted.is_(False),
+                )
+            )
+            if item is not None
+            else None
+        )
+        if report is None or not report_service.can_read_report(db, report, user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
+    elif attachment.entity_type == "policy_document":
+        permissions = set(user.get("permissions", []))
+        if "*" not in permissions and "policy:manage" not in permissions:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
     try:
         content = storage_service.read_attachment(attachment)
     except storage_service.StorageError as exc:

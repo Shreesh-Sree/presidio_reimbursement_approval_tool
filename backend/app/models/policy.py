@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Uuid
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin
@@ -9,6 +9,11 @@ from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionM
 
 class Policy(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     __tablename__ = "policies"
+    __table_args__ = (
+        UniqueConstraint("name", "version_label", name="uq_policies_name_version"),
+        Index("ix_policies_is_active", "is_active"),
+        Index("ix_policies_is_deleted", "is_deleted"),
+    )
     
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     version_label: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -23,10 +28,14 @@ class Policy(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
 
 class PolicyRule(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     __tablename__ = "policy_rules"
+    __table_args__ = (
+        UniqueConstraint("policy_id", "category_id", "vendor_id", name="uq_policy_rules_scope"),
+        Index("ix_policy_rules_is_deleted", "is_deleted"),
+    )
     
-    policy_id: Mapped[str] = mapped_column(ForeignKey("policies.id"), nullable=False)
-    category_id: Mapped[str | None] = mapped_column(ForeignKey("expense_categories.id"), nullable=True)
-    vendor_id: Mapped[str | None] = mapped_column(ForeignKey("vendors.id"), nullable=True)
+    policy_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("policies.id"), nullable=False)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("expense_categories.id"), nullable=True)
+    vendor_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("vendors.id"), nullable=True)
     max_per_day: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
     max_per_trip: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
     per_category_cap: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)

@@ -82,6 +82,18 @@ export function RuleEditor({ value, onChange }: RuleEditorProps) {
             />
           </FormField>
           <FormField>
+            <Label htmlFor={`rule-day-cap-${index}`}>Daily cap</Label>
+            <Input
+              id={`rule-day-cap-${index}`}
+              min="0"
+              step="0.01"
+              type="number"
+              value={rule.max_per_day ?? ""}
+              onChange={(event) => updateRule(index, "max_per_day", event.target.value)}
+              placeholder="0.00"
+            />
+          </FormField>
+          <FormField>
             <Label htmlFor={`rule-receipt-${index}`}>Receipt required above</Label>
             <Input
               id={`rule-receipt-${index}`}

@@ -21,6 +21,7 @@ from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.services.audit_service import record_audit
 
 
 class UserServiceError(Exception):
@@ -41,7 +42,9 @@ SYSTEM_PERMISSIONS: dict[str, str] = {
     "user:update": "Update users and reporting managers",
     "user:deactivate": "Deactivate users",
     "policy:manage": "Manage reimbursement policies",
+    "category:read": "View expense categories",
     "category:manage": "Manage expense categories",
+    "vendor:read": "View vendors",
     "vendor:manage": "Manage vendors",
     "report:create": "Create and edit own expense reports",
     "report:read": "View accessible expense reports",
@@ -62,6 +65,8 @@ SYSTEM_ROLES: dict[str, tuple[str, set[str]]] = {
             "report:create",
             "report:read",
             "report:approve",
+            "category:read",
+            "vendor:read",
             "notification:read",
             "comment:create",
             "comment:read",
@@ -72,6 +77,8 @@ SYSTEM_ROLES: dict[str, tuple[str, set[str]]] = {
         {
             "report:create",
             "report:read",
+            "category:read",
+            "vendor:read",
             "notification:read",
             "comment:create",
             "comment:read",
@@ -406,6 +413,13 @@ def create_user(
     db.add(user)
     db.flush()
     _replace_roles(db, user, role_codes)
+    record_audit(
+        db,
+        "users",
+        str(user.id),
+        "create",
+        after={"email": user.email, "status": user.status, "roles": role_codes_for_user(db, user.id)},
+    )
     db.commit()
     db.refresh(user)
     return user_response(db, user)
@@ -432,6 +446,12 @@ def update_user(
     changes: dict[str, object],
 ) -> dict[str, object]:
     user = _get_scoped_user(db, user_id, organization_id)
+    before = {
+        "email": user.email,
+        "full_name": user.full_name,
+        "manager_id": str(user.manager_user_id) if user.manager_user_id else None,
+        "roles": role_codes_for_user(db, user.id),
+    }
 
     if "email" in changes and changes["email"] is not None:
         email = str(changes["email"]).lower()
@@ -454,6 +474,19 @@ def update_user(
         _validate_manager(db, organization_id, manager_id, user.id)
         user.manager_user_id = manager_id
 
+    record_audit(
+        db,
+        "users",
+        str(user.id),
+        "update",
+        before=before,
+        after={
+            "email": user.email,
+            "full_name": user.full_name,
+            "manager_id": str(user.manager_user_id) if user.manager_user_id else None,
+            "roles": sorted(changes["roles"]) if changes.get("roles") is not None else role_codes_for_user(db, user.id),
+        },
+    )
     db.commit()
     db.refresh(user)
     return user_response(db, user)
@@ -486,6 +519,15 @@ def deactivate_user(
         raise UserServiceError("Reassign direct reports before deactivating this user", 409)
 
     user.status = "inactive"
+    record_audit(
+        db,
+        "users",
+        str(user.id),
+        "deactivate",
+        before={"status": "active"},
+        after={"status": "inactive"},
+        performed_by=str(actor_user_id),
+    )
     db.commit()
     db.refresh(user)
     return user_response(db, user)

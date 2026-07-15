@@ -44,6 +44,8 @@ def upgrade() -> None:
         sa.Column("total_amount", sa.Numeric(18, 2), server_default=sa.text("0"), nullable=False),
         sa.Column("last_saved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("ai_review_job_id", sa.Uuid(as_uuid=True), nullable=True),
+        sa.Column("ai_review_requested_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("remarks", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(["employee_user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["department_id"], ["departments.id"]),
@@ -53,6 +55,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_expense_reports_employee_status", "expense_reports", ["employee_user_id", "status"])
     op.create_index("ix_expense_reports_department_status", "expense_reports", ["department_id", "status"])
+    op.create_index("ix_expense_reports_ai_review_job_id", "expense_reports", ["ai_review_job_id"])
     op.create_index("ix_expense_reports_is_deleted", "expense_reports", ["is_deleted"])
 
     op.create_table(

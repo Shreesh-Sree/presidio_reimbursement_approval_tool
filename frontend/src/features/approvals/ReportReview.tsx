@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
+import { AuthenticatedAttachmentLink } from "../../components/AuthenticatedAttachmentLink";
 import { CommentThread } from "../../components/CommentThread";
 import type { ReportLineItem } from "../../lib/api";
 import { reportsApi } from "../../lib/api";
@@ -124,7 +125,7 @@ export function ReportReview({ reportId }: ReportReviewProps) {
                   </div>
                   <p className="font-semibold text-slate-950 dark:text-white">{new Intl.NumberFormat("en-US", { style: "currency", currency: item.currency ?? report.currency ?? "USD" }).format(Number(item.amount) || 0)}</p>
                 </div>
-                {receiptUrl && <a className="text-sm font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-300" href={receiptUrl} rel="noreferrer" target="_blank">View receipt</a>}
+                {receiptUrl && <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-indigo-600 underline underline-offset-2 hover:bg-transparent dark:text-indigo-300" url={receiptUrl}>View receipt</AuthenticatedAttachmentLink>}
                 {violation && <p className="text-sm text-rose-700 dark:text-rose-300">Policy violation: {violation}</p>}
               </article>
             );

@@ -1,47 +1,89 @@
 # Presidio Reimbursement Approval Tool
 
-This project is initialized with:
-- **Frontend**: React (TypeScript + Vite)
-- **Backend**: FastAPI (Python + uv package manager)
-- **Database**: Dedicated `database/` directory
+A role-based expense and reimbursement system for Employees, Approvers, and
+Administrators. It supports versioned policies, structured categories and
+vendors, receipt uploads, policy validation, manager-chain approvals,
+notifications, report comments, and an isolated AI expense-review service.
 
-## Folder Structure
+## What is included
 
-```
-├── backend/            # FastAPI Backend
-│   ├── main.py         # Entry point for the FastAPI application
-│   ├── pyproject.toml  # Python project dependencies managed by uv
-│   └── .venv/          # Python virtual environment
-├── database/           # Database schema, migrations, or SQLite files
-├── frontend/           # React Frontend
-│   ├── src/            # Source files (App, main, etc.)
-│   ├── package.json    # Frontend dependencies
-│   └── vite.config.ts  # Vite configuration
-└── README.md           # This file
-```
+- Employee reports with editable draft/sent-back states, multi-line items,
+  live totals, receipts, and policy-violation explanations.
+- Administrator policy versions, structured caps, category hierarchy, vendor
+  constraints, document uploads, and activation without rewriting historical
+  claims.
+- RBAC with Employee/Approver/Administrator roles, a reporting hierarchy,
+  user deactivation, and an organization chart.
+- Sequential manager approvals, reject/send-back remarks, immutable approval
+  history, reimbursement `approved_pending_payment` status, and in-app/email
+  notification records.
+- An advisory-only `ai_review_service` with its own datastore. It receives a
+  minimized policy/report snapshot, never mutates the reimbursement workflow,
+  and requires a human decision.
 
-## Running the Application
+## Run locally
 
-### 1. Backend
-
-Navigate to the `backend/` directory and start the FastAPI server:
+Prerequisites: `uv`, Node/npm, and PostgreSQL (or the included Docker Compose
+stack).
 
 ```bash
 cd backend
-uv run uvicorn main:app --reload
+docker compose up -d postgres
+cp .env.example .env
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 
-The API will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
-- Interactive Docs (Swagger UI): [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- Health Endpoint: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+The API is available at `http://127.0.0.1:8000`; interactive docs are at
+`/docs`. `backend/main.py` is retained as a compatibility shim, so
+`uv run uvicorn main:app --reload` serves the same application.
 
-### 2. Frontend
-
-Navigate to the `frontend/` directory and start the Vite development server:
+In another terminal:
 
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
-The frontend will be available at the URL shown in your terminal (usually [http://localhost:5173](http://localhost:5173)).
+Open the Vite URL (normally `http://localhost:5173`). On a new deployment,
+create the first administrator at `/bootstrap`; the bootstrap endpoint is
+permanently disabled after the first active user exists.
+
+## AI review service
+
+The AI reviewer is deliberately a separate service and separate SQLite
+datastore. It is optional for core reimbursement workflow operation.
+
+```bash
+cd ai_review_service
+uv sync
+AI_REVIEW_DATABASE_PATH=var/ai-review.sqlite3 \
+  uv run uvicorn ai_review_service.api:create_app --factory --port 8011
+```
+
+Then set these in `backend/.env` and restart the API:
+
+```dotenv
+AI_REVIEW_SERVICE_URL=http://127.0.0.1:8011
+# Set the same non-empty value in ai_review_service for service-to-service auth.
+AI_REVIEW_SERVICE_TOKEN=
+```
+
+Approvers see only the advisory summary, risk, findings, and the explicit
+human-review gate. The AI service processes queued jobs automatically by
+default; a provider timeout/failure cannot approve, reject, or block a core
+workflow decision.
+
+## Verification
+
+```bash
+cd backend && uv run pytest tests -q
+cd backend && uv run alembic check
+cd ../frontend && npm run test && npm run lint && npm run build
+cd ../ai_review_service && uv run pytest -q
+```
+
+The backend migration chain is `001_baseline → 002_add_policies →
+003_reports_workflow` and is checked against the SQLAlchemy metadata.

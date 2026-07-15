@@ -53,3 +53,19 @@ async def test_service_is_idempotent_persists_separately_and_records_human_verdi
 def test_ai_repository_refuses_the_core_postgres_connection_string():
     with pytest.raises(ValueError, match="core database"):
         SqliteReviewRepository("postgresql://reimbursement:password@localhost/reimbursement")
+
+
+def test_recovery_requeues_interrupted_jobs_without_touching_core_data(tmp_path, event_factory):
+    repository = SqliteReviewRepository(tmp_path / "ai-review.sqlite3")
+    service = ExpenseReviewService(repository)
+    queued = service.enqueue(event_factory())
+    claimed = repository.claim(queued.id)
+    assert claimed is not None
+    assert claimed.status == ReviewJobStatus.PROCESSING
+
+    recovered = service.recover_pending_jobs()
+
+    assert [job.id for job in recovered] == [queued.id]
+    assert recovered[0].status == ReviewJobStatus.RETRY_PENDING
+    assert recovered[0].failure_reason == "review worker interrupted before completion"
+    repository.close()

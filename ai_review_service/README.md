@@ -104,6 +104,23 @@ uv run pytest
 AI_REVIEW_DATABASE_PATH=var/ai-review.sqlite3 uv run uvicorn ai_review_service.api:create_app --factory --port 8011
 ```
 
+Queued jobs are processed automatically by a bounded local background worker;
+the core API only needs to publish `POST /v1/review-jobs` and never needs an
+inline processing switch. The local worker retries only up to the job's
+configured attempt budget, and it resumes queued/interrupted work when this
+single-process SQLite service restarts. For the SQLite default, run one AI
+service process per database file. Use an AI-service-owned queue/repository
+when scaling to multiple workers.
+
+Useful local settings are:
+
+```bash
+AI_REVIEW_AUTO_PROCESS_JOBS=true
+AI_REVIEW_LOCAL_WORKER_MAX_CONCURRENCY=1
+AI_REVIEW_LOCAL_WORKER_RETRY_DELAY_SECONDS=0.25
+AI_REVIEW_JOB_MAX_ATTEMPTS=3
+```
+
 Gemini is optional. Install the extra and configure it only in the AI-service
 deployment:
 
@@ -114,13 +131,24 @@ AI_REVIEW_GEMINI_API_KEY=... AI_REVIEW_GEMINI_MODEL=gemini-2.5-flash \
 ```
 
 The HTTP API is intended for an internal event gateway/worker, not browsers or
-the public internet. Put it behind service authentication, network isolation,
-and a queue consumer in deployment. The included `/process` endpoint is a
-small worker hook for local operation; production workers should call the same
-`ExpenseReviewService.process(job_id)` method after consuming a queued job.
+the public internet. Set `AI_REVIEW_SERVICE_TOKEN` in every non-local
+deployment. When configured, **every** `/v1` operation requires an exact
+service-to-service bearer token:
+
+```bash
+curl -H "Authorization: Bearer $AI_REVIEW_SERVICE_TOKEN" \
+  http://localhost:8011/v1/review-jobs/<job-id>
+```
+
+The included `/process` endpoint remains an authenticated operator/recovery
+hook. Production deployments may replace the local worker with an
+AI-service-owned queue consumer that calls the same
+`ExpenseReviewService.process(job_id)` method; it must keep the AI datastore
+separate from the reimbursement database.
 
 ## Tests
 
 The focused suite covers deterministic findings, PII redaction and provider
-minimization, retry/timeout fallback, idempotent separate persistence, human
-dispositions, and the private job API.
+minimization, retry/timeout fallback, automatic local processing, recovery of
+interrupted work, optional bearer authentication, idempotent separate
+persistence, human dispositions, and the private job API.

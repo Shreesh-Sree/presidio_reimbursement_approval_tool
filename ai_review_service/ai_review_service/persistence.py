@@ -36,6 +36,8 @@ class ReviewRepository(Protocol):
 
     def retry_or_fail(self, job_id: UUID, failure_reason: str) -> ReviewJob: ...
 
+    def recover_pending_jobs(self) -> tuple[ReviewJob, ...]: ...
+
     def record_disposition(
         self, job_id: UUID, request: ReviewDispositionRequest
     ) -> ReviewDisposition: ...
@@ -121,6 +123,36 @@ class InMemoryReviewRepository:
             )
             self._jobs[job_id] = updated
             return _copy_job(updated)
+
+    def recover_pending_jobs(self) -> tuple[ReviewJob, ...]:
+        """Return work that a freshly started local worker can safely resume.
+
+        A local SQLite deployment intentionally runs one AI-service process.
+        If that process stops during a review, a persisted ``processing`` job
+        has no live worker.  Requeue it (or fail it when its bounded attempt
+        budget is exhausted) instead of leaving a report in limbo.
+        """
+
+        with self._lock:
+            pending: list[ReviewJob] = []
+            for job_id, job in tuple(self._jobs.items()):
+                if job.status == ReviewJobStatus.PROCESSING:
+                    recovered_status = (
+                        ReviewJobStatus.RETRY_PENDING
+                        if job.attempt_count < job.max_attempts
+                        else ReviewJobStatus.FAILED
+                    )
+                    job = job.model_copy(
+                        update={
+                            "status": recovered_status,
+                            "failure_reason": "review worker interrupted before completion",
+                            "updated_at": utc_now(),
+                        }
+                    )
+                    self._jobs[job_id] = job
+                if job.status in {ReviewJobStatus.QUEUED, ReviewJobStatus.RETRY_PENDING}:
+                    pending.append(_copy_job(job))
+            return tuple(pending)
 
     def record_disposition(
         self, job_id: UUID, request: ReviewDispositionRequest
@@ -245,6 +277,32 @@ class SqliteReviewRepository(InMemoryReviewRepository):
             )
             self._save_job(updated)
             return updated
+
+    def recover_pending_jobs(self) -> tuple[ReviewJob, ...]:
+        """Recover durable queued work when the local service process starts."""
+
+        with self._lock:
+            rows = self._connection.execute("SELECT job_json FROM ai_review_jobs").fetchall()
+            pending: list[ReviewJob] = []
+            for row in rows:
+                job = ReviewJob.model_validate_json(row["job_json"])
+                if job.status == ReviewJobStatus.PROCESSING:
+                    recovered_status = (
+                        ReviewJobStatus.RETRY_PENDING
+                        if job.attempt_count < job.max_attempts
+                        else ReviewJobStatus.FAILED
+                    )
+                    job = job.model_copy(
+                        update={
+                            "status": recovered_status,
+                            "failure_reason": "review worker interrupted before completion",
+                            "updated_at": utc_now(),
+                        }
+                    )
+                    self._save_job(job)
+                if job.status in {ReviewJobStatus.QUEUED, ReviewJobStatus.RETRY_PENDING}:
+                    pending.append(_copy_job(job))
+            return tuple(pending)
 
     def record_disposition(
         self, job_id: UUID, request: ReviewDispositionRequest

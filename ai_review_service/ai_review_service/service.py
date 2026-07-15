@@ -43,6 +43,11 @@ class ExpenseReviewService:
     def get_job(self, job_id: UUID) -> ReviewJob | None:
         return self._repository.get_job(job_id)
 
+    def recover_pending_jobs(self) -> tuple[ReviewJob, ...]:
+        """Return queued work after recovering an interrupted local worker."""
+
+        return self._repository.recover_pending_jobs()
+
     async def process(self, job_id: UUID) -> ReviewJob:
         """Process one job; provider failure falls back to deterministic prose."""
 

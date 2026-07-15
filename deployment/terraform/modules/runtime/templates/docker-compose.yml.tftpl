@@ -1,0 +1,90 @@
+services:
+  api:
+    image: ${api_image}
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -ec
+      - uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - /opt/reimbursement/api.env
+    expose:
+      - "8000"
+    networks:
+      private:
+        ipv4_address: 172.30.0.10
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${api_log_group_name}
+        awslogs-stream: api
+
+  ai-review:
+    image: ${ai_image}
+    restart: unless-stopped
+    command:
+      - uv
+      - run
+      - uvicorn
+      - ai_review_service.api:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8011"
+    env_file:
+      - /opt/reimbursement/ai-review.env
+    volumes:
+      - /opt/reimbursement/ai-data:/data
+    networks:
+      private:
+        ipv4_address: 172.30.0.11
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${ai_log_group_name}
+        awslogs-stream: ai-review
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/reimbursement/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      private:
+        ipv4_address: 172.30.0.12
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${proxy_log_group_name}
+        awslogs-stream: caddy
+
+networks:
+  private:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -25,3 +25,17 @@ def test_settings_defaults():
     assert settings.smtp_port == 1025
     assert settings.smtp_from == "no-reply@presidio.com"
     assert settings.aws_region == "us-east-1"
+
+
+def test_settings_parse_cors_origins_from_a_comma_separated_value():
+    settings = Settings(
+        database_url="postgresql://user:pass@localhost/db",
+        jwt_secret="test-secret",
+        s3_bucket="test-bucket",
+        cors_origins="https://app.example.com, https://preview.example.com,",
+    )
+
+    assert settings.cors_origins_list == [
+        "https://app.example.com",
+        "https://preview.example.com",
+    ]

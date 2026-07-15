@@ -87,3 +87,10 @@ cd ../ai_review_service && uv run pytest -q
 
 The backend migration chain is `001_baseline → 002_add_policies →
 003_reports_workflow` and is checked against the SQLAlchemy metadata.
+
+## AWS deployment
+
+The cost-capped AWS deployment lives in [deployment/](deployment/README.md).
+It provisions the React SPA, FastAPI API, private PostgreSQL database, S3
+uploads, a separately isolated AI-review service, TLS/DNS, SES, monitoring,
+and AWS Budgets with a USD 75/month guardrail.

@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # S3 is required only when STORAGE_BACKEND=s3; local storage is the safe
     # development default and should not require placeholder cloud credentials.
     s3_bucket: str = ""
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Return a whitespace-safe list suitable for FastAPI CORS middleware."""
+
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @functools.lru_cache

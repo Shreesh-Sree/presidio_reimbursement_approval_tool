@@ -1,0 +1,7 @@
+# Create this bucket first with deployment/terraform/bootstrap, then copy this
+# file to backend.hcl and replace the bucket value before terraform init.
+bucket       = "replace-with-your-encrypted-terraform-state-bucket"
+key          = "presidio-reimburse/prod/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

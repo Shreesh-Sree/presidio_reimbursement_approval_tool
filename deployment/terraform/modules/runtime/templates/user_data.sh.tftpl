@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euxo pipefail
+
+dnf install -y docker jq
+systemctl enable --now docker
+
+if ! docker compose version >/dev/null 2>&1; then
+  dnf install -y docker-compose-plugin || dnf install -y docker-compose
+fi
+
+install -d -m 0750 /opt/reimbursement /opt/reimbursement/ai-data
+
+cat > /opt/reimbursement/docker-compose.yml <<'COMPOSE'
+${docker_compose}
+COMPOSE
+
+cat > /opt/reimbursement/Caddyfile <<'CADDY'
+${caddyfile}
+CADDY
+
+cat > /opt/reimbursement/deploy-runtime.sh <<'DEPLOY'
+#!/usr/bin/env bash
+set -euo pipefail
+
+export AWS_DEFAULT_REGION=${aws_region}
+cd /opt/reimbursement
+
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  else
+    docker-compose "$@"
+  fi
+}
+
+aws secretsmanager get-secret-value \
+  --secret-id ${application_secret_arn} \
+  --query SecretString \
+  --output text > /opt/reimbursement/api-secret.json
+
+# JSON string encoding safely preserves characters in generated/runtime secrets.
+jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(.value | @json)"' \
+  /opt/reimbursement/api-secret.json > /opt/reimbursement/api.env
+chmod 0600 /opt/reimbursement/api.env
+rm -f /opt/reimbursement/api-secret.json
+
+aws secretsmanager get-secret-value \
+  --secret-id ${ai_review_secret_arn} \
+  --query SecretString \
+  --output text > /opt/reimbursement/ai-review-secret.json
+
+jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(.value | @json)"' \
+  /opt/reimbursement/ai-review-secret.json > /opt/reimbursement/ai-review.env
+chmod 0600 /opt/reimbursement/ai-review.env
+rm -f /opt/reimbursement/ai-review-secret.json
+
+aws ecr get-login-password --region ${aws_region} \
+  | docker login --username AWS --password-stdin ${ecr_registry_url}
+
+compose --project-name reimbursement --file /opt/reimbursement/docker-compose.yml pull
+compose --project-name reimbursement --file /opt/reimbursement/docker-compose.yml up -d --remove-orphans
+
+# The API needs IMDS credentials for S3, but the advisory AI container must
+# never inherit the host role's ability to read the core secret or upload data.
+# Its fixed private address is denied access to IMDS after every rollout.
+if ! iptables -C DOCKER-USER -s 172.30.0.11 -d 169.254.169.254/32 -j REJECT 2>/dev/null; then
+  iptables -I DOCKER-USER -s 172.30.0.11 -d 169.254.169.254/32 -j REJECT
+fi
+
+# Retain images used by a running container while pruning unused layers older
+# than a week, so release history cannot silently fill the small root volume.
+docker image prune --force --filter "until=168h" || true
+DEPLOY
+
+chmod 0750 /opt/reimbursement/deploy-runtime.sh
+
+cat > /etc/systemd/system/reimbursement-runtime.service <<'SERVICE'
+[Unit]
+Description=Reimbursement API and isolated AI review runtime
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/reimbursement/deploy-runtime.sh
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now reimbursement-runtime.service

@@ -1,0 +1,23 @@
+# Copy to terraform.tfvars and replace every placeholder before applying.
+aws_region         = "us-east-1"
+project_name       = "presidio-reimburse"
+environment        = "prod"
+domain_name        = "example.com"
+route53_zone_id    = "Z0123456789EXAMPLE"
+acme_email         = "platform@example.com"
+budget_alert_email = "platform@example.com"
+
+# Starts under the $75/month guardrail. See deployment/README.md for the
+# workload assumptions and services deliberately excluded to retain that cap.
+monthly_budget_limit_usd = 75
+
+# Keep disabled until the SES identity/DKIM records verify and SMTP credentials
+# have been generated for a least-privilege mail sender.
+enable_email_delivery = false
+# ses_smtp_username    = ""
+# ses_smtp_password    = ""
+
+# The deterministic reviewer works without a provider key. Supplying this key
+# enables the optional, privacy-minimized Gemini narrative only in its own
+# AI-review container.
+# gemini_api_key = ""

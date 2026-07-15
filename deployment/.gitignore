@@ -1,0 +1,11 @@
+# Terraform state can contain generated application credentials.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+!backend.hcl.example
+crash.log
+
+# Built frontend output is deployed, never committed.
+../frontend/dist/

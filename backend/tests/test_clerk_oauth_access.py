@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 
@@ -35,10 +37,12 @@ def _oauth_headers() -> dict[str, str]:
 
 
 def _mock_clerk_identity(monkeypatch, identity: ClerkIdentity, settings: Settings) -> None:
+    import app.api.routes.auth as auth_routes
     import app.core.deps as deps
 
     monkeypatch.setattr(deps, "get_settings", lambda: settings)
     monkeypatch.setattr(deps, "verify_clerk_token", lambda _token, _settings: identity)
+    monkeypatch.setattr(auth_routes, "get_settings", lambda: settings)
 
 
 def test_configured_super_admin_is_provisioned_on_first_verified_oauth_login(client, db, monkeypatch):
@@ -123,6 +127,54 @@ def test_allowlisted_user_binds_first_clerk_subject_and_rejects_a_later_mismatch
     assert denied.json()["detail"]["code"] == "access_not_granted"
 
 
+def test_existing_allowlisted_user_records_each_completed_oauth_session(client, seeded_user, db, monkeypatch):
+    previous_login = datetime(2026, 1, 1, tzinfo=UTC)
+    seeded_user.external_auth_subject = "user_employee"
+    seeded_user.last_login_at = previous_login
+    db.commit()
+    _mock_clerk_identity(
+        monkeypatch,
+        ClerkIdentity(subject="user_employee", email="employee@example.com"),
+        _clerk_settings(),
+    )
+
+    response = client.get("/api/auth/me", headers=_oauth_headers())
+
+    assert response.status_code == 200, response.text
+    db.refresh(seeded_user)
+    assert seeded_user.last_login_at is not None
+    recorded_login = seeded_user.last_login_at
+    if recorded_login.tzinfo is None:  # SQLite does not round-trip timezone metadata.
+        recorded_login = recorded_login.replace(tzinfo=UTC)
+    assert recorded_login > previous_login
+
+
+def test_soft_deleted_identity_binding_returns_controlled_access_denied(client, seeded_user, db, monkeypatch):
+    seeded_user.external_auth_subject = "user_retired"
+    seeded_user.is_deleted = True
+    replacement = User(
+        organization_id=seeded_user.organization_id,
+        department_id=seeded_user.department_id,
+        employee_number="E-002",
+        username="replacement",
+        email="replacement@example.com",
+        full_name="Replacement Employee",
+        status="active",
+    )
+    db.add(replacement)
+    db.commit()
+    _mock_clerk_identity(
+        monkeypatch,
+        ClerkIdentity(subject="user_retired", email="replacement@example.com"),
+        _clerk_settings(),
+    )
+
+    response = client.get("/api/auth/me", headers=_oauth_headers())
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "access_not_granted"
+
+
 def test_first_admin_bootstrap_race_reuses_the_allowlist_row(db, seeded_user, monkeypatch):
     """A concurrent first OAuth request must not turn into a transient 500."""
 
@@ -178,6 +230,18 @@ def test_clerk_verifier_requires_rs256_and_checks_authorized_party(monkeypatch):
     identity = verify_clerk_token("signed-token", settings)
     assert identity == ClerkIdentity(subject="user_123", email="person@example.com")
 
+    monkeypatch.setattr(
+        clerk.jwt,
+        "decode",
+        lambda *_args, **_kwargs: {
+            "sub": "user_123",
+            "email": "person@example.com",
+            "email_verified": True,
+        },
+    )
+    with pytest.raises(ClerkTokenError):
+        verify_clerk_token("missing-azp", settings)
+
     monkeypatch.setattr(clerk.jwt, "get_unverified_header", lambda _token: {"alg": "HS256"})
     with pytest.raises(ClerkTokenError):
         verify_clerk_token("wrong-algorithm", settings)
@@ -186,6 +250,11 @@ def test_clerk_verifier_requires_rs256_and_checks_authorized_party(monkeypatch):
 def test_clerk_verifier_rejects_incomplete_configuration():
     settings = _clerk_settings()
     settings.clerk_jwks_url = ""
+    with pytest.raises(ClerkConfigurationError):
+        verify_clerk_token("signed-token", settings)
+
+    settings = _clerk_settings()
+    settings.clerk_authorized_parties = ""
     with pytest.raises(ClerkConfigurationError):
         verify_clerk_token("signed-token", settings)
 

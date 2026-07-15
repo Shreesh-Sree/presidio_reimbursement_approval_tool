@@ -173,7 +173,14 @@ async def logout(
 
 
 @router.get("/me")
-async def get_me(current_user: dict[str, object] = Depends(get_current_user)):
+async def get_me(
+    current_user: dict[str, object] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if get_settings().auth_provider == "clerk":
+        user = current_user.get("model")
+        if isinstance(user, User):
+            user_service.record_oauth_login(db, user)
     return {
         "user_id": current_user["user_id"],
         "email": current_user["email"],

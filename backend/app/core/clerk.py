@@ -54,13 +54,14 @@ def _verified_email(claims: dict[str, Any]) -> str:
     return _normalise_email(claims.get("email"))
 
 
-def _required_configuration(settings: Settings) -> tuple[str, str, str]:
+def _required_configuration(settings: Settings) -> tuple[str, str, str, tuple[str, ...]]:
     jwks_url = settings.clerk_jwks_url.strip()
     issuer = settings.clerk_issuer.strip().rstrip("/")
     audience = settings.clerk_audience.strip()
-    if not jwks_url or not issuer or not audience:
+    allowed_parties = tuple(settings.clerk_authorized_parties_list)
+    if not jwks_url or not issuer or not audience or not allowed_parties:
         raise ClerkConfigurationError("Clerk JWT verification is not fully configured")
-    return jwks_url, issuer, audience
+    return jwks_url, issuer, audience, allowed_parties
 
 
 @lru_cache(maxsize=8)
@@ -79,7 +80,7 @@ def verify_clerk_token(token: str, settings: Settings) -> ClerkIdentity:
     be replayed against this API.
     """
 
-    jwks_url, issuer, audience = _required_configuration(settings)
+    jwks_url, issuer, audience, allowed_parties = _required_configuration(settings)
     try:
         header = jwt.get_unverified_header(token)
         if header.get("alg") != "RS256":
@@ -103,10 +104,8 @@ def verify_clerk_token(token: str, settings: Settings) -> ClerkIdentity:
     if not isinstance(subject, str) or not subject.strip() or len(subject) > 255:
         raise ClerkTokenError("OAuth token has an invalid subject")
 
-    allowed_parties = settings.clerk_authorized_parties_list
-    if allowed_parties:
-        azp = claims.get("azp")
-        if not isinstance(azp, str) or azp.rstrip("/") not in allowed_parties:
-            raise ClerkTokenError("OAuth token was issued for another application")
+    azp = claims.get("azp")
+    if not isinstance(azp, str) or azp.rstrip("/") not in allowed_parties:
+        raise ClerkTokenError("OAuth token was issued for another application")
 
     return ClerkIdentity(subject=subject.strip(), email=_verified_email(claims))

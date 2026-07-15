@@ -476,7 +476,6 @@ def link_external_identity(db: Session, user: User, *, subject: str) -> User:
         select(User.id).where(
             User.external_auth_subject == normalized_subject,
             User.id != user.id,
-            User.is_deleted.is_(False),
         )
     )
     if linked_user_id is not None:
@@ -491,6 +490,15 @@ def link_external_identity(db: Session, user: User, *, subject: str) -> User:
         "link_oauth_identity",
         after={"oauth_status": "linked"},
     )
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def record_oauth_login(db: Session, user: User) -> User:
+    """Record a completed OAuth session sync without recording a login per API call."""
+
+    user.last_login_at = datetime.now(UTC)
     db.commit()
     db.refresh(user)
     return user

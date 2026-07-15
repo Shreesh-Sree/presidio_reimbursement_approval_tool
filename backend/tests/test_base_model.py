@@ -7,7 +7,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 
-# Create in-memory SQLite for testing
 test_engine = create_engine("sqlite:///:memory:", echo=False)
 Base = declarative_base()
 

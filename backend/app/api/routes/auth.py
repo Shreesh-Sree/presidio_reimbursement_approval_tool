@@ -1,24 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import create_access_token
+from app.core.security import create_access_token, verify_password
 from app.core.deps import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-class LoginRequest:
-    def __init__(self, email: str, password: str):
-        self.email = email
-        self.password = password
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 @router.post("/login")
-async def login(email: str, password: str, db: Session = Depends(get_db)):
-    if email == "admin@example.com" and password == "admin":
-        token = create_access_token({"sub": "admin-id", "email": email})
-        return {"access_token": token, "token_type": "bearer"}
-    raise HTTPException(status_code=401, detail="Invalid credentials")
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == request.email, User.is_deleted == False).first()
+    if not user or user.status != "active":
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_password(request.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token({"sub": str(user.id), "email": user.email})
+    return {"access_token": token, "token_type": "bearer"}
 
 
 @router.post("/logout")

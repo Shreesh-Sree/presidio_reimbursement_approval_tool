@@ -1,15 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import get_settings
 from app.api.routes import auth, users, roles, org_chart
 
-app = FastAPI(title="Reimbursement API")
+app = FastAPI(title="Reimbursement API", version="1.0.0")
+
+settings = get_settings()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(auth.router)

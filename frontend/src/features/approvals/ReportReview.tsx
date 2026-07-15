@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
+import { CommentThread } from "../../components/CommentThread";
 import type { ReportLineItem } from "../../lib/api";
 import { reportsApi } from "../../lib/api";
 import { ActionBar } from "./ActionBar";
@@ -86,6 +87,28 @@ export function ReportReview({ reportId }: ReportReviewProps) {
         <h2 className="font-semibold text-slate-950 dark:text-white">AI audit</h2>
         <pre className="mt-3 max-h-80 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{report.ai_audit ? JSON.stringify(report.ai_audit, null, 2) : "No AI audit data available."}</pre>
       </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="font-semibold text-slate-950 dark:text-white">Status timeline</h2>
+        {report.approval_history && report.approval_history.length > 0 ? (
+          <ol className="mt-4 space-y-4 border-l-2 border-slate-200 pl-5 dark:border-slate-700">
+            {report.approval_history.map((entry) => (
+              <li className="relative" key={entry.id}>
+                <span className="absolute -left-[1.8rem] top-1.5 size-3 rounded-full border-2 border-white bg-indigo-600 dark:border-slate-900 dark:bg-indigo-400" />
+                <p className="font-medium text-slate-950 dark:text-white">{displayStatus(entry.action)}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  {entry.actor_name ?? "Workflow"} · <time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time>
+                </p>
+                {entry.remarks && <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{entry.remarks}</p>}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">No approval history has been recorded yet.</p>
+        )}
+      </section>
+
+      <CommentThread reportId={id} />
 
       <ActionBar
         disabled={report.status.toLowerCase() !== "submitted"}

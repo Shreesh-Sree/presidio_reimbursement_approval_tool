@@ -2,17 +2,22 @@ import { Button } from "../../components/ui/button";
 import { FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import type { ReportLineItem } from "../../lib/api";
+import { Select } from "../../components/ui/select";
+import type { Category, ReportLineItem, Vendor } from "../../lib/api";
 import { ReceiptUpload } from "./ReceiptUpload";
 
 type LineItemRowProps = {
   item: ReportLineItem;
   index: number;
+  categories: Category[];
+  vendors: Vendor[];
+  selectionsLoading?: boolean;
   disabled?: boolean;
   isSaving?: boolean;
   onDelete: (item: ReportLineItem) => void;
   onSave: (item: ReportLineItem) => void;
   onUpdate: (item: ReportLineItem) => void;
+  onReceiptUploaded?: () => void;
 };
 
 function amountFromInput(value: string) {
@@ -21,10 +26,23 @@ function amountFromInput(value: string) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
-export function LineItemRow({ item, index, disabled = false, isSaving = false, onDelete, onSave, onUpdate }: LineItemRowProps) {
+export function LineItemRow({
+  item,
+  index,
+  categories,
+  vendors,
+  selectionsLoading = false,
+  disabled = false,
+  isSaving = false,
+  onDelete,
+  onSave,
+  onUpdate,
+  onReceiptUploaded,
+}: LineItemRowProps) {
   const receiptUrl = item.receipt?.url ?? item.receipt_url;
   const violationReason = item.violation_reason ?? item.policy_violation_reason;
   const isNewItem = item.id.startsWith("new-");
+  const canSave = Boolean(item.category_id && item.description.trim() && item.expense_date && Number(item.amount) > 0);
   const update = (changes: Partial<ReportLineItem>) => onUpdate({ ...item, ...changes });
 
   return (
@@ -32,7 +50,7 @@ export function LineItemRow({ item, index, disabled = false, isSaving = false, o
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium text-slate-950 dark:text-white">Line item {index + 1}</h3>
         <div className="flex gap-2">
-          <Button disabled={disabled || isSaving} onClick={() => onSave(item)} variant="outline">
+          <Button disabled={disabled || isSaving || !canSave} onClick={() => onSave(item)} variant="outline">
             {isSaving ? "Saving…" : "Save item"}
           </Button>
           <Button aria-label={`Delete line item ${index + 1}`} disabled={disabled || isSaving} onClick={() => onDelete(item)} variant="ghost">
@@ -40,6 +58,10 @@ export function LineItemRow({ item, index, disabled = false, isSaving = false, o
           </Button>
         </div>
       </div>
+
+      {!disabled && !canSave && (
+        <p className="text-sm text-amber-700 dark:text-amber-300">Choose a category and complete the description, date, and positive amount before saving.</p>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <FormField className="xl:col-span-2">
@@ -65,30 +87,71 @@ export function LineItemRow({ item, index, disabled = false, isSaving = false, o
         </FormField>
         <FormField>
           <Label htmlFor={`item-category-${index}`}>Category for line item {index + 1}</Label>
-          <Input
-            disabled={disabled}
+          <Select
+            disabled={disabled || selectionsLoading}
             id={`item-category-${index}`}
-            onChange={(event) => update({ category_name: event.target.value })}
-            value={item.category_name ?? ""}
-          />
+            onChange={(event) => {
+              const category = categories.find((candidate) => candidate.id === event.target.value);
+              update({ category_id: category?.id, category_name: category?.name ?? "" });
+            }}
+            required
+            value={item.category_id ?? ""}
+          >
+            <option value="">{selectionsLoading ? "Loading categories…" : "Choose a category"}</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </Select>
         </FormField>
         <FormField>
-          <Label htmlFor={`item-vendor-${index}`}>Vendor for line item {index + 1}</Label>
-          <Input
-            disabled={disabled}
+          <Label htmlFor={`item-vendor-${index}`}>Saved vendor (optional)</Label>
+          <Select
+            disabled={disabled || selectionsLoading}
             id={`item-vendor-${index}`}
-            onChange={(event) => update({ vendor_name: event.target.value })}
-            value={item.vendor_name ?? ""}
-          />
+            onChange={(event) => {
+              const vendor = vendors.find((candidate) => candidate.id === event.target.value);
+              update({
+                vendor_id: vendor?.id,
+                vendor_name: vendor?.name ?? "",
+                merchant_name: vendor ? null : item.merchant_name ?? item.vendor_name ?? "",
+              });
+            }}
+            value={item.vendor_id ?? ""}
+          >
+            <option value="">{selectionsLoading ? "Loading vendors…" : "Not in vendor list"}</option>
+            {vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+          </Select>
         </FormField>
+        {!item.vendor_id && (
+          <FormField>
+            <Label htmlFor={`item-merchant-${index}`}>Merchant name</Label>
+            <Input
+              disabled={disabled}
+              id={`item-merchant-${index}`}
+              onChange={(event) => update({ merchant_name: event.target.value, vendor_name: event.target.value })}
+              placeholder="e.g. City Taxi"
+              value={item.merchant_name ?? item.vendor_name ?? ""}
+            />
+          </FormField>
+        )}
         <FormField>
           <Label htmlFor={`item-date-${index}`}>Expense date for line item {index + 1}</Label>
           <Input
             disabled={disabled}
             id={`item-date-${index}`}
             onChange={(event) => update({ expense_date: event.target.value })}
+            required
             type="date"
             value={item.expense_date?.slice(0, 10) ?? ""}
+          />
+        </FormField>
+        <FormField>
+          <Label htmlFor={`item-currency-${index}`}>Currency</Label>
+          <Input
+            disabled={disabled}
+            id={`item-currency-${index}`}
+            maxLength={3}
+            onChange={(event) => update({ currency: event.target.value.toUpperCase() })}
+            placeholder="USD"
+            value={item.currency ?? item.currency_code ?? ""}
           />
         </FormField>
       </div>
@@ -106,11 +169,14 @@ export function LineItemRow({ item, index, disabled = false, isSaving = false, o
           <ReceiptUpload
             disabled={disabled}
             itemId={item.id}
-            onUploadComplete={(receipt) => update({ receipt, receipt_url: receipt.url })}
+            onUploadComplete={(receipt) => {
+              update({ receipt, receipt_url: receipt.url });
+              onReceiptUploaded?.();
+            }}
           />
           {receiptUrl && (
             <a className="text-sm font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-300" href={receiptUrl} rel="noreferrer" target="_blank">
-              View receipt
+              View receipt{item.receipt?.file_name ? ` (${item.receipt.file_name})` : ""}
             </a>
           )}
         </div>

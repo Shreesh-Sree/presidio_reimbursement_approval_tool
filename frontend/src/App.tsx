@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { RequirePermission } from "./auth/RequirePermission";
+import { hasPermission } from "./auth/permissions";
+import { Button } from "./components/ui/button";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ApprovalQueuePage } from "./features/approvals/ApprovalQueuePage";
 import { ReportReview } from "./features/approvals/ReportReview";
@@ -13,8 +15,17 @@ import { OrgChartPage } from "./features/users/OrgChartPage";
 import { UsersPage } from "./features/users/UsersPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
   if (!token) return <Navigate to="/login" />;
+
+  const navigation = [
+    { to: "/reports", label: "Reports", permission: "report:read" },
+    { to: "/approvals", label: "Approvals", permission: "report:approve" },
+    { to: "/policies", label: "Policies", permission: "policy:manage" },
+    { to: "/categories", label: "Categories", permission: "category:manage" },
+    { to: "/users", label: "Users", permission: "user:read" },
+    { to: "/org-chart", label: "Org chart", permission: "user:read" },
+  ];
 
   return (
     <>
@@ -22,16 +33,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
           <Link className="font-semibold text-slate-950 dark:text-white" to="/reports">Presidio reimbursements</Link>
           <nav aria-label="Primary navigation" className="order-3 flex w-full gap-1 overflow-x-auto text-sm sm:order-2 sm:w-auto">
-            <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" to="/reports">Reports</Link>
-            <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" to="/approvals">Approvals</Link>
-            <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" to="/policies">Policies</Link>
-            <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" to="/categories">Categories</Link>
-            <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" to="/users">Users</Link>
-            <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" to="/org-chart">Org chart</Link>
+            {navigation.filter((item) => hasPermission(user, item.permission)).map((item) => (
+              <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" key={item.to} to={item.to}>{item.label}</Link>
+            ))}
           </nav>
           <div className="flex items-center gap-2">
             <span className="hidden max-w-40 truncate text-sm text-slate-600 dark:text-slate-300 sm:block">{user?.email}</span>
             <NotificationBell />
+            <Button aria-label="Sign out" className="hidden sm:inline-flex" onClick={logout} variant="ghost">Sign out</Button>
           </div>
         </div>
       </header>

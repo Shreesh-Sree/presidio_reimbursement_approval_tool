@@ -4,7 +4,15 @@ import { useParams } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { reportsApi, type Report, type ReportLineItem, type ReportLineItemInput } from "../../lib/api";
+import {
+  categoriesApi,
+  getApiErrorMessage,
+  reportsApi,
+  vendorsApi,
+  type Report,
+  type ReportLineItem,
+  type ReportLineItemInput,
+} from "../../lib/api";
 import { LineItemRow } from "./LineItemRow";
 
 type ReportEditorProps = {
@@ -12,20 +20,25 @@ type ReportEditorProps = {
 };
 
 function normaliseItem(item: ReportLineItem): ReportLineItem {
-  return { ...item, amount: Number(item.amount) || 0 };
+  return {
+    ...item,
+    amount: Number(item.amount) || 0,
+    currency: item.currency ?? item.currency_code,
+    expense_date: item.expense_date?.slice(0, 10),
+  };
 }
 
 function requestForItem(item: ReportLineItem): ReportLineItemInput {
-  const {
-    id: _id,
-    receipt: _receipt,
-    receipt_url: _receiptUrl,
-    is_policy_violated: _isPolicyViolated,
-    violation_reason: _violationReason,
-    policy_violation_reason: _policyViolationReason,
-    ...request
-  } = item;
-  return request;
+  const merchantName = item.merchant_name?.trim();
+  return {
+    category_id: item.category_id ?? "",
+    ...(item.vendor_id ? { vendor_id: item.vendor_id } : {}),
+    ...(!item.vendor_id && merchantName ? { merchant_name: merchantName } : {}),
+    amount: Number(item.amount) || 0,
+    currency: (item.currency ?? item.currency_code ?? "USD").toUpperCase(),
+    description: item.description.trim(),
+    expense_date: item.expense_date?.slice(0, 10),
+  };
 }
 
 function displayStatus(status: string) {
@@ -39,6 +52,9 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
   const [title, setTitle] = useState("");
   const [items, setItems] = useState<ReportLineItem[]>([]);
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [itemError, setItemError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const reportQuery = useQuery({
     queryKey: ["report", id],
     queryFn: () => reportsApi.get(id as string),
@@ -49,51 +65,83 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
     queryFn: () => reportsApi.listItems(id as string),
     enabled: Boolean(id),
   });
+  const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: categoriesApi.list });
+  const vendorsQuery = useQuery({ queryKey: ["vendors"], queryFn: vendorsApi.list });
   const report = reportQuery.data;
 
   useEffect(() => {
     if (!report) return;
     const reportItems = report.line_items ?? report.items;
-    const source = reportItems && reportItems.length > 0 ? reportItems : itemQuery.data ?? reportItems ?? [];
+    const source = itemQuery.data ?? reportItems ?? [];
     setTitle(report.title);
     setItems(source.map(normaliseItem));
   }, [itemQuery.data, report]);
 
+  const refreshReport = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["report", id] }),
+      queryClient.invalidateQueries({ queryKey: ["report", id, "items"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
+    ]);
+  };
+
   const saveReport = useMutation({
-    mutationFn: (nextTitle: string) => reportsApi.update(id as string, { title: nextTitle }),
+    mutationFn: (nextTitle: string) => reportsApi.update(id as string, { title: nextTitle.trim() }),
+    onMutate: () => setReportError(null),
     onSuccess: (updatedReport) => {
       queryClient.setQueryData<Report>(["report", id], (current) => ({ ...current, ...updatedReport }));
+      void refreshReport();
     },
+    onError: (error) => setReportError(getApiErrorMessage(error, "Unable to save the report title.")),
   });
   const saveItem = useMutation({
     mutationFn: async (item: ReportLineItem) => {
-      if (item.id.startsWith("new-")) return reportsApi.addItem(id as string, requestForItem(item));
-      return reportsApi.updateItem(id as string, item.id, requestForItem(item));
+      const request = requestForItem(item);
+      if (item.id.startsWith("new-")) return reportsApi.addItem(id as string, request);
+      return reportsApi.updateItem(id as string, item.id, request);
     },
-    onMutate: (item) => setSavingItemId(item.id),
+    onMutate: (item) => {
+      setItemError(null);
+      setSavingItemId(item.id);
+    },
     onSuccess: (savedItem, originalItem) => {
-      setItems((current) => current.map((item) => (item.id === originalItem.id ? normaliseItem({ ...originalItem, ...savedItem }) : item)));
-      queryClient.invalidateQueries({ queryKey: ["report", id, "items"] });
+      setItems((current) => current.map((item) => (
+        item.id === originalItem.id ? normaliseItem({ ...originalItem, ...savedItem }) : item
+      )));
+      void refreshReport();
     },
+    onError: (error) => setItemError(getApiErrorMessage(error, "Unable to save this line item.")),
     onSettled: () => setSavingItemId(null),
   });
   const removeItem = useMutation({
     mutationFn: (itemId: string) => reportsApi.removeItem(id as string, itemId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["report", id, "items"] }),
+    onMutate: () => setItemError(null),
+    onSuccess: () => void refreshReport(),
+    onError: async (error) => {
+      setItemError(getApiErrorMessage(error, "Unable to delete this line item."));
+      await refreshReport();
+    },
   });
   const submitReport = useMutation({
     mutationFn: () => reportsApi.submit(id as string),
+    onMutate: () => setSubmitError(null),
     onSuccess: (updatedReport) => {
       queryClient.setQueryData<Report>(["report", id], (current) => ({ ...current, ...updatedReport }));
-      queryClient.invalidateQueries({ queryKey: ["reports"] });
+      void refreshReport();
+    },
+    onError: async (error) => {
+      setSubmitError(getApiErrorMessage(error, "Unable to submit this report."));
+      await refreshReport();
     },
   });
   const withdrawReport = useMutation({
     mutationFn: () => reportsApi.withdraw(id as string),
+    onMutate: () => setSubmitError(null),
     onSuccess: (updatedReport) => {
       queryClient.setQueryData<Report>(["report", id], (current) => ({ ...current, ...updatedReport }));
-      queryClient.invalidateQueries({ queryKey: ["reports"] });
+      void refreshReport();
     },
+    onError: (error) => setSubmitError(getApiErrorMessage(error, "Unable to withdraw this report.")),
   });
 
   const violationMessages = useMemo(() => {
@@ -103,14 +151,16 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
     return Array.from(new Set([...(report?.violations ?? []), ...messages]));
   }, [items, report?.violations]);
   const total = useMemo(() => items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0), [items]);
-  const isDraft = report?.status.toLowerCase() === "draft";
-  const canSubmit = isDraft && violationMessages.length === 0;
+  const status = report?.status.toLowerCase() ?? "";
+  const isEditable = status === "draft" || status === "sent_back";
+  const canSubmit = isEditable && items.length > 0 && violationMessages.length === 0;
 
   if (!id) return <main className="p-6 text-sm text-rose-700">A report ID is required.</main>;
   if (reportQuery.isLoading) return <main className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading report…</main>;
   if (reportQuery.isError || !report) return <main className="p-6 text-sm text-rose-700">Unable to load this report.</main>;
 
   const addLineItem = () => {
+    setItemError(null);
     setItems((current) => [
       ...current,
       {
@@ -118,6 +168,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
         amount: 0,
         description: "",
         currency: report.currency ?? "USD",
+        expense_date: new Date().toISOString().slice(0, 10),
       },
     ]);
   };
@@ -141,16 +192,22 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
           </div>
           <Label htmlFor="report-title">Report title</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Input disabled={!isDraft} id="report-title" onChange={(event) => setTitle(event.target.value)} value={title} />
-            {isDraft && <Button disabled={saveReport.isPending || title.trim() === ""} onClick={() => saveReport.mutate(title)}>Save draft</Button>}
+            <Input disabled={!isEditable} id="report-title" onChange={(event) => setTitle(event.target.value)} value={title} />
+            {isEditable && <Button disabled={saveReport.isPending || title.trim() === ""} onClick={() => saveReport.mutate(title)}>{status === "sent_back" ? "Save changes" : "Save draft"}</Button>}
           </div>
-          {saveReport.isError && <p className="text-sm text-rose-600">Unable to save the report title.</p>}
+          {reportError && <p className="text-sm text-rose-600" role="alert">{reportError}</p>}
         </div>
         <div className="rounded-lg bg-slate-100 px-4 py-3 text-right dark:bg-slate-800">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Live total</p>
           <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">Total: {new Intl.NumberFormat("en-US", { style: "currency", currency: report.currency ?? "USD" }).format(total)}</p>
         </div>
       </header>
+
+      {(categoriesQuery.isError || vendorsQuery.isError) && (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100" role="alert">
+          Categories or vendors could not be loaded. Refresh the page before saving a new line item.
+        </section>
+      )}
 
       {violationMessages.length > 0 && (
         <section aria-live="polite" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100" role="alert">
@@ -165,41 +222,45 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-950 dark:text-white" id="line-items-heading">Line items</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-300">Add expenses, link receipts, and review any policy flags before submitting.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Add expenses, select their policy category, link receipts, and review any policy flags before submitting.</p>
           </div>
-          <Button disabled={!isDraft} onClick={addLineItem}>Add line item</Button>
+          <Button disabled={!isEditable} onClick={addLineItem}>Add line item</Button>
         </div>
-        {items.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No line items yet.</p>}
+        {items.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No line items yet. Add at least one complete item before submitting.</p>}
+        {itemError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200" role="alert">{itemError}</p>}
         <div className="space-y-4">
           {items.map((item, index) => (
             <LineItemRow
-              disabled={!isDraft}
+              categories={categoriesQuery.data ?? []}
+              disabled={!isEditable}
               index={index}
               isSaving={savingItemId === item.id}
               item={item}
               key={item.id}
               onDelete={deleteLineItem}
+              onReceiptUploaded={() => void refreshReport()}
               onSave={(nextItem) => saveItem.mutate(nextItem)}
               onUpdate={(nextItem) => setItems((current) => current.map((item) => (item.id === nextItem.id ? nextItem : item)))}
+              selectionsLoading={categoriesQuery.isLoading || vendorsQuery.isLoading}
+              vendors={vendorsQuery.data ?? []}
             />
           ))}
         </div>
       </section>
 
       <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end dark:border-slate-800">
-        {report.status.toLowerCase() === "submitted" && (
+        {status === "submitted" && (
           <Button disabled={withdrawReport.isPending} onClick={() => withdrawReport.mutate()} variant="outline">
             {withdrawReport.isPending ? "Withdrawing…" : "Withdraw report"}
           </Button>
         )}
-        {isDraft && (
+        {isEditable && (
           <Button disabled={!canSubmit || submitReport.isPending} onClick={() => submitReport.mutate()}>
-            {submitReport.isPending ? "Submitting…" : "Submit report"}
+            {submitReport.isPending ? "Submitting…" : status === "sent_back" ? "Resubmit report" : "Submit report"}
           </Button>
         )}
       </footer>
-      {submitReport.isError && <p className="text-sm text-rose-600">Unable to submit this report.</p>}
-      {withdrawReport.isError && <p className="text-sm text-rose-600">Unable to withdraw this report.</p>}
+      {submitError && <p className="text-sm text-rose-600" role="alert">{submitError}</p>}
     </main>
   );
 }

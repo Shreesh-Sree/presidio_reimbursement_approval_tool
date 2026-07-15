@@ -35,10 +35,18 @@ export type Category = {
   name: string;
   parent_id?: string | null;
   description?: string | null;
+  receipt_required?: boolean;
+  max_amount?: number | null;
   children?: Category[];
 };
 
 export type CategoryInput = Omit<Category, "id" | "children">;
+
+export type Vendor = {
+  id: string;
+  name: string;
+  normalized_name?: string | null;
+};
 
 export type Receipt = {
   id: string;
@@ -54,8 +62,10 @@ export type ReportLineItem = {
   category_name?: string;
   vendor_id?: string;
   vendor_name?: string;
+  merchant_name?: string | null;
   amount: number;
   currency?: string;
+  currency_code?: string;
   description: string;
   expense_date?: string;
   receipt?: Receipt | null;
@@ -96,7 +106,15 @@ export type ReportInput = {
   description?: string;
 };
 
-export type ReportLineItemInput = Omit<ReportLineItem, "id" | "receipt" | "receipt_url">;
+export type ReportLineItemInput = {
+  category_id: string;
+  vendor_id?: string | null;
+  merchant_name?: string | null;
+  amount: number;
+  currency?: string;
+  description: string;
+  expense_date?: string;
+};
 
 export type ApprovalQueueItem = Pick<Report, "id" | "title" | "status" | "total" | "currency" | "created_at" | "submitter_name"> & {
   pending_with?: string;
@@ -164,6 +182,23 @@ apiClient.interceptors.request.use((config) => {
 
 const unwrap = <T>(request: Promise<{ data: T }>) => request.then((response) => response.data);
 
+/** Return a safe, readable message for FastAPI and network errors. */
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((entry) => (typeof entry === "string" ? entry : typeof entry?.msg === "string" ? entry.msg : ""))
+        .filter(Boolean);
+      if (messages.length > 0) return messages.join(" ");
+    }
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 export const policiesApi = {
   list: () => unwrap(apiClient.get<Policy[]>("/policies")),
   create: (input: PolicyInput) => unwrap(apiClient.post<Policy>("/policies", input)),
@@ -196,6 +231,10 @@ export const categoriesApi = {
   update: (categoryId: string, input: Partial<CategoryInput>) =>
     unwrap(apiClient.patch<Category>(`/categories/${categoryId}`, input)),
   remove: (categoryId: string) => unwrap(apiClient.delete<void>(`/categories/${categoryId}`)),
+};
+
+export const vendorsApi = {
+  list: () => unwrap(apiClient.get<Vendor[]>("/vendors")),
 };
 
 export const reportsApi = {

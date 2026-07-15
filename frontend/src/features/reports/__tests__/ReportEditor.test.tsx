@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { reportsApi, type Report } from "../../../lib/api";
+import { categoriesApi, reportsApi, vendorsApi, type Report } from "../../../lib/api";
 import { ReportEditor } from "../ReportEditor";
 
 const draftReport: Report = {
@@ -32,6 +32,12 @@ describe("ReportEditor", () => {
     vi.spyOn(reportsApi, "updateItem").mockResolvedValue({ id: "item-1", amount: 0, description: "" });
     vi.spyOn(reportsApi, "removeItem").mockResolvedValue(undefined);
     vi.spyOn(reportsApi, "submit").mockResolvedValue({ ...draftReport, status: "submitted" });
+    vi.spyOn(categoriesApi, "list").mockResolvedValue([
+      { id: "category-1", code: "TRAVEL", name: "Travel" },
+    ]);
+    vi.spyOn(vendorsApi, "list").mockResolvedValue([
+      { id: "vendor-1", name: "City Taxi", normalized_name: "city taxi" },
+    ]);
   });
 
   it("adds an item and recomputes the live total", async () => {
@@ -64,5 +70,59 @@ describe("ReportEditor", () => {
 
     expect((await screen.findAllByText(/receipt is required above \$100/i)).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /^submit report$/i })).toBeDisabled();
+  });
+
+  it("saves selected category and vendor IDs instead of free-text values", async () => {
+    const user = userEvent.setup();
+    const addItem = vi.mocked(reportsApi.addItem);
+    renderEditor();
+
+    await user.click(await screen.findByRole("button", { name: /add line item/i }));
+    await user.type(screen.getByLabelText(/description for line item 1/i), "Airport transfer");
+    fireEvent.change(screen.getByLabelText(/amount for line item 1/i), { target: { value: "42.50" } });
+    await user.selectOptions(screen.getByLabelText(/category for line item 1/i), "category-1");
+    await user.selectOptions(screen.getByLabelText(/saved vendor/i), "vendor-1");
+    await user.click(screen.getByRole("button", { name: /save item/i }));
+
+    await expect.poll(() => addItem.mock.calls.length).toBe(1);
+    expect(addItem).toHaveBeenCalledWith("report-1", expect.objectContaining({
+      category_id: "category-1",
+      vendor_id: "vendor-1",
+      amount: 42.5,
+      currency: "USD",
+      description: "Airport transfer",
+    }));
+  });
+
+  it("allows sent-back reports to be corrected and displays API validation details", async () => {
+    const user = userEvent.setup();
+    const sentBackReport: Report = {
+      ...draftReport,
+      status: "sent_back",
+      line_items: [
+        {
+          id: "item-1",
+          category_id: "category-1",
+          category_name: "Travel",
+          amount: 42.5,
+          currency: "USD",
+          description: "Airport transfer",
+          expense_date: "2026-08-02",
+        },
+      ],
+    };
+    vi.mocked(reportsApi.get).mockResolvedValue(sentBackReport);
+    vi.mocked(reportsApi.listItems).mockResolvedValue(sentBackReport.line_items ?? []);
+    vi.mocked(reportsApi.submit).mockRejectedValue(Object.assign(new Error("Request failed"), {
+      isAxiosError: true,
+      response: { data: { detail: "Active policy requires a receipt for this item." } },
+    }));
+    renderEditor();
+
+    expect(await screen.findByRole("button", { name: /^resubmit report$/i })).toBeEnabled();
+    expect(screen.getByLabelText(/report title/i)).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: /^resubmit report$/i }));
+
+    expect(await screen.findByText("Active policy requires a receipt for this item.")).toBeInTheDocument();
   });
 });

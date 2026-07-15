@@ -49,4 +49,16 @@ describe("ReceiptUpload", () => {
 
     expect(await screen.findByText(/upload failed/i)).toBeInTheDocument();
   });
+
+  it("rejects unsupported files before attempting an upload", () => {
+    const upload = vi.spyOn(reportsApi, "uploadReceipt");
+    renderUpload();
+    const file = new File(["not a receipt"], "notes.txt", { type: "text/plain" });
+
+    fireEvent.change(screen.getByLabelText(/upload receipt/i), { target: { files: [file] } });
+
+    expect(screen.getByText(/receipts must be an image or pdf file/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^upload$/i })).toBeDisabled();
+    expect(upload).not.toHaveBeenCalled();
+  });
 });

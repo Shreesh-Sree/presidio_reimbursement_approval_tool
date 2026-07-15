@@ -30,6 +30,7 @@ export function ApprovalQueuePage() {
               <div>
                 <h2 className="font-semibold text-slate-950 dark:text-white">{report.title}</h2>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{report.submitter_name ?? "Employee not listed"}</p>
+                {report.acting_for_name && <p className="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-300">Acting for {report.acting_for_name}</p>}
               </div>
               <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{formatStatus(report.status)}</span>
             </div>

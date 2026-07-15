@@ -48,4 +48,26 @@ describe("ReportsListPage", () => {
       end_date: "2026-08-03",
     }));
   });
+
+  it("shows the reimbursement payment lifecycle without exposing finance details", async () => {
+    vi.spyOn(reportsApi, "list").mockResolvedValue([
+      {
+        id: "report-paid",
+        title: "June client visit",
+        status: "approved_pending_payment",
+        total: 240,
+        currency: "USD",
+        payment: {
+          id: "payment-1",
+          payment_reference: "PAY-2026-001",
+          status: "exported",
+        },
+      },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText("June client visit")).toBeInTheDocument();
+    expect(screen.getByLabelText("Reimbursement: Exported")).toBeInTheDocument();
+    expect(screen.getByText(/payment reference: pay-2026-001/i)).toBeInTheDocument();
+  });
 });

@@ -1,55 +1,84 @@
-import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { RequirePermission } from "./auth/RequirePermission";
-import { hasPermission } from "./auth/permissions";
-import { Button } from "./components/ui/button";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { BootstrapPage } from "./features/auth/BootstrapPage";
 import { LoginPage } from "./features/auth/LoginPage";
-import { ApprovalQueuePage } from "./features/approvals/ApprovalQueuePage";
-import { ReportReview } from "./features/approvals/ReportReview";
-import { CategoriesPage } from "./features/categories/CategoriesPage";
-import { PoliciesPage } from "./features/policies/PoliciesPage";
-import { ReportEditor } from "./features/reports/ReportEditor";
-import { ReportsListPage } from "./features/reports/ReportsListPage";
-import { NotificationBell } from "./features/notifications/NotificationBell";
-import { OrgChartPage } from "./features/users/OrgChartPage";
-import { UsersPage } from "./features/users/UsersPage";
-import { WorkflowRulesPage } from "./features/workflows/WorkflowRulesPage";
+
+const AppShell = lazy(async () => {
+  const module = await import("./components/layout/AppShell");
+  return { default: module.AppShell };
+});
+
+const UsersPage = lazy(async () => {
+  const module = await import("./features/users/UsersPage");
+  return { default: module.UsersPage };
+});
+
+const OrgChartPage = lazy(async () => {
+  const module = await import("./features/users/OrgChartPage");
+  return { default: module.OrgChartPage };
+});
+
+const PoliciesPage = lazy(async () => {
+  const module = await import("./features/policies/PoliciesPage");
+  return { default: module.PoliciesPage };
+});
+
+const CategoriesPage = lazy(async () => {
+  const module = await import("./features/categories/CategoriesPage");
+  return { default: module.CategoriesPage };
+});
+
+const WorkflowRulesPage = lazy(async () => {
+  const module = await import("./features/workflows/WorkflowRulesPage");
+  return { default: module.WorkflowRulesPage };
+});
+
+const ReportsListPage = lazy(async () => {
+  const module = await import("./features/reports/ReportsListPage");
+  return { default: module.ReportsListPage };
+});
+
+const ReportEditor = lazy(async () => {
+  const module = await import("./features/reports/ReportEditor");
+  return { default: module.ReportEditor };
+});
+
+const ApprovalQueuePage = lazy(async () => {
+  const module = await import("./features/approvals/ApprovalQueuePage");
+  return { default: module.ApprovalQueuePage };
+});
+
+const ReportReview = lazy(async () => {
+  const module = await import("./features/approvals/ReportReview");
+  return { default: module.ReportReview };
+});
+
+const DelegationsPage = lazy(async () => {
+  const module = await import("./features/delegations/DelegationsPage");
+  return { default: module.DelegationsPage };
+});
+
+const AnalyticsPage = lazy(async () => {
+  const module = await import("./features/analytics/AnalyticsPage");
+  return { default: module.AnalyticsPage };
+});
+
+const PaymentsPage = lazy(async () => {
+  const module = await import("./features/payments/PaymentsPage");
+  return { default: module.PaymentsPage };
+});
+
+function RouteLoading() {
+  return <main className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading page…</main>;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token, user, logout } = useAuth();
-  if (!token) return <Navigate to="/login" />;
-
-  const navigation = [
-    { to: "/reports", label: "Reports", permission: "report:read" },
-    { to: "/approvals", label: "Approvals", permission: "report:approve" },
-    { to: "/policies", label: "Policies", permission: "policy:manage" },
-    { to: "/categories", label: "Categories", permission: "category:manage" },
-    { to: "/workflows", label: "Workflows", permission: "workflow:manage" },
-    { to: "/users", label: "Users", permission: "user:read" },
-    { to: "/org-chart", label: "Org chart", permission: "user:read" },
-  ];
-
-  return (
-    <>
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
-          <Link className="font-semibold text-slate-950 dark:text-white" to="/reports">Presidio reimbursements</Link>
-          <nav aria-label="Primary navigation" className="order-3 flex w-full gap-1 overflow-x-auto text-sm sm:order-2 sm:w-auto">
-            {navigation.filter((item) => hasPermission(user, item.permission)).map((item) => (
-              <Link className="rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" key={item.to} to={item.to}>{item.label}</Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-2">
-            <span className="hidden max-w-40 truncate text-sm text-slate-600 dark:text-slate-300 sm:block">{user?.email}</span>
-            <NotificationBell />
-            <Button aria-label="Sign out" className="hidden sm:inline-flex" onClick={logout} variant="ghost">Sign out</Button>
-          </div>
-        </div>
-      </header>
-      {children}
-    </>
-  );
+  const { token } = useAuth();
+  if (!token) return <Navigate replace to="/login" />;
+  return <Suspense fallback={<RouteLoading />}><AppShell>{children}</AppShell></Suspense>;
 }
 
 function AppContent() {
@@ -63,8 +92,11 @@ function AppContent() {
       <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/workflows" element={<ProtectedRoute><RequirePermission permission="workflow:manage"><WorkflowRulesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportsListPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute><RequirePermission permission="report:read"><AnalyticsPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/payments" element={<ProtectedRoute><RequirePermission permission="payment:manage"><PaymentsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/reports/:reportId" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportEditor /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals" element={<ProtectedRoute><RequirePermission permission="report:approve"><ApprovalQueuePage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/delegations" element={<ProtectedRoute><RequirePermission permission="report:approve"><DelegationsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals/:reportId" element={<ProtectedRoute><RequirePermission permission="report:approve"><ReportReview /></RequirePermission></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/reports" />} />
     </Routes>
@@ -75,7 +107,9 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <AppContent />
+        <AppErrorBoundary>
+          <AppContent />
+        </AppErrorBoundary>
       </BrowserRouter>
     </AuthProvider>
   );

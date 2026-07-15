@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
 import { policiesApi, type Policy } from "../../lib/api";
+import { PolicyAssistantPanel } from "./PolicyAssistantPanel";
 import { PolicyForm } from "./PolicyForm";
 import { PolicyUpload } from "./PolicyUpload";
 
@@ -94,6 +95,9 @@ export function PoliciesPage() {
               </div>
               <div className="mt-5">
                 <PolicyUpload currentDocumentUrl={policy.document_url} onUploaded={handleDocumentUploaded} policyId={policy.id} />
+              </div>
+              <div className="mt-5">
+                <PolicyAssistantPanel policy={policy} />
               </div>
             </article>
           );

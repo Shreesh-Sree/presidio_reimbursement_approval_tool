@@ -197,6 +197,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Expense report</p>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">{displayStatus(report.status)}</span>
+            {report.payment && <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-100">Reimbursement: {displayStatus(report.payment.status)}</span>}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField className="sm:col-span-2">
@@ -220,6 +221,12 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
             {isEditable && <Button disabled={saveReport.isPending || title.trim() === "" || Boolean(startDate && endDate && endDate < startDate)} onClick={() => saveReport.mutate({ title: title.trim(), description: description.trim(), start_date: startDate || undefined, end_date: endDate || undefined })}>{status === "sent_back" ? "Save changes" : "Save draft"}</Button>}
           </div>
           {reportError && <p className="text-sm text-rose-600" role="alert">{reportError}</p>}
+          {report.payment && (
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Payment reference: <span className="font-medium text-slate-800 dark:text-slate-100">{report.payment.payment_reference}</span>
+              {report.payment.payment_date ? ` · Paid ${new Date(report.payment.payment_date).toLocaleDateString()}` : ""}
+            </p>
+          )}
         </div>
         <div className="rounded-lg bg-slate-100 px-4 py-3 text-right dark:bg-slate-800">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Live total</p>

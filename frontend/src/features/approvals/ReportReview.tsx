@@ -6,6 +6,7 @@ import { CommentThread } from "../../components/CommentThread";
 import type { ReportLineItem } from "../../lib/api";
 import { reportsApi } from "../../lib/api";
 import { ActionBar } from "./ActionBar";
+import { ReceiptAnalysisPanel } from "./ReceiptAnalysisPanel";
 
 type ReportReviewProps = {
   reportId?: string;
@@ -79,6 +80,8 @@ export function ReportReview({ reportId }: ReportReviewProps) {
   const providerStatus = asText(provider?.status);
   const aiInsights = asTextList(aiAudit?.key_insights);
   const aiFindings = asFindings(aiAudit?.findings);
+  const citedFindingIds = asTextList(aiAudit?.cited_finding_ids);
+  const citedPolicyRuleRefs = asTextList(aiAudit?.cited_policy_rule_refs);
   const humanReviewMessage = asText(humanReview?.message)
     ?? "AI recommendations are advisory; an authorized human must make the workflow decision.";
 
@@ -127,6 +130,7 @@ export function ReportReview({ reportId }: ReportReviewProps) {
                 </div>
                 {receiptUrl && <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-indigo-600 underline underline-offset-2 hover:bg-transparent dark:text-indigo-300" url={receiptUrl}>View receipt</AuthenticatedAttachmentLink>}
                 {violation && <p className="text-sm text-rose-700 dark:text-rose-300">Policy violation: {violation}</p>}
+                <ReceiptAnalysisPanel item={item} reportId={id} />
               </article>
             );
           })}
@@ -198,6 +202,29 @@ export function ReportReview({ reportId }: ReportReviewProps) {
               )}
             </div>
 
+            {(citedFindingIds.length > 0 || citedPolicyRuleRefs.length > 0) && (
+              <section className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900 dark:bg-indigo-950/30">
+                <h3 className="text-sm font-semibold text-indigo-950 dark:text-indigo-100">Grounding citations</h3>
+                <p className="mt-1 text-sm text-indigo-900 dark:text-indigo-100">The advisory is grounded only in these supplied finding and policy references.</p>
+                {citedFindingIds.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-800 dark:text-indigo-200">Findings</p>
+                    <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="Cited findings">
+                      {citedFindingIds.map((findingId) => <li className="rounded-full bg-white px-2 py-1 font-mono text-xs text-indigo-950 dark:bg-slate-900 dark:text-indigo-100" key={findingId}>{findingId}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {citedPolicyRuleRefs.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-800 dark:text-indigo-200">Policy rules</p>
+                    <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="Cited policy rules">
+                      {citedPolicyRuleRefs.map((ruleRef) => <li className="rounded-full bg-white px-2 py-1 font-mono text-xs text-indigo-950 dark:bg-slate-900 dark:text-indigo-100" key={ruleRef}>{ruleRef}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
             <p className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100"><span className="font-semibold">Human review required:</span> {humanReviewMessage}</p>
 
             <details className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
@@ -217,7 +244,7 @@ export function ReportReview({ reportId }: ReportReviewProps) {
                 <span className="absolute -left-[1.8rem] top-1.5 size-3 rounded-full border-2 border-white bg-indigo-600 dark:border-slate-900 dark:bg-indigo-400" />
                 <p className="font-medium text-slate-950 dark:text-white">{displayStatus(entry.action)}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  {entry.actor_name ?? "Workflow"} · <time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time>
+                  {entry.actor_name ?? "Workflow automation"}{entry.acting_for_name ? ` · acting for ${entry.acting_for_name}` : ""} · <time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time>
                 </p>
                 {entry.remarks && <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{entry.remarks}</p>}
               </li>

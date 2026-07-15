@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commentsApi, reportsApi, type Report } from "../../../lib/api";
@@ -69,5 +69,22 @@ describe("ReportReview", () => {
     expect(details).not.toHaveAttribute("open");
     await user.click(screen.getByText(/view raw ai review data/i));
     expect(details).toHaveAttribute("open");
+  });
+
+  it("shows the deterministic finding and policy-rule citations that ground an AI advisory", async () => {
+    vi.spyOn(reportsApi, "get").mockResolvedValue({
+      ...reviewedReport,
+      ai_audit: {
+        ...reviewedReport.ai_audit,
+        cited_finding_ids: ["finding-1"],
+        cited_policy_rule_refs: ["POLICY-TRAVEL-001"],
+      },
+    });
+    renderReview();
+
+    expect(await screen.findByRole("heading", { name: /grounding citations/i })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Cited findings")).getByText("finding-1")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Cited policy rules")).getByText("POLICY-TRAVEL-001")).toBeInTheDocument();
+    expect(screen.getByText(/advisory is grounded only in these supplied/i)).toBeInTheDocument();
   });
 });

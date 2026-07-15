@@ -1,44 +1,145 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project state
 
-## Status
+This is an implemented, production-shaped reimbursement application — not the
+old single-file MVP. The core workflow, RBAC, policy versioning, reports,
+approvals, notifications, payments, delegations, analytics, CI, and Terraform
+foundation are present. Check `git status` before editing: feature work may be
+in progress. `PLAN.md` is historical planning material; do not treat it as the
+source of truth or edit it unless a task explicitly asks for that.
 
-Early scaffold stage. Current running code (`backend/`, `frontend/`) is a minimal MVP. `PLAN.md` describes a much larger planned rebuild (phases F1-F8: RBAC, Postgres, feature-module frontend) that is **not yet implemented**. Don't assume the planned structure below exists in code — check before referencing it.
+The database migration chain is:
 
-## Commands
-
-**Backend** (FastAPI, managed with `uv`, in `backend/`):
+```text
+001_baseline -> 002_add_policies -> 003_add_reports_workflow_and_collaboration
+             -> 004_payment_operations -> 005_add_delegated_approval_audit
+             -> 006_scope_policies_to_organizations
 ```
-cd backend && uv run uvicorn main:app --reload
+
+## Repository map
+
+- `backend/app/` — layered FastAPI core:
+  - `api/routes/` and request schemas expose typed, permission-protected APIs.
+  - `models/` plus Alembic migrations own PostgreSQL persistence, UUIDs,
+    soft-delete, and audit records.
+  - `services/` own policy evaluation, report/approval workflow, notifications,
+    storage, payments, delegations, analytics, and external-service clients.
+  - `core/` contains settings, database/session lifecycle, JWT/RBAC dependencies,
+    request correlation, and structured logging.
+- `frontend/src/` — React 19 + TypeScript + Vite feature modules. React Router
+  protects pages; TanStack Query and `lib/api.ts` are the only browser API
+  access pattern. Features cover policies, categories, reports, approvals,
+  notifications, delegations, payments, analytics, users, and workflows.
+- `ai_review_service/` — separately deployable, advisory expense-review service
+  with its own datastore.
+- `receipt_intelligence_service/` — separate digest/metadata-only receipt
+  analysis service with its own SQLite store.
+- `policy_assistant_service/` — separate tenant/version-scoped, evidence-only
+  policy RAG service with its own SQLite index.
+- `deployment/` — cost-capped AWS Terraform and deployment guidance. Do not run
+  `terraform apply` or deploy without explicit authorization.
+
+## Local development
+
+Use Node/npm and `uv`. The core API needs `backend/.env`; copy the example and
+use a local PostgreSQL instance, Docker Compose, or an approved development
+database. Never commit `.env`, credentials, generated SQLite files, or receipt
+data.
+
+```bash
+# Core API
+cd backend
+docker compose up -d postgres       # optional local PostgreSQL
+cp .env.example .env                # only if no local .env exists
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+
+# Frontend, in another terminal
+cd frontend
+npm install
+npm run dev
 ```
-Docs: `http://127.0.0.1:8000/docs`. Health check: `/api/health`. No lint or test scripts defined yet.
 
-**Frontend** (React 19 + TS + Vite, in `frontend/`):
+Core API docs are at `http://127.0.0.1:8000/docs`; health/readiness are
+`/api/health` and `/api/ready`. `backend/main.py` remains a compatibility
+entry point, but new work belongs under `backend/app/`.
+
+Optional advisory services run independently; start only the one needed for a
+task. Their README files are their authoritative local configuration guides.
+
+```bash
+cd ai_review_service && uv sync && uv run pytest -q
+cd receipt_intelligence_service && uv sync && uv run pytest -q
+cd policy_assistant_service && uv sync && uv run pytest -q
 ```
-npm run dev       # vite dev server
-npm run build      # tsc -b && vite build
-npm run lint       # oxlint
-npm run preview
+
+## Verification
+
+Run the smallest relevant check while iterating, then the affected suite:
+
+```bash
+cd backend && uv run pytest tests -q
+cd backend && uv run alembic check
+cd frontend && npm run test && npm run lint && npm run build
+cd ai_review_service && uv run pytest -q
+cd receipt_intelligence_service && uv run pytest -q
+cd policy_assistant_service && uv run pytest -q
 ```
-No test script yet.
 
-## Architecture (current code)
+GitHub Actions in `.github/workflows/ci.yml` runs backend tests/migration
+checks, frontend lint/test/build, each advisory-service suite, Terraform
+format/validation, and secret scanning on pull requests and `main` pushes.
 
-Backend is a single-file FastAPI app, no layered structure yet:
+## Frontend conventions
 
-- `backend/main.py` — all routes. Auth (`/api/auth/register|login|me|users`), policies (`/api/policies` CRUD, admin-only mutations + `/api/policies/upload-doc`), expenses (`/api/expenses` create/list/get/action, `/api/expenses/upload-receipt`). Receipts saved to `backend/static/receipts`, served at `/static`. CORS is wide open.
-- `backend/auth.py` — JWT (pyjwt) + password hashing (bcrypt/passlib).
-- `backend/models.py` — SQLAlchemy models: `User` (role: employee/approver/admin, self-referential `manager_id`), `Policy` (category limit + JSON rules), `ExpenseReport` (status: draft/submitted/pending_approval/approved/rejected/reimbursed), `ExpenseItem`, `ApprovalWorkflow` (per-report approver + status + AI review JSON field).
-- `backend/agent.py` — expense audit logic, mixes rule-based checks with Gemini (`google-genai`) AI review.
-- `backend/database.py` — SQLite at `database/reimbursements.db`, tables created via `Base.metadata.create_all` (no migrations yet).
-- `backend/schemas.py` — Pydantic request/response schemas mirroring the models.
-- `frontend/` — stock Vite React 19 + TypeScript scaffold. No routing, state management, or API client wired up yet.
+- Use `useQuery`/`useMutation` with typed functions in `frontend/src/lib/api.ts`;
+  do not add ad-hoc `fetch` calls or hard-code API origins.
+- Keep screens responsive and include loading, empty, error, keyboard, and
+  permission states. Protect routes with `RequirePermission`.
+- The visual system is Material UI with shadcn/Tailwind form primitives. The
+  `ThemeModeProvider` supports persisted light, dark, and system modes; do not
+  reintroduce OS-only dark-mode CSS or page-local theme state.
+- Preserve the feature-based structure and write Vitest/Testing Library tests
+  for user-visible behavior, not implementation internals.
 
-## Planned rebuild (PLAN.md, database/schema.dbml — not yet implemented)
+## Core workflow and authorization
 
-- Backend moving to layered `app/` structure (core/models/schemas/services/api/routes), Postgres (psycopg + alembic), UUID + soft-delete + version mixins matching `database/schema.dbml`, full RBAC (roles/permissions/user_roles/role_permissions tables), S3 (boto3) file storage, SMTP (aiosmtplib) email notifications.
-- Frontend moving to react-router-dom + TanStack Query + axios + shadcn/ui, organized into feature modules under `src/features/{auth,users,org-chart,policies,categories,reports,approvals,notifications}`.
-- Expense workflow: draft → submit → policy validation → multi-level approval → approved-pending-payment. Policies are versioned and snapshotted onto reports at submit time, so later policy edits don't retroactively affect already-submitted reports.
-- Planned env vars: `DATABASE_URL`, `JWT_SECRET`, `SMTP_HOST/PORT/USER/PASSWORD/FROM`, `AWS_REGION`, `S3_BUCKET`, `AWS_ACCESS_KEY_ID/SECRET_ACCESS_KEY`, `GEMINI_API_KEY`.
-- Full target schema: `database/schema.dbml`. Full phase breakdown: `PLAN.md`.
+Reports move through draft/sent-back editing, submission with policy checks,
+manager-chain review, `approved_pending_payment`, and finance settlement.
+Policy snapshots prevent later edits from silently changing historical claims.
+Use service-layer transactions and audit logging for workflow/state changes.
+All API/UI access must be scoped by organization and `require_permission` / the
+frontend permission guard; never infer access merely from a role label.
+
+## AI and privacy boundaries
+
+All AI-adjacent services are advisory-only and cannot approve, reject, route,
+or pay a report.
+
+- The core API sends `ai_review_service` a minimized, versioned event: opaque
+  references, policy facts, aggregates, and receipt digests only. It must not
+  send receipt bytes, OCR text, URLs, names, emails, descriptions, or database
+  access. Provider output is cited, validated, and shown for human review.
+- Receipt intelligence accepts only bounded metadata/digests and does not
+  persist receipt content. Its manual report/item endpoint validates access and
+  attachment linkage before it makes an optional HTTP call; keep it separate
+  from the core ORM/database.
+- The policy assistant retrieves only tenant/version-scoped policy evidence,
+  returns citations, treats documents/questions as untrusted data, and makes
+  no workflow decision. Its UI requires an administrator to explicitly paste
+  approved text before indexing. External model access remains opt-in.
+
+Preserve these contracts when adding integrations: use service tokens, opaque
+IDs, least data, independent storage, and asynchronous/event-style handoffs.
+
+## Change discipline
+
+- Prefer focused conventional commits (`feat(fe): ...`, `fix(api): ...`).
+- Add an Alembic migration for persistent-model changes; do not edit an applied
+  migration or rely on `Base.metadata.create_all`.
+- Keep payment data to report amounts and opaque processor references; never
+  add bank-account fields to the core database, API, logs, exports, or UI.
+- Treat Terraform, secrets, IAM, retention, and service deployment as separate
+  reviewed changes. Follow `deployment/README.md` before infrastructure work.

@@ -1,0 +1,12 @@
+title = "Presidio secret-scanning configuration"
+
+[extend]
+useDefault = true
+
+# The retired compatibility module was removed from the working tree because it
+# contained an obsolete development signing literal in the initial scaffold.
+# Keep historical scans useful while excluding that nonexistent legacy path;
+# active application paths continue to use the default rules unchanged.
+[[allowlists]]
+description = "Retired legacy authentication compatibility module"
+paths = [ '''^backend/auth\.py$''' ]

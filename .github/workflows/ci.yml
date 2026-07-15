@@ -1,0 +1,172 @@
+name: Continuous integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: reimbursement_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d reimbursement_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/reimbursement_test
+      JWT_SECRET: ci-test-signing-key-only-for-ci
+      S3_BUCKET: ci-test-bucket
+      STORAGE_BACKEND: local
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Run backend tests
+        working-directory: backend
+        run: uv run pytest tests -q
+      - name: Check migrations against PostgreSQL
+        working-directory: backend
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+      - name: Test frontend
+        working-directory: frontend
+        run: npm run test
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  ai-review:
+    name: ai-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: ai_review_service/uv.lock
+      - name: Install AI review service dependencies
+        working-directory: ai_review_service
+        run: uv sync --frozen
+      - name: Test AI review service
+        working-directory: ai_review_service
+        run: uv run pytest -q
+
+  receipt-intelligence:
+    name: receipt-intelligence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: receipt_intelligence_service/uv.lock
+      - name: Install receipt intelligence dependencies
+        working-directory: receipt_intelligence_service
+        run: uv sync --frozen
+      - name: Test receipt intelligence service
+        working-directory: receipt_intelligence_service
+        run: uv run pytest -q
+
+  policy-assistant:
+    name: policy-assistant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: policy_assistant_service/uv.lock
+      - name: Install policy assistant dependencies
+        working-directory: policy_assistant_service
+        run: uv sync --frozen
+      - name: Test policy assistant service
+        working-directory: policy_assistant_service
+        run: uv run pytest -q
+
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.12.2"
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive deployment/terraform
+      - name: Validate main Terraform configuration
+        run: |
+          terraform -chdir=deployment/terraform init -backend=false -input=false
+          terraform -chdir=deployment/terraform validate
+      - name: Validate Terraform state bootstrap configuration
+        run: |
+          terraform -chdir=deployment/terraform/bootstrap init -backend=false -input=false
+          terraform -chdir=deployment/terraform/bootstrap validate
+
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Scan committed history for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml

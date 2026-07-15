@@ -6,6 +6,14 @@ variable "ai_review_secret_arn" {
   type = string
 }
 
+variable "receipt_intelligence_secret_arn" {
+  type = string
+}
+
+variable "policy_assistant_secret_arn" {
+  type = string
+}
+
 variable "database_host" {
   type = string
 }
@@ -33,6 +41,26 @@ variable "jwt_secret" {
 }
 
 variable "ai_service_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "ai_review_reference_hmac_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "receipt_intelligence_service_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "policy_assistant_service_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "policy_assistant_reference_hmac_key" {
   type      = string
   sensitive = true
 }

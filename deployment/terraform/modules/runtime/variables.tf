@@ -30,6 +30,14 @@ variable "ai_review_secret_arn" {
   type = string
 }
 
+variable "receipt_intelligence_secret_arn" {
+  type = string
+}
+
+variable "policy_assistant_secret_arn" {
+  type = string
+}
+
 variable "uploads_bucket_arn" {
   type = string
 }
@@ -42,11 +50,27 @@ variable "ai_repository_arn" {
   type = string
 }
 
+variable "receipt_intelligence_repository_arn" {
+  type = string
+}
+
+variable "policy_assistant_repository_arn" {
+  type = string
+}
+
 variable "api_repository_url" {
   type = string
 }
 
 variable "ai_repository_url" {
+  type = string
+}
+
+variable "receipt_intelligence_repository_url" {
+  type = string
+}
+
+variable "policy_assistant_repository_url" {
   type = string
 }
 
@@ -74,6 +98,14 @@ variable "ai_log_group_name" {
   type = string
 }
 
+variable "receipt_intelligence_log_group_name" {
+  type = string
+}
+
+variable "policy_assistant_log_group_name" {
+  type = string
+}
+
 variable "proxy_log_group_name" {
   type = string
 }
@@ -83,6 +115,14 @@ variable "api_log_group_arn" {
 }
 
 variable "ai_log_group_arn" {
+  type = string
+}
+
+variable "receipt_intelligence_log_group_arn" {
+  type = string
+}
+
+variable "policy_assistant_log_group_arn" {
   type = string
 }
 

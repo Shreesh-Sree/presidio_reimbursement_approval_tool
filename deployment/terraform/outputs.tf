@@ -28,6 +28,16 @@ output "ai_review_ecr_repository_url" {
   value       = module.registry.ai_repository_url
 }
 
+output "receipt_intelligence_ecr_repository_url" {
+  description = "Private ECR repository for the isolated receipt intelligence image."
+  value       = module.registry.receipt_intelligence_repository_url
+}
+
+output "policy_assistant_ecr_repository_url" {
+  description = "Private ECR repository for the isolated policy assistant image."
+  value       = module.registry.policy_assistant_repository_url
+}
+
 output "frontend_bucket_name" {
   description = "Private S3 bucket for compiled React assets."
   value       = module.storage.static_bucket_name

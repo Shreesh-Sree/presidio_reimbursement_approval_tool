@@ -14,6 +14,8 @@ fi
 
 api_repository="$(terraform -chdir="$terraform_dir" output -raw backend_ecr_repository_url)"
 ai_repository="$(terraform -chdir="$terraform_dir" output -raw ai_review_ecr_repository_url)"
+receipt_intelligence_repository="$(terraform -chdir="$terraform_dir" output -raw receipt_intelligence_ecr_repository_url)"
+policy_assistant_repository="$(terraform -chdir="$terraform_dir" output -raw policy_assistant_ecr_repository_url)"
 registry="${api_repository%%/*}"
 
 aws ecr get-login-password --region "$aws_region" \
@@ -29,8 +31,20 @@ docker build --platform "$platform" \
   --tag "$ai_repository:$image_tag" \
   "$root_dir/ai_review_service"
 
+docker build --platform "$platform" \
+  --file "$root_dir/deployment/docker/receipt-intelligence.Dockerfile" \
+  --tag "$receipt_intelligence_repository:$image_tag" \
+  "$root_dir/receipt_intelligence_service"
+
+docker build --platform "$platform" \
+  --file "$root_dir/deployment/docker/policy-assistant.Dockerfile" \
+  --tag "$policy_assistant_repository:$image_tag" \
+  "$root_dir/policy_assistant_service"
+
 docker push "$api_repository:$image_tag"
 docker push "$ai_repository:$image_tag"
+docker push "$receipt_intelligence_repository:$image_tag"
+docker push "$policy_assistant_repository:$image_tag"
 
 if [[ "${DEPLOY_RUNTIME:-0}" == "1" ]]; then
   "$root_dir/deployment/scripts/restart-runtime.sh"

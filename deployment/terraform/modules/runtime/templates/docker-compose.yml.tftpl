@@ -11,8 +11,14 @@ services:
     expose:
       - "8000"
     networks:
-      private:
+      edge:
         ipv4_address: 172.30.0.10
+      ai_review:
+        ipv4_address: 172.31.0.10
+      receipt_intelligence:
+        ipv4_address: 172.32.0.10
+      policy_assistant:
+        ipv4_address: 172.33.0.10
     healthcheck:
       test:
         - CMD-SHELL
@@ -28,6 +34,10 @@ services:
         awslogs-group: ${api_log_group_name}
         awslogs-stream: api
 
+  # Each advisory service shares a dedicated private network with the API.
+  # Caddy is on the edge network only, so none has a public listener or
+  # reverse-proxy route. AI review retains egress for its explicit optional
+  # provider integration; the two new deterministic services are internal.
   ai-review:
     image: ${ai_image}
     restart: unless-stopped
@@ -45,15 +55,105 @@ services:
       - /opt/reimbursement/ai-review.env
     volumes:
       - /opt/reimbursement/ai-data:/data
+    expose:
+      - "8011"
     networks:
-      private:
-        ipv4_address: 172.30.0.11
+      ai_review:
+        ipv4_address: 172.31.0.11
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import socket; socket.create_connection(('127.0.0.1', 8011), 3).close()"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
     logging:
       driver: awslogs
       options:
         awslogs-region: ${aws_region}
         awslogs-group: ${ai_log_group_name}
         awslogs-stream: ai-review
+
+  receipt-intelligence:
+    image: ${receipt_intelligence_image}
+    restart: unless-stopped
+    command:
+      - uv
+      - run
+      - uvicorn
+      - receipt_intelligence_service.api:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8012"
+    env_file:
+      - /opt/reimbursement/receipt-intelligence.env
+    volumes:
+      - /opt/reimbursement/receipt-intelligence-data:/data
+    expose:
+      - "8012"
+    networks:
+      receipt_intelligence:
+        ipv4_address: 172.32.0.11
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8012/ready', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${receipt_intelligence_log_group_name}
+        awslogs-stream: receipt-intelligence
+
+  policy-assistant:
+    image: ${policy_assistant_image}
+    restart: unless-stopped
+    command:
+      - uv
+      - run
+      - uvicorn
+      - policy_assistant_service.api:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8013"
+    env_file:
+      - /opt/reimbursement/policy-assistant.env
+    volumes:
+      - /opt/reimbursement/policy-assistant-data:/data
+    expose:
+      - "8013"
+    networks:
+      policy_assistant:
+        ipv4_address: 172.33.0.11
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8013/ready', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${policy_assistant_log_group_name}
+        awslogs-stream: policy-assistant
 
   caddy:
     image: caddy:2.10-alpine
@@ -69,7 +169,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     networks:
-      private:
+      edge:
         ipv4_address: 172.30.0.12
     logging:
       driver: awslogs
@@ -79,11 +179,30 @@ services:
         awslogs-stream: caddy
 
 networks:
-  private:
+  # The only routable container network: it connects Caddy to the API and lets
+  # the API reach AWS/RDS through the host. It contains no advisory service.
+  edge:
     driver: bridge
     ipam:
       config:
         - subnet: 172.30.0.0/24
+  ai_review:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+  receipt_intelligence:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.32.0.0/24
+  policy_assistant:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.33.0.0/24
 
 volumes:
   caddy-data:

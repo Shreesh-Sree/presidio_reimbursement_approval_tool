@@ -18,6 +18,26 @@ resource "aws_cloudwatch_log_group" "ai_review" {
   })
 }
 
+resource "aws_cloudwatch_log_group" "receipt_intelligence" {
+  name              = "/${var.name_prefix}/receipt-intelligence"
+  retention_in_days = var.retention_in_days
+
+  tags = merge(var.tags, {
+    Name    = "${var.name_prefix}-receipt-intelligence-logs"
+    Service = "receipt-intelligence"
+  })
+}
+
+resource "aws_cloudwatch_log_group" "policy_assistant" {
+  name              = "/${var.name_prefix}/policy-assistant"
+  retention_in_days = var.retention_in_days
+
+  tags = merge(var.tags, {
+    Name    = "${var.name_prefix}-policy-assistant-logs"
+    Service = "policy-assistant"
+  })
+}
+
 resource "aws_cloudwatch_log_group" "proxy" {
   name              = "/${var.name_prefix}/proxy"
   retention_in_days = var.retention_in_days

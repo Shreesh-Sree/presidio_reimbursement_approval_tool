@@ -22,10 +22,15 @@ resource "aws_iam_role" "application" {
 
 data "aws_iam_policy_document" "application" {
   statement {
-    sid       = "ReadScopedRuntimeSecrets"
-    effect    = "Allow"
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [var.application_secret_arn, var.ai_review_secret_arn]
+    sid     = "ReadScopedRuntimeSecrets"
+    effect  = "Allow"
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      var.application_secret_arn,
+      var.ai_review_secret_arn,
+      var.receipt_intelligence_secret_arn,
+      var.policy_assistant_secret_arn,
+    ]
   }
 
   statement {
@@ -61,7 +66,12 @@ data "aws_iam_policy_document" "application" {
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer",
     ]
-    resources = [var.api_repository_arn, var.ai_repository_arn]
+    resources = [
+      var.api_repository_arn,
+      var.ai_repository_arn,
+      var.receipt_intelligence_repository_arn,
+      var.policy_assistant_repository_arn,
+    ]
   }
 
   statement {
@@ -75,6 +85,8 @@ data "aws_iam_policy_document" "application" {
     resources = [
       "${var.api_log_group_arn}:*",
       "${var.ai_log_group_arn}:*",
+      "${var.receipt_intelligence_log_group_arn}:*",
+      "${var.policy_assistant_log_group_arn}:*",
       "${var.proxy_log_group_arn}:*",
     ]
   }
@@ -114,17 +126,23 @@ resource "aws_instance" "application" {
   user_data_replace_on_change = false
 
   user_data = templatefile("${path.module}/templates/user_data.sh.tftpl", {
-    aws_region             = var.aws_region
-    application_secret_arn = var.application_secret_arn
-    ai_review_secret_arn   = var.ai_review_secret_arn
-    ecr_registry_url       = var.ecr_registry_url
+    aws_region                      = var.aws_region
+    application_secret_arn          = var.application_secret_arn
+    ai_review_secret_arn            = var.ai_review_secret_arn
+    receipt_intelligence_secret_arn = var.receipt_intelligence_secret_arn
+    policy_assistant_secret_arn     = var.policy_assistant_secret_arn
+    ecr_registry_url                = var.ecr_registry_url
     docker_compose = templatefile("${path.module}/templates/docker-compose.yml.tftpl", {
-      api_image            = "${var.api_repository_url}:stable"
-      ai_image             = "${var.ai_repository_url}:stable"
-      api_log_group_name   = var.api_log_group_name
-      ai_log_group_name    = var.ai_log_group_name
-      proxy_log_group_name = var.proxy_log_group_name
-      aws_region           = var.aws_region
+      api_image                           = "${var.api_repository_url}:stable"
+      ai_image                            = "${var.ai_repository_url}:stable"
+      receipt_intelligence_image          = "${var.receipt_intelligence_repository_url}:stable"
+      policy_assistant_image              = "${var.policy_assistant_repository_url}:stable"
+      api_log_group_name                  = var.api_log_group_name
+      ai_log_group_name                   = var.ai_log_group_name
+      receipt_intelligence_log_group_name = var.receipt_intelligence_log_group_name
+      policy_assistant_log_group_name     = var.policy_assistant_log_group_name
+      proxy_log_group_name                = var.proxy_log_group_name
+      aws_region                          = var.aws_region
     })
     caddyfile = templatefile("${path.module}/templates/Caddyfile.tftpl", {
       api_domain = var.api_domain

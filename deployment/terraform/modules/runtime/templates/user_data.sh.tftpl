@@ -8,7 +8,11 @@ if ! docker compose version >/dev/null 2>&1; then
   dnf install -y docker-compose-plugin || dnf install -y docker-compose
 fi
 
-install -d -m 0750 /opt/reimbursement /opt/reimbursement/ai-data
+install -d -m 0750 /opt/reimbursement
+install -d -m 0700 \
+  /opt/reimbursement/ai-data \
+  /opt/reimbursement/receipt-intelligence-data \
+  /opt/reimbursement/policy-assistant-data
 
 cat > /opt/reimbursement/docker-compose.yml <<'COMPOSE'
 ${docker_compose}
@@ -33,39 +37,42 @@ compose() {
   fi
 }
 
-aws secretsmanager get-secret-value \
-  --secret-id ${application_secret_arn} \
-  --query SecretString \
-  --output text > /opt/reimbursement/api-secret.json
+write_secret_env() {
+  local secret_arn="$1"
+  local destination="$2"
+  local temporary_file="$destination.json"
 
-# JSON string encoding safely preserves characters in generated/runtime secrets.
-jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(.value | @json)"' \
-  /opt/reimbursement/api-secret.json > /opt/reimbursement/api.env
-chmod 0600 /opt/reimbursement/api.env
-rm -f /opt/reimbursement/api-secret.json
+  aws secretsmanager get-secret-value \
+    --secret-id "$secret_arn" \
+    --query SecretString \
+    --output text > "$temporary_file"
 
-aws secretsmanager get-secret-value \
-  --secret-id ${ai_review_secret_arn} \
-  --query SecretString \
-  --output text > /opt/reimbursement/ai-review-secret.json
+  # JSON string encoding safely preserves generated runtime secret characters.
+  jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(.value | @json)"' \
+    "$temporary_file" > "$destination"
+  chmod 0600 "$destination"
+  rm -f "$temporary_file"
+}
 
-jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(.value | @json)"' \
-  /opt/reimbursement/ai-review-secret.json > /opt/reimbursement/ai-review.env
-chmod 0600 /opt/reimbursement/ai-review.env
-rm -f /opt/reimbursement/ai-review-secret.json
+write_secret_env ${application_secret_arn} /opt/reimbursement/api.env
+write_secret_env ${ai_review_secret_arn} /opt/reimbursement/ai-review.env
+write_secret_env ${receipt_intelligence_secret_arn} /opt/reimbursement/receipt-intelligence.env
+write_secret_env ${policy_assistant_secret_arn} /opt/reimbursement/policy-assistant.env
 
 aws ecr get-login-password --region ${aws_region} \
   | docker login --username AWS --password-stdin ${ecr_registry_url}
 
 compose --project-name reimbursement --file /opt/reimbursement/docker-compose.yml pull
-compose --project-name reimbursement --file /opt/reimbursement/docker-compose.yml up -d --remove-orphans
 
-# The API needs IMDS credentials for S3, but the advisory AI container must
-# never inherit the host role's ability to read the core secret or upload data.
-# Its fixed private address is denied access to IMDS after every rollout.
-if ! iptables -C DOCKER-USER -s 172.30.0.11 -d 169.254.169.254/32 -j REJECT 2>/dev/null; then
-  iptables -I DOCKER-USER -s 172.30.0.11 -d 169.254.169.254/32 -j REJECT
-fi
+# AI containers use internal Docker networks and never receive AWS credentials.
+# Rejecting IMDS is a defense-in-depth control if Docker routing is altered.
+for ai_ip in 172.31.0.11 172.32.0.11 172.33.0.11; do
+  if ! iptables -C DOCKER-USER -s "$ai_ip" -d 169.254.169.254/32 -j REJECT 2>/dev/null; then
+    iptables -I DOCKER-USER -s "$ai_ip" -d 169.254.169.254/32 -j REJECT
+  fi
+done
+
+compose --project-name reimbursement --file /opt/reimbursement/docker-compose.yml up -d --remove-orphans
 
 # Retain images used by a running container while pruning unused layers older
 # than a week, so release history cannot silently fill the small root volume.
@@ -76,7 +83,7 @@ chmod 0750 /opt/reimbursement/deploy-runtime.sh
 
 cat > /etc/systemd/system/reimbursement-runtime.service <<'SERVICE'
 [Unit]
-Description=Reimbursement API and isolated AI review runtime
+Description=Reimbursement API and isolated advisory AI services
 After=docker.service network-online.target
 Wants=network-online.target
 Requires=docker.service

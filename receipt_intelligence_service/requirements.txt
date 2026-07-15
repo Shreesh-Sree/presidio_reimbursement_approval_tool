@@ -1,0 +1,6 @@
+# Prefer: uv sync
+# This file supports minimal environments that install runtime dependencies directly.
+fastapi>=0.115
+pydantic>=2.7
+pydantic-settings>=2.0
+uvicorn>=0.30

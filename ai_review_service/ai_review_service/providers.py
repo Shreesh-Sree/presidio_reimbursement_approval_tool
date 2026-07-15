@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 from collections.abc import Awaitable, Callable
+import json
 from typing import Protocol
+from uuid import UUID
 
 from .contracts import (
     FindingSeverity,
@@ -26,6 +28,29 @@ class NarrativeProvider(Protocol):
     async def generate(self, context: ProviderReviewContext) -> NarrativeDraft: ...
 
 
+def _parse_provider_payload(raw: str) -> dict[str, object]:
+    """Parse the strictly JSON response, accepting an otherwise-empty fence.
+
+    Some providers wrap valid JSON in a Markdown code fence despite an explicit
+    JSON-only instruction.  Accept that harmless transport wrapper, but reject
+    prose or non-object output so the resilient provider can safely fall back.
+    """
+
+    candidate = raw.strip()
+    if candidate.startswith("```"):
+        lines = candidate.splitlines()
+        if len(lines) < 3 or lines[-1].strip() != "```":
+            raise RuntimeError("Gemini did not return a structured advisory response")
+        candidate = "\n".join(lines[1:-1]).strip()
+    try:
+        payload = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Gemini did not return a structured advisory response") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("Gemini returned an invalid advisory response")
+    return payload
+
+
 class RuleBasedNarrativeProvider:
     """Deterministic provider used locally and whenever an LLM is unavailable."""
 
@@ -33,6 +58,10 @@ class RuleBasedNarrativeProvider:
 
     async def generate(self, context: ProviderReviewContext) -> NarrativeDraft:
         findings = context.findings
+        cited_finding_ids = tuple(finding.id for finding in findings)
+        cited_policy_rule_refs = tuple(
+            sorted({finding.policy_rule_ref for finding in findings if finding.policy_rule_ref})
+        )
         if not findings:
             return NarrativeDraft(
                 summary=(
@@ -41,6 +70,8 @@ class RuleBasedNarrativeProvider:
                 ),
                 key_insights=("No policy-cap, receipt, duplicate, or historical-spend signal was triggered.",),
                 recommendation=ReviewRecommendation.APPROVE,
+                finding_ids=cited_finding_ids,
+                policy_rule_refs=cited_policy_rule_refs,
             )
 
         severity_counts = Counter(finding.severity for finding in findings)
@@ -59,6 +90,8 @@ class RuleBasedNarrativeProvider:
             summary=summary,
             key_insights=insights,
             recommendation=self.recommendation_for(context),
+            finding_ids=cited_finding_ids,
+            policy_rule_refs=cited_policy_rule_refs,
         )
 
     @staticmethod
@@ -95,17 +128,27 @@ class GeminiNarrativeProvider:
                 raise RuntimeError("Gemini returned an empty response")
             return str(text).strip()
 
-        summary = await asyncio.to_thread(request)
-        # The model may improve the prose, but the recommendation remains
-        # deterministic and advisory-only, never a workflow action.
-        return NarrativeDraft(
-            summary=summary,
-            key_insights=(),
-            recommendation=RuleBasedNarrativeProvider.recommendation_for(context),
-        )
+        raw = await asyncio.to_thread(request)
+        # The model may improve prose and choose citations, but recommendation
+        # remains deterministic and advisory-only.
+        payload = _parse_provider_payload(raw)
+        payload["recommendation"] = RuleBasedNarrativeProvider.recommendation_for(context)
+        return NarrativeDraft.model_validate(payload)
 
 
 Sleep = Callable[[float], Awaitable[None]]
+
+
+def _validate_citations(draft: NarrativeDraft, context: ProviderReviewContext) -> NarrativeDraft:
+    """Reject generated citations that are not grounded in the supplied facts."""
+
+    allowed_finding_ids: set[UUID] = {finding.id for finding in context.findings}
+    allowed_policy_rules = {finding.policy_rule_ref for finding in context.findings if finding.policy_rule_ref}
+    if not set(draft.finding_ids).issubset(allowed_finding_ids):
+        raise ValueError("provider cited a finding outside the supplied context")
+    if not set(draft.policy_rule_refs).issubset(allowed_policy_rules):
+        raise ValueError("provider cited a policy rule outside the supplied context")
+    return draft
 
 
 class ResilientNarrativeProvider:
@@ -134,7 +177,7 @@ class ResilientNarrativeProvider:
 
     async def generate(self, context: ProviderReviewContext) -> ProviderOutcome:
         if self._primary is None or self._primary.name == self._fallback.name:
-            draft = redact_narrative(await self._fallback.generate(context))
+            draft = _validate_citations(redact_narrative(await self._fallback.generate(context)), context)
             return ProviderOutcome(
                 provider_name=self._fallback.name,
                 status=ProviderStatus.RULE_BASED,
@@ -148,11 +191,12 @@ class ResilientNarrativeProvider:
                 draft = await asyncio.wait_for(
                     self._primary.generate(context), timeout=self._timeout_seconds
                 )
+                safe_draft = _validate_citations(redact_narrative(draft), context)
                 return ProviderOutcome(
                     provider_name=self._primary.name,
                     status=ProviderStatus.GENERATED,
                     attempts=attempt,
-                    narrative=redact_narrative(draft),
+                    narrative=safe_draft,
                 )
             except TimeoutError:
                 errors.append("timed out")
@@ -162,7 +206,7 @@ class ResilientNarrativeProvider:
             if attempt < self._max_attempts and self._retry_backoff_seconds:
                 await self._sleep(self._retry_backoff_seconds * attempt)
 
-        draft = redact_narrative(await self._fallback.generate(context))
+        draft = _validate_citations(redact_narrative(await self._fallback.generate(context)), context)
         return ProviderOutcome(
             provider_name=self._fallback.name,
             status=ProviderStatus.FALLBACK,

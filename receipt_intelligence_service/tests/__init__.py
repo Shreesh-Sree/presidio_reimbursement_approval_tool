@@ -1,0 +1,1 @@
+"""Receipt-intelligence service tests."""

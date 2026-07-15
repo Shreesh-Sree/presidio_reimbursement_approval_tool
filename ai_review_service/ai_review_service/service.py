@@ -69,6 +69,8 @@ class ExpenseReviewService:
                 summary=outcome.narrative.summary,
                 key_insights=outcome.narrative.key_insights,
                 recommendation=outcome.narrative.recommendation,
+                cited_finding_ids=outcome.narrative.finding_ids,
+                cited_policy_rule_refs=outcome.narrative.policy_rule_refs,
                 provider=outcome,
             )
             return self._repository.complete(job.id, result)

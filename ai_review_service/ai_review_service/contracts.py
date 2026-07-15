@@ -263,6 +263,8 @@ class NarrativeDraft(ContractModel):
     summary: str = Field(min_length=1, max_length=2_000)
     key_insights: tuple[str, ...] = Field(default=(), max_length=10)
     recommendation: ReviewRecommendation
+    finding_ids: tuple[UUID, ...] = Field(default=(), max_length=20)
+    policy_rule_refs: tuple[str, ...] = Field(default=(), max_length=20)
 
 
 class ProviderOutcome(ContractModel):
@@ -299,6 +301,8 @@ class ReviewResult(ContractModel):
     summary: str = Field(min_length=1, max_length=2_000)
     key_insights: tuple[str, ...] = Field(default=(), max_length=10)
     recommendation: ReviewRecommendation
+    cited_finding_ids: tuple[UUID, ...] = ()
+    cited_policy_rule_refs: tuple[str, ...] = ()
     provider: ProviderOutcome
     human_review: HumanReviewGate = Field(default_factory=HumanReviewGate)
 

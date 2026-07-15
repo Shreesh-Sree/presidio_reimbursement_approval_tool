@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { RequirePermission } from "./auth/RequirePermission";
 import { LoginPage } from "./features/auth/LoginPage";
+import { CategoriesPage } from "./features/categories/CategoriesPage";
+import { PoliciesPage } from "./features/policies/PoliciesPage";
 import { UsersPage } from "./features/users/UsersPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -13,6 +16,8 @@ function AppContent() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+      <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/users" />} />
     </Routes>
   );

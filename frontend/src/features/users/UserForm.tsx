@@ -10,7 +10,6 @@ import type { ManagedUser, RoleOption, UserInput } from "./api";
 type FormValues = {
   email: string;
   full_name: string;
-  password: string;
   roles: string[];
   manager_id: string;
 };
@@ -30,7 +29,6 @@ function emptyValues(roles: RoleOption[]): FormValues {
   return {
     email: "",
     full_name: "",
-    password: "",
     roles: roles.some((role) => role.code === "employee") ? ["employee"] : [],
     manager_id: "",
   };
@@ -41,7 +39,6 @@ function valuesFor(user: ManagedUser | null, roles: RoleOption[]): FormValues {
   return {
     email: user.email,
     full_name: user.full_name,
-    password: "",
     roles: user.roles,
     manager_id: user.manager_id ?? "",
   };
@@ -97,16 +94,15 @@ export function UserForm({
       manager_id: values.manager_id || null,
     };
 
-    if (values.password) input.password = values.password;
     onSubmit(input);
   };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
-        <DialogTitle>{isEditing ? "Edit user" : "Create user"}</DialogTitle>
+        <DialogTitle>{isEditing ? "Edit allowlist user" : "Add user to allowlist"}</DialogTitle>
         <DialogDescription>
-          Assign one or more roles and, when applicable, an approver as the reporting manager.
+          This grants the specified work email access through OAuth. Assign one or more roles and, when applicable, an approver as the reporting manager.
         </DialogDescription>
         <Form
           className="mt-5"
@@ -137,20 +133,6 @@ export function UserForm({
               />
             </FormField>
           </div>
-
-          <FormField>
-            <Label htmlFor="user-password">{isEditing ? "New password (optional)" : "Temporary password"}</Label>
-            <Input
-              autoComplete="new-password"
-              id="user-password"
-              minLength={8}
-              onChange={(event) => setValues((current) => ({ ...current, password: event.target.value }))}
-              placeholder={isEditing ? "Leave empty to keep the current password" : "At least 8 characters"}
-              required={!isEditing}
-              type="password"
-              value={values.password}
-            />
-          </FormField>
 
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-slate-900 dark:text-slate-100">Roles</legend>
@@ -196,7 +178,7 @@ export function UserForm({
           <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
             <Button disabled={isPending} onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>
             <Button disabled={isPending || roles.length === 0} type="submit">
-              {isPending ? "Saving…" : isEditing ? "Save changes" : "Create user"}
+              {isPending ? "Saving…" : isEditing ? "Save changes" : "Add to allowlist"}
             </Button>
           </div>
         </Form>

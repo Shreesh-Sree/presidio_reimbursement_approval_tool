@@ -1,10 +1,13 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { ClerkProviderBoundary } from "./auth/clerk";
 import { RequirePermission } from "./auth/RequirePermission";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { BootstrapPage } from "./features/auth/BootstrapPage";
-import { LoginPage } from "./features/auth/LoginPage";
+import { AccessDeniedPage } from "./features/auth/AccessDeniedPage";
+import { OAuthConfigurationPage } from "./features/auth/OAuthConfigurationPage";
+import { SignInPage } from "./features/auth/SignInPage";
 
 const AppShell = lazy(async () => {
   const module = await import("./components/layout/AppShell");
@@ -75,17 +78,52 @@ function RouteLoading() {
   return <main className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading page…</main>;
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
-  if (!token) return <Navigate replace to="/login" />;
+function AuthenticationErrorPage({ message }: { message: string }) {
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-xl items-center p-6">
+      <div className="w-full rounded-xl border border-rose-200 bg-rose-50 p-6 text-center dark:border-rose-950 dark:bg-rose-950/30">
+        <h1 className="text-lg font-semibold text-rose-950 dark:text-rose-100">We could not verify your access</h1>
+        <p className="mt-2 text-sm text-rose-800 dark:text-rose-200">{message}</p>
+      </div>
+    </main>
+  );
+}
+
+function SignInRoute() {
+  const { accessDenied, error, isLoading, status, user } = useAuth();
+
+  if (status === "configuration_missing") return <Navigate replace to="/oauth-configuration" />;
+  if (isLoading) return <RouteLoading />;
+  if (accessDenied) return <Navigate replace to="/access-denied" />;
+  if (status === "authorized" && user) return <Navigate replace to="/reports" />;
+  if (error) return <AuthenticationErrorPage message={error} />;
+  return <SignInPage />;
+}
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { accessDenied, error, isLoading, status, user } = useAuth();
+  const location = useLocation();
+
+  if (status === "configuration_missing") return <Navigate replace to="/oauth-configuration" />;
+  if (isLoading) return <RouteLoading />;
+  if (accessDenied) return <Navigate replace to="/access-denied" />;
+  if (error) return <AuthenticationErrorPage message={error} />;
+  if (!user) return <Navigate replace state={{ from: location }} to="/sign-in" />;
   return <Suspense fallback={<RouteLoading />}><AppShell>{children}</AppShell></Suspense>;
 }
 
 function AppContent() {
+  const { status } = useAuth();
+
+  if (status === "configuration_missing") return <OAuthConfigurationPage />;
+
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/bootstrap" element={<BootstrapPage />} />
+      <Route path="/sign-in" element={<SignInRoute />} />
+      <Route path="/login" element={<Navigate replace to="/sign-in" />} />
+      <Route path="/bootstrap" element={<Navigate replace to="/sign-in" />} />
+      <Route path="/access-denied" element={<AccessDeniedPage />} />
+      <Route path="/oauth-configuration" element={<OAuthConfigurationPage />} />
       <Route path="/users" element={<ProtectedRoute><RequirePermission permission="user:read"><UsersPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/org-chart" element={<ProtectedRoute><RequirePermission permission="user:read"><OrgChartPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
@@ -99,18 +137,21 @@ function AppContent() {
       <Route path="/delegations" element={<ProtectedRoute><RequirePermission permission="report:approve"><DelegationsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals/:reportId" element={<ProtectedRoute><RequirePermission permission="report:approve"><ReportReview /></RequirePermission></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/reports" />} />
+      <Route path="*" element={<Navigate replace to="/reports" />} />
     </Routes>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppErrorBoundary>
-          <AppContent />
-        </AppErrorBoundary>
-      </BrowserRouter>
-    </AuthProvider>
+    <ClerkProviderBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppErrorBoundary>
+            <AppContent />
+          </AppErrorBoundary>
+        </BrowserRouter>
+      </AuthProvider>
+    </ClerkProviderBoundary>
   );
 }

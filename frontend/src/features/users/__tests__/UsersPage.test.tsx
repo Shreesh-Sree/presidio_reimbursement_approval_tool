@@ -49,24 +49,22 @@ describe("UsersPage", () => {
     vi.spyOn(userAdminApi, "deactivate").mockResolvedValue({ ...managedUsers[0], status: "inactive" });
   });
 
-  it("creates a user with multiple roles and a reporting manager", async () => {
+  it("allowlists a user with multiple roles and a reporting manager", async () => {
     const user = userEvent.setup();
     const create = vi.mocked(userAdminApi.create);
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: /new user/i }));
+    await user.click(await screen.findByRole("button", { name: /allowlist user/i }));
     await user.type(screen.getByLabelText(/^full name$/i), "Priya Patel");
     await user.type(screen.getByLabelText(/^email$/i), "priya@example.com");
-    await user.type(screen.getByLabelText(/temporary password/i), "SecurePass123!");
     await user.click(screen.getByRole("checkbox", { name: "Approver" }));
     await user.selectOptions(screen.getByLabelText(/reporting manager/i), "manager-1");
-    await user.click(screen.getByRole("button", { name: /create user/i }));
+    await user.click(screen.getByRole("button", { name: /add to allowlist/i }));
 
     await waitFor(() => {
       expect(create).toHaveBeenCalledWith({
         email: "priya@example.com",
         full_name: "Priya Patel",
-        password: "SecurePass123!",
         roles: ["employee", "approver"],
         manager_id: "manager-1",
       });

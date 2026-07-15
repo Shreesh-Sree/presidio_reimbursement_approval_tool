@@ -57,9 +57,9 @@ export function UsersPage() {
         <div>
           <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Administration</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Users and reporting lines</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Manage access roles and assign each employee to their reporting manager.</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Allowlist work emails for OAuth sign-in, manage access roles, and assign each employee to their reporting manager.</p>
         </div>
-        <Button disabled={roles.isLoading || roles.isError} onClick={openCreate}>New user</Button>
+        <Button disabled={roles.isLoading || roles.isError} onClick={openCreate}>Allowlist user</Button>
       </header>
 
       {users.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading users…</p>}
@@ -68,7 +68,7 @@ export function UsersPage() {
 
       {users.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-          No users have been created yet.
+          No work emails have been allowlisted yet.
         </div>
       )}
 

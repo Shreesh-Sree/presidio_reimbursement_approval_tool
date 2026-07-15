@@ -138,7 +138,7 @@ export function AppShell({ children }: AppShellProps) {
             <Button
               aria-label="Sign out"
               color="inherit"
-              onClick={logout}
+              onClick={() => void logout()}
               startIcon={<LogoutOutlinedIcon />}
               sx={{ display: { xs: "none", sm: "inline-flex" } }}
               variant="text"
@@ -147,7 +147,7 @@ export function AppShell({ children }: AppShellProps) {
             </Button>
           </Tooltip>
           <Tooltip title="Sign out">
-            <IconButton aria-label="Sign out" color="inherit" onClick={logout} sx={{ display: { sm: "none" } }}>
+            <IconButton aria-label="Sign out" color="inherit" onClick={() => void logout()} sx={{ display: { sm: "none" } }}>
               <LogoutOutlinedIcon />
             </IconButton>
           </Tooltip>

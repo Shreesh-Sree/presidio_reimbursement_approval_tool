@@ -18,7 +18,6 @@ export type ManagedUser = {
 export type UserInput = {
   email: string;
   full_name: string;
-  password?: string;
   roles: string[];
   manager_id?: string | null;
 };

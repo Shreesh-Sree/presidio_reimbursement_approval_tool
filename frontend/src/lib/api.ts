@@ -388,22 +388,6 @@ export type SessionUser = {
   permissions?: string[];
 };
 
-export type LoginResponse = {
-  access_token: string;
-  token_type?: string;
-  user?: SessionUser;
-};
-
-export type BootstrapInput = {
-  organization_name: string;
-  organization_code: string;
-  department_name: string;
-  department_code: string;
-  full_name: string;
-  email: string;
-  password: string;
-};
-
 export type ManagedUser = {
   id: string;
   email: string;
@@ -416,15 +400,12 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-let accessToken = typeof window === "undefined" ? null : window.localStorage.getItem("access_token");
+// Clerk manages the browser session. Keep the short-lived API token in memory
+// only, so a token is never persisted in localStorage by this application.
+let accessToken: string | null = null;
 
 export function setApiToken(token: string | null) {
   accessToken = token;
-
-  if (typeof window !== "undefined") {
-    if (token) window.localStorage.setItem("access_token", token);
-    else window.localStorage.removeItem("access_token");
-  }
 }
 
 apiClient.interceptors.request.use((config) => {
@@ -451,6 +432,16 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+/** Extract a stable API error code without exposing transport details to UI components. */
+export function getApiErrorCode(error: unknown) {
+  if (!axios.isAxiosError(error)) return undefined;
+  const detail = error.response?.data?.detail;
+  if (detail && typeof detail === "object" && "code" in detail && typeof detail.code === "string") {
+    return detail.code;
+  }
+  return undefined;
+}
+
 export const policiesApi = {
   list: () => unwrap(apiClient.get<Policy[]>("/policies")),
   create: (input: PolicyInput) => unwrap(apiClient.post<Policy>("/policies", input)),
@@ -472,10 +463,7 @@ export const policiesApi = {
 };
 
 export const authApi = {
-  bootstrap: (input: BootstrapInput) => unwrap(apiClient.post<LoginResponse>("/auth/bootstrap", input)),
-  login: (email: string, password: string) => unwrap(apiClient.post<LoginResponse>("/auth/login", { email, password })),
   me: () => unwrap(apiClient.get<SessionUser>("/auth/me")),
-  logout: () => unwrap(apiClient.post<void>("/auth/logout")),
 };
 
 export const usersApi = {

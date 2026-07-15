@@ -14,7 +14,13 @@ from .contracts import (
     ReviewResult,
 )
 from .persistence import ReviewRepository, SqliteReviewRepository
-from .providers import GeminiNarrativeProvider, ResilientNarrativeProvider, RuleBasedNarrativeProvider
+from .providers import (
+    GeminiNarrativeProvider,
+    GroqNarrativeProvider,
+    NarrativeProvider,
+    ResilientNarrativeProvider,
+    RuleBasedNarrativeProvider,
+)
 from .redaction import minimise_event, provider_context, redact_text
 from .rules import RuleEvaluator
 
@@ -94,15 +100,26 @@ class ExpenseReviewService:
         return self._repository.list_dispositions(job_id)
 
 
+def build_narrative_provider(settings: AIReviewSettings) -> NarrativeProvider | None:
+    """Select one optional provider without falling through to another vendor.
+
+    An unavailable selected provider deliberately returns ``None`` so the
+    resilient wrapper uses the deterministic rule-based narrative. This keeps
+    key rotation or a vendor outage from altering the advisory boundary.
+    """
+
+    if settings.provider == "gemini" and settings.gemini_api_key:
+        return GeminiNarrativeProvider(api_key=settings.gemini_api_key, model=settings.gemini_model)
+    if settings.provider == "groq" and settings.groq_api_key:
+        return GroqNarrativeProvider(api_key=settings.groq_api_key, model=settings.groq_model)
+    return None
+
+
 def build_service(settings: AIReviewSettings | None = None) -> ExpenseReviewService:
     """Build the deployable service using its own persistence configuration."""
 
     settings = settings or AIReviewSettings()
-    primary = (
-        GeminiNarrativeProvider(api_key=settings.gemini_api_key, model=settings.gemini_model)
-        if settings.gemini_api_key
-        else None
-    )
+    primary = build_narrative_provider(settings)
     provider = ResilientNarrativeProvider(
         primary,
         fallback=RuleBasedNarrativeProvider(),

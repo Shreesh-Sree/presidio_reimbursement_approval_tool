@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gemini = ["google-genai>=1.0"]
+groq = ["groq>=0.36"]
 
 [dependency-groups]
 dev = [

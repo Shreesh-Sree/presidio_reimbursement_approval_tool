@@ -11,8 +11,9 @@ RUN pip install --no-cache-dir "uv>=0.6,<1"
 
 COPY . /app
 
-# The optional Gemini adapter is present but dormant without its key; the
-# deterministic advisory evaluator remains the safe default.
-RUN uv sync --frozen --no-dev --extra gemini
+# Provider SDKs are installed only inside this isolated container.  The active
+# provider still comes from its separate runtime secret; rule-based review
+# remains the deterministic default when no provider/key is selected.
+RUN uv sync --frozen --no-dev --extra gemini --extra groq
 
 EXPOSE 8011

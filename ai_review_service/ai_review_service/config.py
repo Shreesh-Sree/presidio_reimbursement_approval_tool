@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,8 +14,11 @@ class AIReviewSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AI_REVIEW_", env_file=".env", extra="ignore")
 
     database_path: str = "var/ai-review.sqlite3"
-    gemini_api_key: str | None = None
+    provider: Literal["rule_based", "gemini", "groq"] = "rule_based"
+    gemini_api_key: str | None = Field(default=None, repr=False)
     gemini_model: str = "gemini-2.5-flash"
+    groq_api_key: str | None = Field(default=None, repr=False)
+    groq_model: str = "openai/gpt-oss-20b"
     provider_timeout_seconds: float = Field(default=8.0, gt=0, le=120)
     provider_max_attempts: int = Field(default=2, ge=1, le=5)
     provider_retry_backoff_seconds: float = Field(default=0.25, ge=0, le=30)

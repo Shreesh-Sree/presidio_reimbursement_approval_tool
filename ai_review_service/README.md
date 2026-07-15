@@ -31,12 +31,13 @@ The deterministic evaluator runs before any model call and can flag:
 - matching receipt digests or duplicate line signatures; and
 - category totals above an aggregate, privacy-safe historical baseline.
 
-The optional Gemini adapter receives only aggregate totals and sanitized
+An optional Gemini or Groq adapter receives only aggregate totals and sanitized
 findings. It never receives a report/user ID, employee name/email, vendor
 value, description, receipt digest, receipt file, URL, OCR output, or raw
 policy document. It drafts a concise summary; the recommendation is advisory.
-If Gemini times out or fails, it retries with a bounded backoff and then uses a
-deterministic rule-based narrative. Provider errors are not stored in a job.
+If a selected provider times out or fails, it retries with a bounded backoff
+and then uses a deterministic rule-based narrative. Provider errors are not
+stored in a job.
 
 ## Event contract
 
@@ -121,12 +122,26 @@ AI_REVIEW_LOCAL_WORKER_RETRY_DELAY_SECONDS=0.25
 AI_REVIEW_JOB_MAX_ATTEMPTS=3
 ```
 
-Gemini is optional. Install the extra and configure it only in the AI-service
-deployment:
+The default `AI_REVIEW_PROVIDER=rule_based` makes no model request. Select one
+optional provider and configure it only in the isolated AI-service deployment.
+Never commit a vendor key: use an ignored local `.env` for development and a
+secret manager or runtime secret injection in deployed environments.
+
+Gemini:
 
 ```bash
 uv sync --extra gemini
-AI_REVIEW_GEMINI_API_KEY=... AI_REVIEW_GEMINI_MODEL=gemini-2.5-flash \
+AI_REVIEW_PROVIDER=gemini AI_REVIEW_GEMINI_API_KEY=<secret> AI_REVIEW_GEMINI_MODEL=gemini-2.5-flash \
+  uv run uvicorn ai_review_service.api:create_app --factory --port 8011
+```
+
+Groq uses its official Python SDK and JSON Object Mode. The default model is
+`openai/gpt-oss-20b`; set `AI_REVIEW_GROQ_MODEL` explicitly if a project-level
+model allow-list requires another supported JSON-capable model.
+
+```bash
+uv sync --extra groq
+AI_REVIEW_PROVIDER=groq AI_REVIEW_GROQ_API_KEY=<secret> AI_REVIEW_GROQ_MODEL=openai/gpt-oss-20b \
   uv run uvicorn ai_review_service.api:create_app --factory --port 8011
 ```
 

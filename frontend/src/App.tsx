@@ -14,6 +14,7 @@ import { ReportsListPage } from "./features/reports/ReportsListPage";
 import { NotificationBell } from "./features/notifications/NotificationBell";
 import { OrgChartPage } from "./features/users/OrgChartPage";
 import { UsersPage } from "./features/users/UsersPage";
+import { WorkflowRulesPage } from "./features/workflows/WorkflowRulesPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, user, logout } = useAuth();
@@ -24,6 +25,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     { to: "/approvals", label: "Approvals", permission: "report:approve" },
     { to: "/policies", label: "Policies", permission: "policy:manage" },
     { to: "/categories", label: "Categories", permission: "category:manage" },
+    { to: "/workflows", label: "Workflows", permission: "workflow:manage" },
     { to: "/users", label: "Users", permission: "user:read" },
     { to: "/org-chart", label: "Org chart", permission: "user:read" },
   ];
@@ -59,6 +61,7 @@ function AppContent() {
       <Route path="/org-chart" element={<ProtectedRoute><RequirePermission permission="user:read"><OrgChartPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/workflows" element={<ProtectedRoute><RequirePermission permission="workflow:manage"><WorkflowRulesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportsListPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/reports/:reportId" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportEditor /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals" element={<ProtectedRoute><RequirePermission permission="report:approve"><ApprovalQueuePage /></RequirePermission></ProtectedRoute>} />

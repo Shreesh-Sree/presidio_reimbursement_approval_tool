@@ -136,7 +136,12 @@ def _approvers_for_report(db: Session, report: ExpenseReport) -> tuple[WorkflowR
                     continue
                 user = (
                     db.query(User)
-                    .filter(User.id == user_id, User.is_deleted.is_(False), User.status == "active")
+                    .filter(
+                        User.id == user_id,
+                        User.organization_id == employee.organization_id,
+                        User.is_deleted.is_(False),
+                        User.status == "active",
+                    )
                     .first()
                 )
                 if user:

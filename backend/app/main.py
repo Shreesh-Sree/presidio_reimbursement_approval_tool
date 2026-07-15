@@ -13,6 +13,7 @@ from app.api.routes import (
     roles,
     users,
     vendors,
+    workflows,
 )
 
 app = FastAPI(title="Reimbursement API", version="1.0.0")
@@ -38,6 +39,7 @@ app.include_router(reports.router)
 app.include_router(attachments.router)
 app.include_router(approvals.router)
 app.include_router(notifications.router)
+app.include_router(workflows.router)
 
 
 @app.get("/api/health")

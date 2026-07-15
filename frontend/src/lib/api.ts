@@ -29,6 +29,37 @@ export type PolicyInput = Pick<Policy, "name" | "version_label" | "effective_fro
   rules: PolicyRule[];
 };
 
+export type WorkflowConditions = {
+  min_total?: number | null;
+  max_total?: number | null;
+  department_id?: string | null;
+  currency_code?: string | null;
+};
+
+export type WorkflowApprovalStep = {
+  manager_level?: number;
+  user_id?: string;
+  role_code?: string;
+};
+
+export type WorkflowRule = {
+  id: string;
+  name: string;
+  conditions: WorkflowConditions;
+  approval_chain: WorkflowApprovalStep[];
+  priority: number;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type WorkflowRuleInput = Omit<WorkflowRule, "id" | "created_at" | "updated_at">;
+
+export type WorkflowRoleOption = {
+  code: string;
+  name: string;
+};
+
 export type Category = {
   id: string;
   code: string;
@@ -242,6 +273,10 @@ export const usersApi = {
   list: () => unwrap(apiClient.get<ManagedUser[]>("/users")),
 };
 
+export const rolesApi = {
+  list: () => unwrap(apiClient.get<WorkflowRoleOption[]>("/roles")),
+};
+
 export const categoriesApi = {
   list: () => unwrap(apiClient.get<Category[]>("/categories")),
   create: (input: CategoryInput) => unwrap(apiClient.post<Category>("/categories", input)),
@@ -252,6 +287,15 @@ export const categoriesApi = {
 
 export const vendorsApi = {
   list: () => unwrap(apiClient.get<Vendor[]>("/vendors")),
+};
+
+export const workflowsApi = {
+  list: () => unwrap(apiClient.get<WorkflowRule[]>("/workflows")),
+  get: (workflowId: string) => unwrap(apiClient.get<WorkflowRule>(`/workflows/${workflowId}`)),
+  create: (input: WorkflowRuleInput) => unwrap(apiClient.post<WorkflowRule>("/workflows", input)),
+  update: (workflowId: string, input: Partial<WorkflowRuleInput>) =>
+    unwrap(apiClient.patch<WorkflowRule>(`/workflows/${workflowId}`, input)),
+  remove: (workflowId: string) => unwrap(apiClient.delete<void>(`/workflows/${workflowId}`)),
 };
 
 export const reportsApi = {

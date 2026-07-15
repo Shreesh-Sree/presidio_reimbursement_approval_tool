@@ -1,0 +1,167 @@
+"""Policy version and policy-document API routes."""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.deps import require_permission
+from app.services import policy_service, storage_service
+
+
+router = APIRouter(prefix="/api/policies", tags=["policies"])
+
+
+class PolicyRuleInput(BaseModel):
+    category_id: str | None = None
+    category_name: str | None = None
+    vendor_id: str | None = None
+    vendor_name: str | None = None
+    max_per_day: Decimal | None = Field(default=None, ge=0)
+    max_per_trip: Decimal | None = Field(default=None, ge=0)
+    per_category_cap: Decimal | None = Field(default=None, ge=0)
+    receipt_required_above: Decimal | None = Field(default=None, ge=0)
+
+
+class PolicyCreateInput(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    version_label: str = Field(min_length=1, max_length=50)
+    effective_from: datetime | date
+    effective_to: datetime | date | None = None
+    rules: list[PolicyRuleInput] = Field(default_factory=list)
+
+
+class PolicyUpdateInput(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    version_label: str | None = Field(default=None, min_length=1, max_length=50)
+    effective_from: datetime | date | None = None
+    effective_to: datetime | date | None = None
+    rules: list[PolicyRuleInput] | None = None
+
+
+def _policy_error(exc: Exception) -> None:
+    if isinstance(exc, policy_service.PolicyNotFoundError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if isinstance(exc, policy_service.PolicyConflictError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if isinstance(exc, storage_service.UploadValidationError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if isinstance(exc, storage_service.StorageError):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    raise exc
+
+
+@router.get("")
+async def list_policies(
+    db: Session = Depends(get_db),
+    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+):
+    return [policy_service.policy_payload(db, policy) for policy in policy_service.list_policies(db)]
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_policy(
+    payload: PolicyCreateInput,
+    db: Session = Depends(get_db),
+    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+):
+    try:
+        policy = policy_service.create_policy_version(
+            db,
+            payload.name,
+            payload.version_label,
+            payload.effective_from,
+            effective_to=payload.effective_to,
+            rules_data=payload.rules,
+        )
+        return policy_service.policy_payload(db, policy)
+    except Exception as exc:
+        _policy_error(exc)
+
+
+@router.get("/{policy_id}")
+async def get_policy(
+    policy_id: str,
+    db: Session = Depends(get_db),
+    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+):
+    try:
+        return policy_service.policy_payload(db, policy_service.get_policy(db, policy_id))
+    except Exception as exc:
+        _policy_error(exc)
+
+
+@router.patch("/{policy_id}")
+async def update_policy(
+    policy_id: str,
+    payload: PolicyUpdateInput,
+    db: Session = Depends(get_db),
+    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+):
+    try:
+        changes: dict[str, Any] = payload.model_dump(exclude_unset=True)
+        if "rules" in changes and changes["rules"] is not None:
+            changes["rules_data"] = changes.pop("rules")
+        policy = policy_service.update_policy_version(db, policy_id, **changes)
+        return policy_service.policy_payload(db, policy)
+    except Exception as exc:
+        _policy_error(exc)
+
+
+@router.post("/{policy_id}/activate")
+async def activate_policy(
+    policy_id: str,
+    db: Session = Depends(get_db),
+    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+):
+    try:
+        return policy_service.policy_payload(db, policy_service.activate_policy(db, policy_id))
+    except Exception as exc:
+        _policy_error(exc)
+
+
+@router.post("/{policy_id}/upload-doc")
+async def upload_policy_document(
+    policy_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: dict[str, str] = Depends(require_permission("policy:manage")),
+):
+    attachment = None
+    stored_path: str | None = None
+    committed = False
+    try:
+        policy = policy_service.get_policy(db, policy_id)
+        content = await file.read()
+        attachment = storage_service.create_attachment(
+            db,
+            entity_type="policy_document",
+            entity_id=policy.id,
+            uploaded_by=user["user_id"],
+            file_name=file.filename or "policy-document",
+            mime_type=file.content_type or "",
+            content=content,
+            kind="policy_document",
+        )
+        stored_path = attachment.storage_path
+        policy_service.attach_document(db, policy.id, attachment.id)
+        db.commit()
+        committed = True
+        db.refresh(policy)
+        return policy_service.policy_payload(db, policy)
+    except Exception as exc:
+        db.rollback()
+        if stored_path is not None and not committed:
+            try:
+                storage_service.delete_storage_path(stored_path)
+            except storage_service.StorageError:
+                pass
+        _policy_error(exc)
+    finally:
+        await file.close()

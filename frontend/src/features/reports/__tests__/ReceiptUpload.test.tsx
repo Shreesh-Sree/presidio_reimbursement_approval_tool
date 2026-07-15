@@ -1,39 +1,52 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ReceiptUpload } from '../ReceiptUpload';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { reportsApi } from "../../../lib/api";
+import { ReceiptUpload } from "../ReceiptUpload";
 
-describe('ReceiptUpload', () => {
-  it('renders file input', () => {
-    render(<ReceiptUpload itemId="test-id" />);
-    const input = screen.getByRole('button', { name: /upload receipt/i });
-    expect(input).toBeInTheDocument();
+function renderUpload(onUploadComplete?: Parameters<typeof ReceiptUpload>[0]["onUploadComplete"]) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ReceiptUpload itemId="item-1" onUploadComplete={onUploadComplete} />
+    </QueryClientProvider>,
+  );
+}
+
+describe("ReceiptUpload", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("renders an accessible file input", () => {
+    renderUpload();
+    expect(screen.getByLabelText(/upload receipt/i)).toHaveAttribute("type", "file");
   });
 
-  it('handles file upload', async () => {
+  it("uploads the selected receipt", async () => {
+    const user = userEvent.setup();
+    const uploadedReceipt = { id: "receipt-1", url: "https://files.example/receipt.pdf", file_name: "receipt.pdf" };
+    const upload = vi.spyOn(reportsApi, "uploadReceipt").mockResolvedValue(uploadedReceipt);
     const onUploadComplete = vi.fn();
-    render(<ReceiptUpload itemId="test-id" onUploadComplete={onUploadComplete} />);
+    renderUpload(onUploadComplete);
+    const file = new File(["receipt"], "receipt.pdf", { type: "application/pdf" });
 
-    const file = new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' });
-    const input = screen.getByRole('button', { name: /upload receipt/i });
+    fireEvent.change(screen.getByLabelText(/upload receipt/i), { target: { files: [file] } });
+    expect(screen.getByText("receipt.pdf")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^upload$/i }));
 
-    fireEvent.change(input, { target: { files: [file] } });
-
-    await waitFor(() => {
-      expect(screen.getByText(/receipt.pdf/i)).toBeInTheDocument();
-    });
+    await waitFor(() => expect(upload).toHaveBeenCalledWith("item-1", file));
+    expect(onUploadComplete).toHaveBeenCalledWith(uploadedReceipt);
   });
 
-  it('shows error on upload failure', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Upload failed'));
-    render(<ReceiptUpload itemId="test-id" />);
+  it("shows an error when the upload fails", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(reportsApi, "uploadReceipt").mockRejectedValue(new Error("Upload failed"));
+    renderUpload();
+    const file = new File(["receipt"], "receipt.pdf", { type: "application/pdf" });
 
-    const file = new File(['receipt'], 'receipt.pdf', { type: 'application/pdf' });
-    const input = screen.getByRole('button', { name: /upload receipt/i });
+    fireEvent.change(screen.getByLabelText(/upload receipt/i), { target: { files: [file] } });
+    await user.click(screen.getByRole("button", { name: /^upload$/i }));
 
-    fireEvent.change(input, { target: { files: [file] } });
-
-    await waitFor(() => {
-      expect(screen.getByText(/upload failed/i)).toBeInTheDocument();
-    });
+    expect(await screen.findByText(/upload failed/i)).toBeInTheDocument();
   });
 });

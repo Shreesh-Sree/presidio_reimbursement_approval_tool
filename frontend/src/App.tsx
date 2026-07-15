@@ -4,6 +4,8 @@ import { RequirePermission } from "./auth/RequirePermission";
 import { LoginPage } from "./features/auth/LoginPage";
 import { CategoriesPage } from "./features/categories/CategoriesPage";
 import { PoliciesPage } from "./features/policies/PoliciesPage";
+import { ReportEditor } from "./features/reports/ReportEditor";
+import { ReportsListPage } from "./features/reports/ReportsListPage";
 import { UsersPage } from "./features/users/UsersPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -18,7 +20,9 @@ function AppContent() {
       <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
       <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />
-      <Route path="/" element={<Navigate to="/users" />} />
+      <Route path="/reports" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportsListPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/reports/:reportId" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportEditor /></RequirePermission></ProtectedRoute>} />
+      <Route path="/" element={<Navigate to="/reports" />} />
     </Routes>
   );
 }

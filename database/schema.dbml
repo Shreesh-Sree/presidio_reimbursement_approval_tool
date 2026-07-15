@@ -218,24 +218,6 @@ Table role_permissions {
   }
 }
 
-Table projects {
-  id uuid [pk, default: `gen_random_uuid()`]
-  organization_id uuid [not null, ref: > organizations.id]
-  code varchar(50) [not null]
-  name varchar(255) [not null]
-  description text
-  status common_status [not null, default: 'active']
-  created_at timestamp [not null, default: `now()`]
-  updated_at timestamp [not null, default: `now()`]
-  deleted_at timestamp
-  is_deleted boolean [not null, default: false]
-  version integer [not null, default: 1]
-
-  indexes {
-    (organization_id, code) [unique]
-    (status)
-    (is_deleted)
-  }
 }
 
 Table expense_categories {
@@ -313,7 +295,6 @@ Table expense_items {
   expense_report_id uuid [not null, ref: > expense_reports.id]
   line_number integer [not null]
   category_id uuid [not null, ref: > expense_categories.id]
-  project_id uuid [ref: > projects.id]
   vendor_id uuid [ref: > vendors.id]
   merchant_name varchar(255)
   amount decimal(18,2) [not null, note: 'Amount in base currency']
@@ -460,28 +441,6 @@ Table delegations {
   }
 }
 
-Table bank_details {
-  id uuid [pk, default: `gen_random_uuid()`]
-  user_id uuid [not null, ref: > users.id]
-  bank_name varchar(255) [not null]
-  account_holder_name varchar(255) [not null]
-  account_number_encrypted text [not null]
-  ifsc_or_routing_code varchar(50)
-  masked_account_number varchar(50) [not null]
-  is_primary boolean [not null, default: false]
-  status common_status [not null, default: 'active']
-  created_at timestamp [not null, default: `now()`]
-  updated_at timestamp [not null, default: `now()`]
-  deleted_at timestamp
-  is_deleted boolean [not null, default: false]
-  version integer [not null, default: 1]
-
-  indexes {
-    (user_id)
-    (user_id, is_primary)
-    (status)
-    (is_deleted)
-  }
 }
 
 Table payment_records {
@@ -556,38 +515,8 @@ Table comments {
   }
 }
 
-Table tags {
-  id uuid [pk, default: `gen_random_uuid()`]
-  name varchar(100) [not null, unique]
-  is_active boolean [not null, default: true]
-  created_at timestamp [not null, default: `now()`]
-  updated_at timestamp [not null, default: `now()`]
-  deleted_at timestamp
-  is_deleted boolean [not null, default: false]
-  version integer [not null, default: 1]
-
-  indexes {
-    (name) [unique]
-    (is_active)
-    (is_deleted)
-  }
 }
 
-Table report_tags {
-  id uuid [pk, default: `gen_random_uuid()`]
-  expense_report_id uuid [not null, ref: > expense_reports.id]
-  tag_id uuid [not null, ref: > tags.id]
-  created_at timestamp [not null, default: `now()`]
-  updated_at timestamp [not null, default: `now()`]
-  deleted_at timestamp
-  is_deleted boolean [not null, default: false]
-  version integer [not null, default: 1]
-
-  indexes {
-    (expense_report_id, tag_id) [unique]
-    (tag_id)
-    (is_deleted)
-  }
 }
 
 Table sessions {
@@ -638,23 +567,5 @@ Table audit_logs {
   }
 }
 
-Table settings {
-  id uuid [pk, default: `gen_random_uuid()`]
-  setting_key varchar(150) [not null, unique]
-  setting_value jsonb [not null]
-  description text
-  is_active boolean [not null, default: true]
-  created_at timestamp [not null, default: `now()`]
-  updated_at timestamp [not null, default: `now()`]
-  deleted_at timestamp
-  is_deleted boolean [not null, default: false]
-  version integer [not null, default: 1]
-
-  indexes {
-    (setting_key) [unique]
-    (is_active)
-    (is_deleted)
-  }
 }
-
 

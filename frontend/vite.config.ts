@@ -9,6 +9,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
     css: true,
+    // The policy-assistant interaction tests render several MUI controls and
+    // can legitimately exceed Vitest's five-second default under parallel CI.
+    testTimeout: 15_000,
   },
   server: {
     proxy: {

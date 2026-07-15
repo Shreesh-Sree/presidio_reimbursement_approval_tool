@@ -128,6 +128,11 @@ in your template). Clerk supplies standard `iss`, `sub`, and `azp` claims; the
 API checks all of them. Configure the same `clerk_jwt_template` in the frontend
 build values.
 
+Keep the custom JWT lifetime short (minutes, not hours). The browser obtains a
+fresh token for each API request and retries one expired-token response, but
+server-side revocation of an already-issued custom token is bounded by its
+expiry. Signing out clears the application's in-memory token immediately.
+
 `clerk_publishable_key` and `clerk_jwt_template` are public browser build
 configuration. The deployment script reads them from Terraform outputs and
 passes them as `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_CLERK_JWT_TEMPLATE` at

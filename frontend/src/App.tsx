@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { RequirePermission } from "./auth/RequirePermission";
 import { hasPermission } from "./auth/permissions";
 import { Button } from "./components/ui/button";
+import { BootstrapPage } from "./features/auth/BootstrapPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ApprovalQueuePage } from "./features/approvals/ApprovalQueuePage";
 import { ReportReview } from "./features/approvals/ReportReview";
@@ -53,6 +54,7 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/bootstrap" element={<BootstrapPage />} />
       <Route path="/users" element={<ProtectedRoute><RequirePermission permission="user:read"><UsersPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/org-chart" element={<ProtectedRoute><RequirePermission permission="user:read"><OrgChartPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />

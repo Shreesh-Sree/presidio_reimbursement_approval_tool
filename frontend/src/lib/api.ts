@@ -152,6 +152,16 @@ export type LoginResponse = {
   user?: SessionUser;
 };
 
+export type BootstrapInput = {
+  organization_name: string;
+  organization_code: string;
+  department_name: string;
+  department_code: string;
+  full_name: string;
+  email: string;
+  password: string;
+};
+
 export type ManagedUser = {
   id: string;
   email: string;
@@ -216,6 +226,7 @@ export const policiesApi = {
 };
 
 export const authApi = {
+  bootstrap: (input: BootstrapInput) => unwrap(apiClient.post<LoginResponse>("/auth/bootstrap", input)),
   login: (email: string, password: string) => unwrap(apiClient.post<LoginResponse>("/auth/login", { email, password })),
   me: () => unwrap(apiClient.get<SessionUser>("/auth/me")),
   logout: () => unwrap(apiClient.post<void>("/auth/logout")),

@@ -1,7 +1,7 @@
 /* oxlint-disable react/only-export-components */
 import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
-import { authApi, setApiToken, type SessionUser } from "../lib/api";
+import { authApi, setApiToken, type BootstrapInput, type LoginResponse, type SessionUser } from "../lib/api";
 
 export type User = SessionUser;
 
@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
+  bootstrap: (input: BootstrapInput) => Promise<void>;
   logout: () => void;
 }
 
@@ -27,13 +28,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [token, setToken] = useState<string | null>(() => window.localStorage.getItem("access_token"));
 
-  const login = async (email: string, password: string) => {
-    const data = await authApi.login(email, password);
+  const establishSession = async (data: LoginResponse) => {
     setApiToken(data.access_token);
     setToken(data.access_token);
     const sessionUser = data.user ?? await authApi.me();
     setUser(sessionUser);
     window.localStorage.setItem("session_user", JSON.stringify(sessionUser));
+  };
+
+  const login = async (email: string, password: string) => {
+    await establishSession(await authApi.login(email, password));
+  };
+
+  const bootstrap = async (input: BootstrapInput) => {
+    await establishSession(await authApi.bootstrap(input));
   };
 
   const logout = () => {
@@ -44,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthContext.Provider value={{ user, token, login, bootstrap, logout }}>
       {children}
     </AuthContext.Provider>
   );

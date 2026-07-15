@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import { Form, FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
@@ -46,6 +46,9 @@ export function LoginPage() {
           {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
           <Button className="w-full" disabled={isSubmitting} type="submit">{isSubmitting ? "Signing in…" : "Sign in"}</Button>
         </Form>
+        <p className="mt-5 text-center text-sm text-slate-600 dark:text-slate-300">
+          Setting up a new deployment? <Link className="font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-300" to="/bootstrap">Create the first administrator</Link>
+        </p>
       </section>
     </main>
   );

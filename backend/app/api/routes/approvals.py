@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.report_schemas import ApprovalActionInput
 from app.core.database import get_db
 from app.core.deps import require_permission
-from app.services import ai_review_client, approval_service, presentation_service
+from app.services import ai_review_client, approval_service, notification_delivery_service, presentation_service
 
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
@@ -41,12 +41,14 @@ async def _take_action(
     report_id: str,
     action: str,
     payload: ApprovalActionInput,
+    background_tasks: BackgroundTasks,
     db: Session,
     user: dict[str, object],
 ):
     try:
         report = approval_service.act_on_report(db, report_id, user["user_id"], action, payload.remarks)
         ai_review_client.record_human_disposition(report, user["user_id"], action, payload.remarks)
+        notification_delivery_service.enqueue_pending_email_delivery(background_tasks)
         return presentation_service.report_payload(db, report)
     except Exception as exc:
         _raise_approval_error(exc)
@@ -56,27 +58,30 @@ async def _take_action(
 async def approve(
     report_id: str,
     payload: ApprovalActionInput,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
-    return await _take_action(report_id, "approve", payload, db, user)
+    return await _take_action(report_id, "approve", payload, background_tasks, db, user)
 
 
 @router.post("/{report_id}/reject")
 async def reject(
     report_id: str,
     payload: ApprovalActionInput,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
-    return await _take_action(report_id, "reject", payload, db, user)
+    return await _take_action(report_id, "reject", payload, background_tasks, db, user)
 
 
 @router.post("/{report_id}/send-back")
 async def send_back(
     report_id: str,
     payload: ApprovalActionInput,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
-    return await _take_action(report_id, "send_back", payload, db, user)
+    return await _take_action(report_id, "send_back", payload, background_tasks, db, user)

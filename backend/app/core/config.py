@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from: str = "no-reply@presidio.com"
+    email_delivery_enabled: bool = False
+    smtp_use_tls: bool = False
+    smtp_timeout_seconds: float = 10.0
     aws_region: str = "us-east-1"
     # S3 is required only when STORAGE_BACKEND=s3; local storage is the safe
     # development default and should not require placeholder cloud credentials.

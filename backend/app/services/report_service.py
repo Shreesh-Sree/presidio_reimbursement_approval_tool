@@ -239,16 +239,11 @@ def withdraw_report(db: Session, report_id: uuid.UUID | str, user_id: uuid.UUID 
     before = {"status": report.status}
     report.status = "draft"
     report.submitted_at = None
-    # Any still-pending manager task is no longer actionable after withdrawal.
-    (
-        db.query(ApprovalLevel)
-        .filter(
-            ApprovalLevel.expense_report_id == report.id,
-            ApprovalLevel.status.in_(("pending", "waiting")),
-            ApprovalLevel.is_deleted.is_(False),
-        )
-        .update({"status": "cancelled"}, synchronize_session=False)
-    )
+    # Cancel current tasks and stage manager notifications atomically with the
+    # withdrawal. Outbound email is dispatched only after this commit.
+    from app.services.notification_delivery_service import cancel_pending_approvals_for_withdrawal
+
+    cancel_pending_approvals_for_withdrawal(db, report)
     record_audit(
         db,
         "expense_reports",

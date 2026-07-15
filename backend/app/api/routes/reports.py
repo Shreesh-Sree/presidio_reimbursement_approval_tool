@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.report_schemas import CommentInput, LineItemCreateInput, LineItemUpdateInput, ReportCreateInput, ReportUpdateInput
 from app.core.database import get_db
 from app.core.deps import require_permission
-from app.services import ai_review_client, approval_service, audit_service, comment_service, item_service, presentation_service, report_service
+from app.services import ai_review_client, approval_service, audit_service, comment_service, item_service, notification_delivery_service, presentation_service, report_service
 
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -102,6 +102,7 @@ async def update_report(
 @router.post("/{report_id}/submit")
 async def submit_report(
     report_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:create")),
 ):
@@ -126,6 +127,7 @@ async def submit_report(
                 performed_by=str(user["user_id"]),
             )
             db.commit()
+        notification_delivery_service.enqueue_pending_email_delivery(background_tasks)
         return presentation_service.report_payload(db, submitted)
     except Exception as exc:
         _raise_report_error(exc)
@@ -134,11 +136,13 @@ async def submit_report(
 @router.post("/{report_id}/withdraw")
 async def withdraw_report(
     report_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:create")),
 ):
     try:
         report = report_service.withdraw_report(db, report_id, user["user_id"])
+        notification_delivery_service.enqueue_pending_email_delivery(background_tasks)
         return presentation_service.report_payload(db, report)
     except Exception as exc:
         _raise_report_error(exc)

@@ -15,8 +15,8 @@ notifications, report comments, and an isolated AI expense-review service.
 - RBAC with Employee/Approver/Administrator roles, a reporting hierarchy,
   user deactivation, and an organization chart.
 - Sequential manager approvals, reject/send-back remarks, immutable approval
-  history, reimbursement `approved_pending_payment` status, and in-app/email
-  notification records.
+  history, reimbursement `approved_pending_payment` status, in-app alerts, and
+  opt-in SMTP email delivery for status changes.
 - An advisory-only `ai_review_service` with its own datastore. It receives a
   minimized policy/report snapshot, never mutates the reimbursement workflow,
   and requires a human decision.

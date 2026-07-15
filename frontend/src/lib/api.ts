@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { InternalAxiosRequestConfig } from "axios";
 
 export type PolicyRule = {
   id?: string;
@@ -400,18 +401,63 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Clerk manages the browser session. Keep the short-lived API token in memory
-// only, so a token is never persisted in localStorage by this application.
-let accessToken: string | null = null;
+/**
+ * The provider is supplied by Clerk's React session hook, never persisted by
+ * this application. Resolving it for every request lets Clerk rotate its
+ * short-lived JWT before we send it to the API.
+ */
+export type ApiTokenProvider = (options?: { forceRefresh?: boolean }) => Promise<string | null>;
 
-export function setApiToken(token: string | null) {
-  accessToken = token;
+let apiTokenProvider: ApiTokenProvider | null = null;
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _clerkTokenRetry?: boolean;
+};
+
+export function setApiTokenProvider(provider: ApiTokenProvider | null) {
+  apiTokenProvider = provider;
 }
 
-apiClient.interceptors.request.use((config) => {
-  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+async function resolveApiToken(forceRefresh = false) {
+  if (!apiTokenProvider) return null;
+  return apiTokenProvider(forceRefresh ? { forceRefresh: true } : undefined);
+}
+
+apiClient.interceptors.request.use(async (config) => {
+  const retryableConfig = config as RetryableRequestConfig;
+
+  // A retry already has a force-refreshed token installed by the response
+  // interceptor. Avoid replacing it with the cached token during dispatch.
+  if (retryableConfig._clerkTokenRetry) return config;
+
+  const token = await resolveApiToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: unknown) => {
+    if (!axios.isAxiosError(error) || error.response?.status !== 401 || !apiTokenProvider || !error.config) {
+      return Promise.reject(error);
+    }
+
+    const originalRequest = error.config as RetryableRequestConfig;
+    if (originalRequest._clerkTokenRetry) return Promise.reject(error);
+
+    originalRequest._clerkTokenRetry = true;
+
+    try {
+      const token = await resolveApiToken(true);
+      if (!token) return Promise.reject(error);
+
+      originalRequest.headers.Authorization = `Bearer ${token}`;
+      return apiClient.request(originalRequest);
+    } catch {
+      return Promise.reject(error);
+    }
+  },
+);
 
 const unwrap = <T>(request: Promise<{ data: T }>) => request.then((response) => response.data);
 

@@ -7,12 +7,13 @@ import { AccessDeniedPage } from "../AccessDeniedPage";
 import { OAuthConfigurationPage } from "../OAuthConfigurationPage";
 
 const deniedContext: AuthContextType = {
-  user: { user_id: "user-1", email: "outside@example.com", roles: [] },
+  user: null,
   token: null,
   status: "access_denied",
   isLoading: false,
   isSignedIn: true,
   accessDenied: true,
+  deniedEmail: "outside@example.com",
   error: null,
   logout: async () => undefined,
 };

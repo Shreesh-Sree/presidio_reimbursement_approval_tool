@@ -4,7 +4,8 @@ import { useAuth } from "../../auth/AuthContext";
 
 /** Shown only after Clerk confirms identity but the app allowlist rejects it. */
 export function AccessDeniedPage() {
-  const { logout, user } = useAuth();
+  const { deniedEmail, logout, user } = useAuth();
+  const email = deniedEmail ?? user?.email;
 
   return (
     <Box
@@ -15,7 +16,7 @@ export function AccessDeniedPage() {
         <Typography color="primary" fontWeight={800} variant="overline">Presidio reimbursements</Typography>
         <Typography component="h1" sx={{ mt: 0.5 }} variant="h4">You don’t have access yet</Typography>
         <Alert severity="warning" sx={{ mt: 2 }}>
-          Your signed-in work account{user?.email ? ` (${user.email})` : ""} is not on this organization’s reimbursement allowlist.
+          Your signed-in work account{email ? ` (${email})` : ""} is not on this organization’s reimbursement allowlist.
         </Alert>
         <Typography color="text.secondary" sx={{ mt: 2 }}>
           Ask an administrator to add your email, assign your roles, and set your reporting manager. Then sign in again with the same approved OAuth account.

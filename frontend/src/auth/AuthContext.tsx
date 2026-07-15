@@ -1,9 +1,9 @@
 /* oxlint-disable react/only-export-components */
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { clerkJwtTemplate, isClerkConfigured } from "./clerk";
-import { authApi, getApiErrorCode, getApiErrorMessage, setApiToken, type SessionUser } from "../lib/api";
+import { authApi, getApiErrorCode, getApiErrorMessage, setApiTokenProvider, type SessionUser } from "../lib/api";
 
 export type User = SessionUser;
 export type AuthStatus = "configuration_missing" | "loading" | "signed_out" | "authorized" | "access_denied" | "error";
@@ -15,6 +15,7 @@ export interface AuthContextType {
   isLoading: boolean;
   isSignedIn: boolean;
   accessDenied: boolean;
+  deniedEmail?: string | null;
   error: string | null;
   logout: () => Promise<void>;
 }
@@ -34,20 +35,27 @@ const missingConfigurationValue: AuthContextType = {
 
 function ClerkSessionProvider({ children }: { children: ReactNode }) {
   const { getToken, isLoaded, isSignedIn, signOut } = useClerkAuth();
+  const { user: clerkUser } = useUser();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [deniedEmail, setDeniedEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status !== "access_denied") return;
+    const email = clerkUser?.primaryEmailAddress?.emailAddress?.trim();
+    if (email) setDeniedEmail(email);
+  }, [clerkUser, status]);
 
   useEffect(() => {
     let cancelled = false;
 
     const clearApplicationSession = () => {
-      setApiToken(null);
-      if (!cancelled) {
-        setToken(null);
-        setUser(null);
-      }
+      if (cancelled) return;
+      setApiTokenProvider(null);
+      setToken(null);
+      setUser(null);
     };
 
     const synchronizeApplicationSession = async () => {
@@ -59,6 +67,7 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
       if (!isSignedIn) {
         clearApplicationSession();
         if (!cancelled) {
+          setDeniedEmail(null);
           setError(null);
           setStatus("signed_out");
         }
@@ -66,16 +75,20 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
       }
 
       if (!cancelled) {
+        setDeniedEmail(null);
         setError(null);
         setStatus("loading");
       }
 
       try {
-        const clerkToken = await getToken({ template: clerkJwtTemplate });
+        const getClerkApiToken = ({ forceRefresh = false }: { forceRefresh?: boolean } = {}) =>
+          getToken({ template: clerkJwtTemplate, skipCache: forceRefresh });
+
+        setApiTokenProvider(getClerkApiToken);
+        const clerkToken = await getClerkApiToken();
         if (!clerkToken) throw new Error("A Clerk API token could not be created for this session.");
         if (cancelled) return;
 
-        setApiToken(clerkToken);
         const sessionUser = await authApi.me();
         if (cancelled) return;
 
@@ -110,16 +123,18 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
     isLoading: status === "loading",
     isSignedIn: Boolean(isSignedIn),
     accessDenied: status === "access_denied",
+    deniedEmail,
     error,
     logout: async () => {
-      setApiToken(null);
+      setApiTokenProvider(null);
       setToken(null);
       setUser(null);
+      setDeniedEmail(null);
       setError(null);
       setStatus("signed_out");
       await signOut();
     },
-  }), [error, isSignedIn, signOut, status, token, user]);
+  }), [deniedEmail, error, isSignedIn, signOut, status, token, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

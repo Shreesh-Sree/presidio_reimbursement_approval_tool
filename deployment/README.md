@@ -18,6 +18,8 @@ spending cutoff.
 ```text
 Browser
   │
+  ├─ OAuth ──> Clerk (hosted sign-in and social identity providers)
+  │
   ├─ HTTPS ──> CloudFront + ACM ──> private S3 bucket (React/Vite SPA)
   │                  │
   │                  └─ Route 53: app.<domain>
@@ -70,7 +72,7 @@ interface endpoint, or duplicate always-on compute**.
 | **Expected total** | **38–57** |
 
 That leaves roughly $18 of headroom for normal variation. Traffic, unusually
-large uploads, CloudFront egress, a resize, or optional Gemini/provider usage
+large uploads, CloudFront egress, a resize, or optional Groq/provider usage
 can still exceed the cap. The root module creates forecast **and actual-spend**
 alerts at 80%, about 93%, and 100% of the configured limit (USD 60/70/75 at
 the default). Confirm
@@ -93,11 +95,61 @@ for your chosen region before applying.
   separately as the EC2 instance profile.
 - An AWS account where the selected `t3a.small` and `db.t4g.micro` are
   available. Change the variables only after reviewing the budget impact.
+- A Clerk application with the intended OAuth providers enabled. This deployment
+  verifies Clerk JWTs with the JWKS endpoint, so it does **not** use or need a
+  Clerk secret key on the runtime host.
+
+## Clerk OAuth and access gate
+
+The SPA uses Clerk for sign-in only; the API remains the authorization source.
+It accepts only Clerk JWTs that match the configured issuer, audience, and
+authorized browser origins. On the first successful OAuth sign-in,
+`super_admin_email` is provisioned as Super Admin using the configured default
+organization and department. After that, administrators create the email
+allowlist through the application. A signed-in identity not on that allowlist
+is deliberately sent to the explicit no-access page.
+
+Before applying, create a Clerk JWT template (the default name is
+`presidio-api`) for API tokens. Copy its issuer, audience, and JWKS URL into
+the Terraform values, and include `https://app.<your-domain>` in
+`clerk_authorized_parties`. The signed custom token must use RS256 and include
+the verified sign-in email claims expected by the API, for example:
+
+```json
+{
+  "email": "{{user.primary_email_address}}",
+  "email_verified": "{{user.email_verified}}",
+  "aud": "presidio-api"
+}
+```
+
+Set `clerk_audience` to the exact static `aud` value above (or the value chosen
+in your template). Clerk supplies standard `iss`, `sub`, and `azp` claims; the
+API checks all of them. Configure the same `clerk_jwt_template` in the frontend
+build values.
+
+`clerk_publishable_key` and `clerk_jwt_template` are public browser build
+configuration. The deployment script reads them from Terraform outputs and
+passes them as `VITE_CLERK_PUBLISHABLE_KEY` and `VITE_CLERK_JWT_TEMPLATE` at
+build time. Do not treat the publishable key as a secret; it will be visible in
+the compiled SPA. Do not add a Clerk secret key to this stack.
+
+The API receives `AUTH_PROVIDER=clerk`, Clerk verifier metadata, the Super
+Admin email, and organization defaults only from its `0600` Secrets Manager
+runtime env file. Keep the real Super Admin email and all provider keys out of
+version control. `terraform.tfvars` is ignored; prefer `TF_VAR_super_admin_email`
+and a protected CI secret for production.
+
+In the Clerk Dashboard, enable only the required OAuth/social connections and
+disable email/password, email-code, email-link, and self-service credential
+sign-up methods. The application has no manual credential UI, but Clerk’s
+hosted component follows the sign-in methods enabled in that dashboard.
 
 ## First deployment
 
-Terraform state contains generated database, JWT, and service-to-service
-secrets. **Create encrypted remote state before applying the main stack.**
+Terraform state contains generated database, JWT, service-to-service, and
+sensitive provider values. **Create encrypted remote state before applying the
+main stack.**
 
 1. Bootstrap the state bucket once. Do not point this bootstrap configuration
    at the bucket it is creating.
@@ -116,8 +168,9 @@ secrets. **Create encrypted remote state before applying the main stack.**
    cd ..
    cp terraform.tfvars.example terraform.tfvars
    cp backend.hcl.example backend.hcl
-   # Edit both files: use the state bucket output, your domain/zone IDs,
-   # ACME address, and budget-alert email.
+   # Edit both files: use the state bucket output, domain/zone IDs, Clerk JWT
+   # metadata, an allowlisted Super Admin email, ACME address, and budget-alert
+   # email. Keep actual provider keys in protected environment/CI variables.
    terraform init -backend-config=backend.hcl
    terraform plan -out=tfplan
    terraform apply tfplan
@@ -133,15 +186,16 @@ secrets. **Create encrypted remote state before applying the main stack.**
    DEPLOY_RUNTIME=1 bash deployment/scripts/build-and-push.sh
    ```
 
-4. Build the SPA with the Terraform-provided API URL, upload it to its private
-   bucket, and invalidate CloudFront.
+4. Build the SPA with the Terraform-provided API URL and public Clerk values,
+   upload it to its private bucket, and invalidate CloudFront.
 
    ```bash
    export AWS_REGION=us-east-1
    bash deployment/scripts/deploy-frontend.sh
    ```
 
-5. Verify DNS/TLS and bootstrap the first administrator in the UI.
+5. Verify DNS/TLS, then sign in through Clerk as the configured Super Admin.
+   There is no manual email/password bootstrap in the deployed application.
 
    ```bash
    curl "$(terraform -chdir=deployment/terraform output -raw api_health_url)"
@@ -165,11 +219,17 @@ records. SES is initially sandboxed in many accounts. Leave
 4. You apply the change and confirm an email status transition.
 
 The AI reviewer, receipt intelligence service, and policy assistant are
-deterministic and fully functional without a model key. `gemini_api_key` is
-optional and is stored only in the AI-review runtime secret; it is read only by
-that container. The policy assistant has external provider use explicitly
-disabled in its own secret. Any future third-party AI usage is outside the AWS
-USD 75 budget and should have its own vendor-side limit.
+deterministic and fully functional without a model key. To enable Groq for the
+AI-review narrative, set `ai_review_provider = "groq"` and supply
+`TF_VAR_groq_api_key` from a local secure shell or protected CI secret before
+planning/applying. `groq_api_key` is sensitive and is written only to the
+AI-review runtime secret; it is read only by that container. The optional
+`groq_model` defaults to `openai/gpt-oss-20b`. Gemini remains available only
+when selected explicitly and provided its own key. The policy assistant has
+external provider use explicitly disabled in its own secret. Third-party model
+costs are outside the AWS USD 75 budget: configure vendor-side usage limits and
+rotate any key that has ever been pasted into a chat, terminal history, or
+unprotected file.
 
 ## Advisory service isolation
 
@@ -189,7 +249,8 @@ different host-backed directory:
 | Policy assistant | `http://policy-assistant:8013` | `/opt/reimbursement/policy-assistant-data/policy-assistant.sqlite3` |
 
 Only the core API secret holds the outbound bearer tokens required to call
-these services. It also holds `AI_REVIEW_REFERENCE_HMAC_KEY` and
+these services, plus the OAuth verifier metadata and allowlist bootstrap
+configuration required by the core API. It also holds `AI_REVIEW_REFERENCE_HMAC_KEY` and
 `POLICY_ASSISTANT_REFERENCE_HMAC_KEY`, private keys used only by the core
 clients to keep pseudonymous references stable when their bearer tokens rotate.
 Those keys are deliberately **not** in the AI-review or policy-assistant

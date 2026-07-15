@@ -109,3 +109,55 @@ variable "gemini_api_key" {
   nullable  = true
   sensitive = true
 }
+
+variable "groq_api_key" {
+  type      = string
+  default   = null
+  nullable  = true
+  sensitive = true
+}
+
+variable "ai_review_provider" {
+  type = string
+}
+
+variable "groq_model" {
+  type = string
+}
+
+variable "clerk_jwks_url" {
+  type = string
+}
+
+variable "clerk_issuer" {
+  type = string
+}
+
+variable "clerk_audience" {
+  type = string
+}
+
+variable "clerk_authorized_parties" {
+  type = list(string)
+}
+
+variable "super_admin_email" {
+  type      = string
+  sensitive = true
+}
+
+variable "default_organization_name" {
+  type = string
+}
+
+variable "default_organization_code" {
+  type = string
+}
+
+variable "default_department_name" {
+  type = string
+}
+
+variable "default_department_code" {
+  type = string
+}

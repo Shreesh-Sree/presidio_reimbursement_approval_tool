@@ -1,6 +1,16 @@
 locals {
   application_runtime_environment = {
     DATABASE_URL                         = "postgresql+psycopg://${var.database_username}:${var.database_password}@${var.database_host}:${var.database_port}/${var.database_name}?sslmode=require"
+    AUTH_PROVIDER                        = "clerk"
+    CLERK_JWKS_URL                       = var.clerk_jwks_url
+    CLERK_ISSUER                         = var.clerk_issuer
+    CLERK_AUDIENCE                       = var.clerk_audience
+    CLERK_AUTHORIZED_PARTIES             = join(",", var.clerk_authorized_parties)
+    SUPER_ADMIN_EMAIL                    = var.super_admin_email
+    DEFAULT_ORGANIZATION_NAME            = var.default_organization_name
+    DEFAULT_ORGANIZATION_CODE            = var.default_organization_code
+    DEFAULT_DEPARTMENT_NAME              = var.default_department_name
+    DEFAULT_DEPARTMENT_CODE              = var.default_department_code
     JWT_SECRET                           = var.jwt_secret
     JWT_ALGORITHM                        = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES          = "1440"
@@ -39,8 +49,11 @@ locals {
     AI_REVIEW_LOCAL_WORKER_MAX_CONCURRENCY     = "1"
     AI_REVIEW_LOCAL_WORKER_RETRY_DELAY_SECONDS = "0.25"
     AI_REVIEW_JOB_MAX_ATTEMPTS                 = "3"
+    AI_REVIEW_PROVIDER                          = var.ai_review_provider
     AI_REVIEW_GEMINI_API_KEY                   = var.gemini_api_key
     AI_REVIEW_GEMINI_MODEL                     = "gemini-2.5-flash"
+    AI_REVIEW_GROQ_API_KEY                     = var.groq_api_key
+    AI_REVIEW_GROQ_MODEL                       = var.groq_model
   }
 
   receipt_intelligence_runtime_environment = {
@@ -70,12 +83,34 @@ resource "aws_secretsmanager_secret_version" "application" {
       )
       error_message = "SES SMTP credentials are required when email delivery is enabled."
     }
+
+    precondition {
+      condition = (
+        trimspace(var.clerk_jwks_url) != "" &&
+        trimspace(var.clerk_issuer) != "" &&
+        trimspace(var.clerk_audience) != "" &&
+        length(var.clerk_authorized_parties) > 0 &&
+        trimspace(var.super_admin_email) != ""
+      )
+      error_message = "Clerk OAuth deployment requires a JWKS URL, issuer, audience, authorized party origin, and Super Admin email."
+    }
   }
 }
 
 resource "aws_secretsmanager_secret_version" "ai_review" {
   secret_id     = var.ai_review_secret_arn
   secret_string = jsonencode(local.ai_review_runtime_environment)
+
+  lifecycle {
+    precondition {
+      condition = (
+        var.ai_review_provider == "rule_based" ||
+        (var.ai_review_provider == "gemini" && trimspace(coalesce(var.gemini_api_key, "")) != "") ||
+        (var.ai_review_provider == "groq" && trimspace(coalesce(var.groq_api_key, "")) != "")
+      )
+      error_message = "The selected AI review provider requires its corresponding API key; choose rule_based to run without an external provider."
+    }
+  }
 }
 
 resource "aws_secretsmanager_secret_version" "receipt_intelligence" {

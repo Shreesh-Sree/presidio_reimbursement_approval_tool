@@ -17,7 +17,29 @@ enable_email_delivery = false
 # ses_smtp_username    = ""
 # ses_smtp_password    = ""
 
-# The deterministic reviewer works without a provider key. Supplying this key
-# enables the optional, privacy-minimized Gemini narrative only in its own
-# AI-review container.
+# Clerk OAuth is required. The publishable key and JWT template are intentionally
+# public build configuration. Copy the exact issuer, audience, and JWKS endpoint
+# from the Clerk JWT template used by the browser.
+clerk_publishable_key    = "pk_test_replace_me"
+clerk_jwt_template       = "presidio-api"
+clerk_issuer             = "https://your-clerk-instance.clerk.accounts.dev"
+clerk_jwks_url           = "https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json"
+clerk_audience           = "presidio-api"
+clerk_authorized_parties = ["https://app.example.com"]
+
+# This account is the only identity that can create the initial Super Admin on
+# its first OAuth sign-in. Do not commit a real address in terraform.tfvars.
+super_admin_email          = "replace-with-super-admin@example.com"
+default_organization_name  = "Example Organization"
+default_organization_code  = "EXAMPLE"
+default_department_name    = "General"
+default_department_code    = "GENERAL"
+
+# The deterministic reviewer works without a provider key. Supplying one enables
+# an optional, privacy-minimized narrative only in the isolated AI-review
+# container. Pass real keys with TF_VAR_groq_api_key or a secure CI secret rather
+# than committing them to terraform.tfvars.
+# ai_review_provider = "groq"
+# groq_model         = "openai/gpt-oss-20b"
 # gemini_api_key = ""
+# groq_api_key   = ""

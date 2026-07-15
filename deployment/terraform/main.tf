@@ -95,6 +95,18 @@ module "app_config" {
   smtp_username                       = var.ses_smtp_username
   smtp_password                       = var.ses_smtp_password
   gemini_api_key                      = var.gemini_api_key
+  groq_api_key                        = var.groq_api_key
+  ai_review_provider                  = var.ai_review_provider
+  groq_model                          = var.groq_model
+  clerk_jwks_url                      = var.clerk_jwks_url
+  clerk_issuer                        = var.clerk_issuer
+  clerk_audience                      = var.clerk_audience
+  clerk_authorized_parties            = var.clerk_authorized_parties
+  super_admin_email                   = var.super_admin_email
+  default_organization_name           = var.default_organization_name
+  default_organization_code           = var.default_organization_code
+  default_department_name             = var.default_department_name
+  default_department_code             = var.default_department_code
 }
 
 module "runtime" {

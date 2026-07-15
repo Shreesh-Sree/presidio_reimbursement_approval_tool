@@ -8,6 +8,18 @@ output "api_base_url" {
   value       = "https://${local.api_domain}/api"
 }
 
+output "clerk_publishable_key" {
+  description = "Public Clerk key passed to the Vite build by deployment/scripts/deploy-frontend.sh."
+  value       = var.clerk_publishable_key
+  sensitive   = false
+}
+
+output "clerk_jwt_template" {
+  description = "Public Clerk JWT template name passed to the Vite build."
+  value       = var.clerk_jwt_template
+  sensitive   = false
+}
+
 output "api_health_url" {
   description = "Public FastAPI health endpoint."
   value       = "https://${local.api_domain}/api/health"

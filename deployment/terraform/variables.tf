@@ -151,6 +151,150 @@ variable "gemini_api_key" {
   sensitive   = true
 }
 
+variable "groq_api_key" {
+  description = "Optional Groq provider key used only by the isolated advisory AI service. Keep it out of source control and CI logs."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "ai_review_provider" {
+  description = "Narrative provider for the isolated AI reviewer. rule_based has no external model dependency."
+  type        = string
+  default     = "rule_based"
+
+  validation {
+    condition     = contains(["rule_based", "gemini", "groq"], var.ai_review_provider)
+    error_message = "ai_review_provider must be rule_based, gemini, or groq."
+  }
+}
+
+variable "groq_model" {
+  description = "Groq model identifier used when ai_review_provider is groq."
+  type        = string
+  default     = "openai/gpt-oss-20b"
+
+  validation {
+    condition     = length(trimspace(var.groq_model)) > 0 && length(trimspace(var.groq_model)) <= 255
+    error_message = "groq_model must be a non-empty model identifier no longer than 255 characters."
+  }
+}
+
+variable "clerk_publishable_key" {
+  description = "Public Clerk publishable key embedded into the Vite build. This is intentionally not a secret."
+  type        = string
+
+  validation {
+    condition     = can(regex("^pk_[A-Za-z0-9_-]+$", trimspace(var.clerk_publishable_key)))
+    error_message = "clerk_publishable_key must be a Clerk publishable key beginning with pk_."
+  }
+}
+
+variable "clerk_jwt_template" {
+  description = "Name of the Clerk JWT template requested by the browser for API calls."
+  type        = string
+  default     = "presidio-api"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", trimspace(var.clerk_jwt_template)))
+    error_message = "clerk_jwt_template must be a 1-64 character slug containing letters, numbers, hyphens, or underscores."
+  }
+}
+
+variable "clerk_jwks_url" {
+  description = "HTTPS JWKS endpoint for the Clerk JWT template. The API validates OAuth bearer tokens against this endpoint."
+  type        = string
+
+  validation {
+    condition     = can(regex("^https://[^[:space:]]+$", trimspace(var.clerk_jwks_url)))
+    error_message = "clerk_jwks_url must be an HTTPS URL."
+  }
+}
+
+variable "clerk_issuer" {
+  description = "Expected iss claim for Clerk JWTs. Copy the issuer from the Clerk JWT template configuration."
+  type        = string
+
+  validation {
+    condition     = can(regex("^https://[^[:space:]]+$", trimspace(var.clerk_issuer)))
+    error_message = "clerk_issuer must be an HTTPS URL."
+  }
+}
+
+variable "clerk_audience" {
+  description = "Expected aud claim for Clerk API JWTs. It must match the selected JWT template."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.clerk_audience)) > 0 && length(trimspace(var.clerk_audience)) <= 255
+    error_message = "clerk_audience must be a non-empty value no longer than 255 characters."
+  }
+}
+
+variable "clerk_authorized_parties" {
+  description = "Allowed browser origins for the Clerk azp claim, such as the CloudFront application URL."
+  type        = list(string)
+
+  validation {
+    condition = length(var.clerk_authorized_parties) > 0 && alltrue([
+      for party in var.clerk_authorized_parties : can(regex("^https://[^[:space:]]+$", trimspace(party)))
+    ])
+    error_message = "clerk_authorized_parties must contain at least one HTTPS browser origin."
+  }
+}
+
+variable "super_admin_email" {
+  description = "Email allowed to bootstrap the first Clerk-authenticated Super Admin. Store the real value outside version control."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", trimspace(var.super_admin_email)))
+    error_message = "super_admin_email must be a valid email address."
+  }
+}
+
+variable "default_organization_name" {
+  description = "Organization name used when the first Super Admin signs in and no organization exists."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.default_organization_name)) >= 1 && length(trimspace(var.default_organization_name)) <= 255
+    error_message = "default_organization_name must be between 1 and 255 characters."
+  }
+}
+
+variable "default_organization_code" {
+  description = "Organization code used when the first Super Admin signs in and no organization exists."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{1,49}$", trimspace(var.default_organization_code)))
+    error_message = "default_organization_code must be a 2-50 character code containing letters, numbers, hyphens, or underscores."
+  }
+}
+
+variable "default_department_name" {
+  description = "Department name used when the first Super Admin signs in and no department exists."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.default_department_name)) >= 1 && length(trimspace(var.default_department_name)) <= 255
+    error_message = "default_department_name must be between 1 and 255 characters."
+  }
+}
+
+variable "default_department_code" {
+  description = "Department code used when the first Super Admin signs in and no department exists."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{1,49}$", trimspace(var.default_department_code)))
+    error_message = "default_department_code must be a 2-50 character code containing letters, numbers, hyphens, or underscores."
+  }
+}
+
 variable "monthly_budget_limit_usd" {
   description = "Monthly AWS budget cap. Alerts are warnings, not a billing hard-stop."
   type        = number

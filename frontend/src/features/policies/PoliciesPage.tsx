@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
 import { policiesApi, type Policy } from "../../lib/api";
 import { PolicyForm } from "./PolicyForm";
+import { PolicyUpload } from "./PolicyUpload";
 
 function labelForStatus(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -31,6 +32,13 @@ export function PoliciesPage() {
   const openEdit = (policy: Policy) => {
     setEditingPolicy(policy);
     setFormOpen(true);
+  };
+
+  const handleDocumentUploaded = (updatedPolicy: Policy) => {
+    queryClient.setQueryData<Policy[]>(["policies"], (current) =>
+      current?.map((policy) => (policy.id === updatedPolicy.id ? { ...policy, ...updatedPolicy } : policy)) ?? [updatedPolicy],
+    );
+    void queryClient.invalidateQueries({ queryKey: ["policies"] });
   };
 
   return (
@@ -69,7 +77,6 @@ export function PoliciesPage() {
               </div>
               <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
                 {policy.rules.length} {policy.rules.length === 1 ? "rule" : "rules"}
-                {policy.document_url ? " · document attached" : ""}
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button onClick={() => openEdit(policy)} variant="outline">
@@ -84,6 +91,9 @@ export function PoliciesPage() {
                     Activate
                   </Button>
                 )}
+              </div>
+              <div className="mt-5">
+                <PolicyUpload currentDocumentUrl={policy.document_url} onUploaded={handleDocumentUploaded} policyId={policy.id} />
               </div>
             </article>
           );

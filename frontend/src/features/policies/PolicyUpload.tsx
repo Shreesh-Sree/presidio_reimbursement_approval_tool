@@ -7,10 +7,11 @@ import { policiesApi, type Policy } from "../../lib/api";
 
 type PolicyUploadProps = {
   policyId: string;
+  currentDocumentUrl?: string | null;
   onUploaded?: (policy: Policy) => void;
 };
 
-export function PolicyUpload({ policyId, onUploaded }: PolicyUploadProps) {
+export function PolicyUpload({ policyId, currentDocumentUrl, onUploaded }: PolicyUploadProps) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const upload = useMutation({
@@ -27,7 +28,7 @@ export function PolicyUpload({ policyId, onUploaded }: PolicyUploadProps) {
       <Label htmlFor={`policy-document-${policyId}`}>Supporting policy document</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
-          accept="application/pdf,.doc,.docx"
+          accept="application/pdf,.doc,.docx,.xls,.xlsx"
           id={`policy-document-${policyId}`}
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           type="file"
@@ -36,6 +37,11 @@ export function PolicyUpload({ policyId, onUploaded }: PolicyUploadProps) {
           {upload.isPending ? "Uploading…" : "Upload document"}
         </Button>
       </div>
+      {currentDocumentUrl && (
+        <a className="inline-flex text-sm font-medium text-indigo-600 underline underline-offset-2 dark:text-indigo-300" href={currentDocumentUrl} rel="noreferrer" target="_blank">
+          View current document
+        </a>
+      )}
       {upload.isError && <p className="text-sm text-rose-600">Unable to upload the document. Please try again.</p>}
     </div>
   );

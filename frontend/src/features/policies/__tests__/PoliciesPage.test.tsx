@@ -29,6 +29,7 @@ describe("PoliciesPage", () => {
     vi.spyOn(policiesApi, "list").mockResolvedValue([draftPolicy]);
     vi.spyOn(policiesApi, "create").mockResolvedValue(draftPolicy);
     vi.spyOn(policiesApi, "activate").mockResolvedValue({ ...draftPolicy, status: "active" });
+    vi.spyOn(policiesApi, "uploadDocument").mockResolvedValue(draftPolicy);
   });
 
   it("lists policy versions", async () => {
@@ -68,5 +69,22 @@ describe("PoliciesPage", () => {
     await user.click(await screen.findByRole("button", { name: /activate fy26 travel/i }));
 
     await waitFor(() => expect(activate).toHaveBeenCalledWith("policy-1"));
+  });
+
+  it("uploads a document from the policy card and refreshes its document link", async () => {
+    const user = userEvent.setup();
+    const uploadedPolicy = { ...draftPolicy, document_url: "https://files.example/policies/fy26.pdf" };
+    vi.mocked(policiesApi.list)
+      .mockResolvedValueOnce([draftPolicy])
+      .mockResolvedValue([uploadedPolicy]);
+    const uploadDocument = vi.mocked(policiesApi.uploadDocument).mockResolvedValue(uploadedPolicy);
+    renderPage();
+    const file = new File(["policy"], "fy26.pdf", { type: "application/pdf" });
+
+    fireEvent.change(await screen.findByLabelText(/supporting policy document/i), { target: { files: [file] } });
+    await user.click(screen.getByRole("button", { name: /upload document/i }));
+
+    await waitFor(() => expect(uploadDocument).toHaveBeenCalledWith("policy-1", file));
+    expect(await screen.findByRole("link", { name: /view current document/i })).toHaveAttribute("href", uploadedPolicy.document_url);
   });
 });

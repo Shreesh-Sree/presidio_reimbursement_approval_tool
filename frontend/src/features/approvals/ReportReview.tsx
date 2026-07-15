@@ -18,6 +18,40 @@ function violationFor(item: ReportLineItem) {
   return item.violation_reason ?? item.policy_violation_reason;
 }
 
+type AiFinding = {
+  id: string;
+  message: string;
+  severity?: string;
+  findingType?: string;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function asText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function asTextList(value: unknown) {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "") : [];
+}
+
+function asFindings(value: unknown): AiFinding[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => {
+    const finding = asRecord(entry);
+    const message = asText(finding?.message);
+    if (!message) return [];
+    return [{
+      id: asText(finding?.id) ?? `ai-finding-${index}`,
+      message,
+      severity: asText(finding?.severity),
+      findingType: asText(finding?.finding_type),
+    }];
+  });
+}
+
 export function ReportReview({ reportId }: ReportReviewProps) {
   const params = useParams();
   const id = reportId ?? params.reportId;
@@ -34,6 +68,18 @@ export function ReportReview({ reportId }: ReportReviewProps) {
     ...(report?.violations ?? []),
     ...items.filter((item) => item.is_policy_violated || violationFor(item)).map((item) => violationFor(item) ?? "A line item violates the active policy."),
   ]));
+  const aiAudit = asRecord(report?.ai_audit);
+  const humanReview = asRecord(aiAudit?.human_review);
+  const provider = asRecord(aiAudit?.provider);
+  const aiStatus = asText(aiAudit?.status);
+  const aiSummary = asText(aiAudit?.summary);
+  const aiRecommendation = asText(aiAudit?.recommendation);
+  const aiRiskLevel = asText(aiAudit?.risk_level);
+  const providerStatus = asText(provider?.status);
+  const aiInsights = asTextList(aiAudit?.key_insights);
+  const aiFindings = asFindings(aiAudit?.findings);
+  const humanReviewMessage = asText(humanReview?.message)
+    ?? "AI recommendations are advisory; an authorized human must make the workflow decision.";
 
   if (!id) return <main className="p-6 text-sm text-rose-700">A report ID is required.</main>;
   if (reportQuery.isLoading) return <main className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading report…</main>;
@@ -86,9 +132,79 @@ export function ReportReview({ reportId }: ReportReviewProps) {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="font-semibold text-slate-950 dark:text-white">AI audit</h2>
-        <pre className="mt-3 max-h-80 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{report.ai_audit ? JSON.stringify(report.ai_audit, null, 2) : "No AI audit data available."}</pre>
+      <section aria-labelledby="ai-review-heading" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-slate-950 dark:text-white" id="ai-review-heading">AI review advisory</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">AI analysis highlights evidence and possible risks. It cannot approve, reject, or send back this report.</p>
+          </div>
+          {aiStatus && <span className="w-fit rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200">{displayStatus(aiStatus)}</span>}
+        </div>
+
+        {!aiAudit ? (
+          <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 dark:bg-slate-800/70 dark:text-slate-200">No AI advisory is available for this report. Complete the policy and receipt review before taking a workflow action.</p>
+        ) : (
+          <div className="mt-4 space-y-5">
+            <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Review status</dt>
+                <dd className="mt-1 font-medium text-slate-950 dark:text-white">{aiStatus ? displayStatus(aiStatus) : "Pending"}</dd>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Risk level</dt>
+                <dd className="mt-1 font-medium text-slate-950 dark:text-white">{aiRiskLevel ? displayStatus(aiRiskLevel) : "Not assessed"}</dd>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Recommendation</dt>
+                <dd className="mt-1 font-medium text-slate-950 dark:text-white">{aiRecommendation ? displayStatus(aiRecommendation) : "Not available"}</dd>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Analysis source</dt>
+                <dd className="mt-1 font-medium text-slate-950 dark:text-white">{providerStatus ? displayStatus(providerStatus) : "Not available"}</dd>
+              </div>
+            </dl>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-950 dark:text-white">Summary</h3>
+              <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{aiSummary ?? "The AI review is still being prepared. Use the policy and receipt evidence above for the current decision."}</p>
+            </div>
+
+            {aiInsights.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950 dark:text-white">Key insights</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
+                  {aiInsights.map((insight) => <li key={insight}>{insight}</li>)}
+                </ul>
+              </div>
+            )}
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-950 dark:text-white">Findings</h3>
+              {aiFindings.length > 0 ? (
+                <ul className="mt-2 space-y-2">
+                  {aiFindings.map((finding) => (
+                    <li className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700" key={finding.id}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {finding.severity && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{displayStatus(finding.severity)}</span>}
+                        {finding.findingType && <span className="text-xs text-slate-500 dark:text-slate-400">{displayStatus(finding.findingType)}</span>}
+                      </div>
+                      <p className="mt-1 text-slate-700 dark:text-slate-200">{finding.message}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">No AI findings have been recorded.</p>
+              )}
+            </div>
+
+            <p className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100"><span className="font-semibold">Human review required:</span> {humanReviewMessage}</p>
+
+            <details className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">View raw AI review data</summary>
+              <pre className="mt-3 max-h-80 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{JSON.stringify(aiAudit, null, 2)}</pre>
+            </details>
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">

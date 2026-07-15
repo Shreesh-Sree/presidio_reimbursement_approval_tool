@@ -10,11 +10,18 @@ from app.models.base import UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionM
 class Policy(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     __tablename__ = "policies"
     __table_args__ = (
-        UniqueConstraint("name", "version_label", name="uq_policies_name_version"),
+        UniqueConstraint("organization_id", "name", "version_label", name="uq_policies_organization_name_version"),
+        Index("ix_policies_organization_active", "organization_id", "is_active"),
         Index("ix_policies_is_active", "is_active"),
         Index("ix_policies_is_deleted", "is_deleted"),
     )
-    
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("organizations.id"),
+        nullable=False,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     version_label: Mapped[str] = mapped_column(String(50), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -22,6 +29,7 @@ class Policy(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     uploaded_document_attachment_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     
+    organization = relationship("Organization", back_populates="policies")
     rules = relationship("PolicyRule", back_populates="policy", cascade="all, delete-orphan")
     __mapper_args__ = {"version_id_col": VersionMixin.version}
 

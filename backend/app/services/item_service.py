@@ -14,7 +14,15 @@ from app.models.expense_category import ExpenseCategory
 from app.models.expense_item import ExpenseItem
 from app.models.vendor import Vendor
 from app.services.audit_service import record_audit
-from app.services.report_service import EDITABLE_STATUSES, ReportError, _as_uuid, _require_owner, _require_report, recompute_total
+from app.services.report_service import (
+    EDITABLE_STATUSES,
+    ReportError,
+    _as_uuid,
+    _require_owner,
+    _require_report,
+    organization_id_for_report,
+    recompute_total,
+)
 
 
 class ItemError(ReportError):
@@ -111,7 +119,7 @@ def _refresh_policy_flags(db: Session, report) -> None:
     from app.services.policy_service import get_active_policy
     from app.services.validation_service import validate_report
 
-    policy = get_active_policy(db)
+    policy = get_active_policy(db, organization_id_for_report(db, report))
     if policy:
         validate_report(db, report, policy=policy)
     else:

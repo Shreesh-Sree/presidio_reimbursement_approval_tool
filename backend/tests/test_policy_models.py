@@ -4,9 +4,10 @@ from app.models.policy import Policy, PolicyRule
 from app.models.expense_category import ExpenseCategory
 
 
-def test_policy_model_create(db):
+def test_policy_model_create(db, seeded_org):
     """Test creating a policy with versioning."""
     policy = Policy(
+        organization_id=seeded_org.id,
         name="Travel Policy",
         version_label="v1.0",
         is_active=True,
@@ -21,9 +22,10 @@ def test_policy_model_create(db):
     assert fetched.is_active is True
 
 
-def test_policy_rule_model_create(db):
+def test_policy_rule_model_create(db, seeded_org):
     """Test creating policy rules tied to categories."""
     policy = Policy(
+        organization_id=seeded_org.id,
         name="Travel Policy",
         version_label="v1.0",
         is_active=True,

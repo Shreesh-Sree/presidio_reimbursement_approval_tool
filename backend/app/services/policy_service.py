@@ -46,6 +46,13 @@ def _uuid(value: str | uuid.UUID | None, *, field_name: str) -> uuid.UUID | None
         raise PolicyConflictError(f"Invalid {field_name}") from exc
 
 
+def _organization_id(value: str | uuid.UUID | None) -> uuid.UUID:
+    organization_id = _uuid(value, field_name="organization id")
+    if organization_id is None:
+        raise PolicyConflictError("organization id is required")
+    return organization_id
+
+
 def _as_datetime(value: datetime | date | str | None, *, field_name: str, required: bool = False) -> datetime | None:
     if value is None:
         if required:
@@ -84,12 +91,21 @@ def _rule_number(rule: dict[str, Any], key: str) -> Decimal | None:
     return number
 
 
-def _active_policy(db: Session, policy_id: str | uuid.UUID) -> Policy:
+def _active_policy(
+    db: Session,
+    policy_id: str | uuid.UUID,
+    organization_id: str | uuid.UUID,
+) -> Policy:
     resolved_id = _uuid(policy_id, field_name="policy id")
+    resolved_organization_id = _organization_id(organization_id)
     policy = db.scalar(
         select(Policy)
         .options(selectinload(Policy.rules))
-        .where(Policy.id == resolved_id, Policy.is_deleted.is_(False))
+        .where(
+            Policy.id == resolved_id,
+            Policy.organization_id == resolved_organization_id,
+            Policy.is_deleted.is_(False),
+        )
     )
     if policy is None:
         raise PolicyNotFoundError("Policy not found")
@@ -199,15 +215,18 @@ def create_policy_version(
     version_label: str,
     effective_from: datetime | date | str,
     *,
+    organization_id: str | uuid.UUID,
     effective_to: datetime | date | str | None = None,
     rules_data: Iterable[Any] | dict[str, Any] | None = None,
 ) -> Policy:
+    resolved_organization_id = _organization_id(organization_id)
     cleaned_name = name.strip()
     cleaned_version = version_label.strip()
     if not cleaned_name or not cleaned_version:
         raise PolicyConflictError("Policy name and version label are required")
     if db.scalar(
         select(Policy.id).where(
+            Policy.organization_id == resolved_organization_id,
             func.lower(Policy.name) == cleaned_name.lower(),
             func.lower(Policy.version_label) == cleaned_version.lower(),
             Policy.is_deleted.is_(False),
@@ -220,6 +239,7 @@ def create_policy_version(
     if ends_at is not None and ends_at < starts_at:
         raise PolicyConflictError("effective_to cannot be before effective_from")
     policy = Policy(
+        organization_id=resolved_organization_id,
         name=cleaned_name,
         version_label=cleaned_version,
         is_active=False,
@@ -235,23 +255,30 @@ def create_policy_version(
         "policies",
         str(policy.id),
         "create",
-        after={"name": policy.name, "version_label": policy.version_label, "is_active": policy.is_active},
+        after={
+            "organization_id": str(policy.organization_id),
+            "name": policy.name,
+            "version_label": policy.version_label,
+            "is_active": policy.is_active,
+        },
     )
     db.commit()
-    return _active_policy(db, policy.id)
+    return _active_policy(db, policy.id, resolved_organization_id)
 
 
 def update_policy_version(
     db: Session,
     policy_id: str | uuid.UUID,
     *,
+    organization_id: str | uuid.UUID,
     name: str | None = None,
     version_label: str | None = None,
     effective_from: datetime | date | str | None = None,
     effective_to: datetime | date | str | None | object = _UNSET,
     rules_data: Iterable[Any] | None = None,
 ) -> Policy:
-    policy = _active_policy(db, policy_id)
+    resolved_organization_id = _organization_id(organization_id)
+    policy = _active_policy(db, policy_id, resolved_organization_id)
     before = {
         "name": policy.name,
         "version_label": policy.version_label,
@@ -266,6 +293,17 @@ def update_policy_version(
         policy.version_label = version_label.strip()
     if not policy.name or not policy.version_label:
         raise PolicyConflictError("Policy name and version label are required")
+    duplicate = db.scalar(
+        select(Policy.id).where(
+            Policy.organization_id == resolved_organization_id,
+            func.lower(Policy.name) == policy.name.lower(),
+            func.lower(Policy.version_label) == policy.version_label.lower(),
+            Policy.id != policy.id,
+            Policy.is_deleted.is_(False),
+        )
+    )
+    if duplicate is not None:
+        raise PolicyConflictError("A policy version with this name and label already exists")
     if effective_from is not None:
         policy.effective_from = _as_datetime(effective_from, field_name="effective_from", required=True)
     if effective_to is not _UNSET:
@@ -288,10 +326,15 @@ def update_policy_version(
         },
     )
     db.commit()
-    return _active_policy(db, policy.id)
+    return _active_policy(db, policy.id, resolved_organization_id)
 
 
-def activate_policy(db: Session, policy_id: str | uuid.UUID) -> Policy:
+def activate_policy(
+    db: Session,
+    policy_id: str | uuid.UUID,
+    *,
+    organization_id: str | uuid.UUID,
+) -> Policy:
     """Activate a policy version without creating a future-effective gap.
 
     A future version can be scheduled alongside the policy that is currently
@@ -299,13 +342,15 @@ def activate_policy(db: Session, policy_id: str | uuid.UUID) -> Policy:
     version, while existing submitted reports retain their own snapshot.
     """
 
-    policy = _active_policy(db, policy_id)
+    resolved_organization_id = _organization_id(organization_id)
+    policy = _active_policy(db, policy_id, resolved_organization_id)
     now = datetime.now(UTC)
     effective_from = _as_datetime(policy.effective_from, field_name="effective_from", required=True)
     if effective_from <= now:
         # Keep any separately scheduled future version active.  It will become
         # selected naturally when its effective window opens.
         db.query(Policy).filter(
+            Policy.organization_id == resolved_organization_id,
             Policy.is_active.is_(True),
             Policy.id != policy.id,
             Policy.is_deleted.is_(False),
@@ -320,17 +365,23 @@ def activate_policy(db: Session, policy_id: str | uuid.UUID) -> Policy:
         after={"is_active": True},
     )
     db.commit()
-    return _active_policy(db, policy.id)
+    return _active_policy(db, policy.id, resolved_organization_id)
 
 
-def get_active_policy(db: Session, at: datetime | None = None) -> Policy | None:
+def get_active_policy(
+    db: Session,
+    organization_id: str | uuid.UUID,
+    at: datetime | None = None,
+) -> Policy | None:
     """Return the active version that is effective at ``at`` (default: now)."""
 
+    resolved_organization_id = _organization_id(organization_id)
     at = at or datetime.now(UTC)
     return db.scalar(
         select(Policy)
         .options(selectinload(Policy.rules))
         .where(
+            Policy.organization_id == resolved_organization_id,
             Policy.is_active.is_(True),
             Policy.is_deleted.is_(False),
             Policy.effective_from <= at,
@@ -340,23 +391,37 @@ def get_active_policy(db: Session, at: datetime | None = None) -> Policy | None:
     )
 
 
-def list_policies(db: Session) -> list[Policy]:
+def list_policies(db: Session, organization_id: str | uuid.UUID) -> list[Policy]:
+    resolved_organization_id = _organization_id(organization_id)
     return list(
         db.scalars(
             select(Policy)
             .options(selectinload(Policy.rules))
-            .where(Policy.is_deleted.is_(False))
+            .where(
+                Policy.organization_id == resolved_organization_id,
+                Policy.is_deleted.is_(False),
+            )
             .order_by(Policy.is_active.desc(), Policy.effective_from.desc(), Policy.created_at.desc())
         )
     )
 
 
-def get_policy(db: Session, policy_id: str | uuid.UUID) -> Policy:
-    return _active_policy(db, policy_id)
+def get_policy(
+    db: Session,
+    policy_id: str | uuid.UUID,
+    organization_id: str | uuid.UUID,
+) -> Policy:
+    return _active_policy(db, policy_id, organization_id)
 
 
-def attach_document(db: Session, policy_id: str | uuid.UUID, attachment_id: str | uuid.UUID) -> Policy:
-    policy = _active_policy(db, policy_id)
+def attach_document(
+    db: Session,
+    policy_id: str | uuid.UUID,
+    attachment_id: str | uuid.UUID,
+    *,
+    organization_id: str | uuid.UUID,
+) -> Policy:
+    policy = _active_policy(db, policy_id, organization_id)
     policy.uploaded_document_attachment_id = _uuid(attachment_id, field_name="attachment id")
     db.flush()
     return policy
@@ -393,6 +458,7 @@ def policy_payload(db: Session, policy: Policy) -> dict[str, Any]:
         display_status = "draft"
     return {
         "id": str(policy.id),
+        "organization_id": str(policy.organization_id),
         "name": policy.name,
         "version_label": policy.version_label,
         "effective_from": policy.effective_from.isoformat() if policy.effective_from else None,

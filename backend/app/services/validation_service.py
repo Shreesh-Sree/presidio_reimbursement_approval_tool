@@ -18,6 +18,7 @@ from app.models.expense_item import ExpenseItem
 from app.models.expense_report import ExpenseReport
 from app.models.policy import Policy, PolicyRule
 from app.services import policy_service, storage_service
+from app.services.report_service import organization_id_for_report
 
 
 def _decimal(value: object | None) -> Decimal:
@@ -59,14 +60,17 @@ def _has_receipt(db: Session, item: ExpenseItem) -> bool:
 
 
 def _policy_for_report(db: Session, report: ExpenseReport, policy: Policy | None) -> Policy | None:
+    organization_id = organization_id_for_report(db, report)
     if policy is not None:
+        if policy.organization_id != organization_id:
+            raise policy_service.PolicyConflictError("Policy does not belong to the report organization")
         return policy
     if report.applied_policy_id:
         try:
-            return policy_service.get_policy(db, report.applied_policy_id)
+            return policy_service.get_policy(db, report.applied_policy_id, organization_id)
         except policy_service.PolicyNotFoundError:
             return None
-    return policy_service.get_active_policy(db)
+    return policy_service.get_active_policy(db, organization_id)
 
 
 def validate_report(db: Session, report: ExpenseReport, policy: Policy | None = None) -> list[str]:

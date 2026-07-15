@@ -45,29 +45,31 @@ def _submitted_report(db, employee, category):
     return submit_report(db, report.id, employee.id)
 
 
-def test_future_policy_activation_keeps_the_current_policy_usable(db):
+def test_future_policy_activation_keeps_the_current_policy_usable(db, seeded_org):
     now = datetime.now(UTC)
     current = policy_service.create_policy_version(
         db,
         "Travel policy",
         "current",
         now - timedelta(days=1),
+        organization_id=seeded_org.id,
     )
-    policy_service.activate_policy(db, current.id)
+    policy_service.activate_policy(db, current.id, organization_id=seeded_org.id)
     future = policy_service.create_policy_version(
         db,
         "Travel policy",
         "next-quarter",
         now + timedelta(days=7),
+        organization_id=seeded_org.id,
     )
 
-    policy_service.activate_policy(db, future.id)
+    policy_service.activate_policy(db, future.id, organization_id=seeded_org.id)
 
     db.refresh(current)
     db.refresh(future)
     assert current.is_active is True
     assert future.is_active is True
-    assert policy_service.get_active_policy(db).id == current.id
+    assert policy_service.get_active_policy(db, seeded_org.id).id == current.id
 
 
 def test_sent_back_report_recreates_a_pending_manager_task_on_resubmission(

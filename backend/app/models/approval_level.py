@@ -34,6 +34,8 @@ class ApprovalLevel(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Ba
             name="uq_approval_levels_report_level_approver",
         ),
         Index("ix_approval_levels_approver_status", "approver_user_id", "status"),
+        Index("ix_approval_levels_original_approver_status", "original_approver_user_id", "status"),
+        Index("ix_approval_levels_due_status", "due_at", "status"),
         Index("ix_approval_levels_status", "status"),
         Index("ix_approval_levels_is_deleted", "is_deleted"),
     )
@@ -44,9 +46,22 @@ class ApprovalLevel(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Ba
     approver_user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
+    # Keep the workflow-selected approver immutable even when an active
+    # delegation or SLA escalation assigns the actionable task elsewhere.
+    # Nullable preserves compatibility with approval rows created before this
+    # field existed; services fall back to ``approver_user_id`` for those rows.
+    original_approver_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    delegation_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("delegations.id"), nullable=True
+    )
     level_number: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     decision_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_parallel: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
 

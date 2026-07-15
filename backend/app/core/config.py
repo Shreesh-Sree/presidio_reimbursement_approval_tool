@@ -1,5 +1,6 @@
 import functools
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,9 @@ class Settings(BaseSettings):
     email_delivery_enabled: bool = False
     smtp_use_tls: bool = False
     smtp_timeout_seconds: float = 10.0
+    # Approval tasks are human work, so the default is deliberately measured
+    # in days. A deployment can shorten this with APPROVAL_SLA_HOURS.
+    approval_sla_hours: int = Field(default=72, ge=1, le=24 * 30)
     aws_region: str = "us-east-1"
     # S3 is required only when STORAGE_BACKEND=s3; local storage is the safe
     # development default and should not require placeholder cloud credentials.

@@ -7,6 +7,8 @@ the report so approvers can retrieve an advisory result later.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import uuid
@@ -16,19 +18,68 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.approval_history import ApprovalHistory
+from app.models.attachment import Attachment
 from app.models.expense_category import ExpenseCategory
 from app.models.expense_item import ExpenseItem
 from app.models.expense_report import ExpenseReport
 from app.models.policy import Policy, PolicyRule
+from app.models.user import User
 from app.models.vendor import Vendor
 from app.services import storage_service
 
 
 class AIReviewError(RuntimeError):
     """The optional advisory service could not be reached or returned invalid data."""
+
+
+def _reference_hmac_key() -> bytes:
+    """Return the local secret used to create stable AI-service aliases.
+
+    A dedicated key lets aliases survive AI bearer-token rotation. The bearer
+    token is retained as a compatible fallback for already-configured optional
+    integrations, while still keeping every exported core identifier keyed.
+    """
+
+    key = os.getenv("AI_REVIEW_REFERENCE_HMAC_KEY", "").strip()
+    if not key:
+        key = os.getenv("AI_REVIEW_SERVICE_TOKEN", "").strip()
+    if not key:
+        raise AIReviewError("AI review reference key is not configured")
+    return key.encode("utf-8")
+
+
+def _reference_digest(namespace: str, *values: object) -> bytes:
+    material = "\x1f".join(
+        (
+            value.hex
+            if isinstance(value, uuid.UUID)
+            else value.isoformat()
+            if isinstance(value, datetime)
+            else str(value)
+        )
+        for value in values
+    )
+    return hmac.new(
+        _reference_hmac_key(),
+        f"presidio:expense-review:v1:{namespace}:{material}".encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+
+
+def _opaque_ref(namespace: str, *values: object) -> str:
+    """Return a stable HMAC alias; no core UUID leaves this boundary."""
+
+    return f"{namespace}-{_reference_digest(namespace, *values).hex()}"
+
+
+def _opaque_uuid(namespace: str, *values: object) -> uuid.UUID:
+    """Preserve the service's UUID-shaped contract without exporting a core UUID."""
+
+    return uuid.UUID(bytes=_reference_digest(namespace, *values)[:16], version=4)
 
 
 def _service_url() -> str | None:
@@ -116,7 +167,7 @@ def _policy_rules_snapshot(db: Session, policy: Policy, items: list[ExpenseItem]
                 allowed_vendor_codes.append(_code(vendors[rule.vendor_id].normalized_name, "VENDOR"))
             snapshots.append(
                 {
-                    "rule_ref": str(rule.id),
+                    "rule_ref": _opaque_ref("rule", rule.id),
                     "category_code": _code(scoped.code, "UNCATEGORIZED"),
                     "max_per_item": str(scoped.max_amount) if scoped.max_amount is not None else None,
                     "max_per_report": str(rule.max_per_trip) if rule.max_per_trip is not None else None,
@@ -135,7 +186,7 @@ def _policy_rules_snapshot(db: Session, policy: Policy, items: list[ExpenseItem]
     # the reviewer can then flag them as unconfigured instead of failing.
     return [
         {
-            "rule_ref": f"policy:{policy.id}:default:{category.id}",
+            "rule_ref": _opaque_ref("rule", policy.id, category.id, "default"),
             "category_code": _code(category.code, "UNCATEGORIZED"),
             "allowed_vendor_codes": [],
             "vendor_caps": {},
@@ -144,12 +195,108 @@ def _policy_rules_snapshot(db: Session, policy: Policy, items: list[ExpenseItem]
     ]
 
 
+def _historical_baselines(
+    db: Session,
+    report: ExpenseReport,
+    category_ids: set[uuid.UUID],
+    categories: dict[uuid.UUID, ExpenseCategory],
+) -> list[dict[str, Any]]:
+    """Return department-scoped, aggregate-only category history.
+
+    The AI service receives neither report identifiers nor employee history.
+    Each historical observation is a report-level category total, never an
+    individual line item. That prevents a multi-line report from overweighting
+    an employee's history. Cohorts with fewer than three reports are removed
+    in the query, before anything crosses the service boundary.
+    """
+
+    if not category_ids:
+        return []
+    report_category_totals = (
+        db.query(
+            ExpenseItem.expense_report_id.label("report_id"),
+            ExpenseItem.category_id,
+            func.sum(ExpenseItem.amount).label("report_category_total"),
+        )
+        .join(ExpenseReport, ExpenseReport.id == ExpenseItem.expense_report_id)
+        .filter(
+            ExpenseReport.department_id == report.department_id,
+            ExpenseReport.id != report.id,
+            ExpenseReport.status.in_(("approved_pending_payment", "paid")),
+            ExpenseReport.is_deleted.is_(False),
+            ExpenseItem.category_id.in_(category_ids),
+            ExpenseItem.currency_code == report.currency_code,
+            ExpenseItem.is_deleted.is_(False),
+        )
+        .group_by(ExpenseItem.expense_report_id, ExpenseItem.category_id)
+        .subquery()
+    )
+    rows = (
+        db.query(
+            report_category_totals.c.category_id,
+            func.avg(report_category_totals.c.report_category_total).label("average_amount"),
+            func.count(report_category_totals.c.report_id).label("sample_size"),
+        )
+        .group_by(report_category_totals.c.category_id)
+        .having(func.count(report_category_totals.c.report_id) >= 3)
+        .all()
+    )
+    baselines: list[dict[str, Any]] = []
+    for category_id, average_amount, sample_size in rows:
+        category = categories.get(category_id)
+        if category is None or average_amount is None:
+            continue
+        baselines.append(
+            {
+                "category_code": _code(category.code, "UNCATEGORIZED"),
+                "average_amount": str(Decimal(average_amount).quantize(Decimal("0.01"))),
+                "sample_size": int(sample_size),
+            }
+        )
+    return baselines
+
+
+def _known_receipt_digests(
+    db: Session,
+    report: ExpenseReport,
+) -> list[str]:
+    """Return prior department receipt hashes without exposing claim details."""
+
+    rows = (
+        db.query(Attachment.checksum)
+        .join(ExpenseItem, Attachment.entity_id == ExpenseItem.id)
+        .join(ExpenseReport, ExpenseReport.id == ExpenseItem.expense_report_id)
+        .filter(
+            Attachment.entity_type == "expense_item_receipt",
+            Attachment.is_deleted.is_(False),
+            ExpenseReport.department_id == report.department_id,
+            ExpenseReport.id != report.id,
+            ExpenseReport.status.in_(("submitted", "approved_pending_payment", "paid")),
+            ExpenseReport.is_deleted.is_(False),
+            ExpenseItem.is_deleted.is_(False),
+        )
+        .all()
+    )
+    return sorted({f"sha256:{str(checksum).lower()}" for (checksum,) in rows if checksum})
+
+
 def build_review_event(db: Session, report: ExpenseReport) -> dict[str, Any] | None:
     """Build a PII-minimized event from a frozen submitted report snapshot."""
 
     if not report.applied_policy_id:
         return None
-    policy = db.get(Policy, report.applied_policy_id)
+    employee = db.get(User, report.employee_user_id)
+    if employee is None or employee.is_deleted:
+        return None
+    policy = (
+        db.query(Policy)
+        .filter(
+            Policy.id == report.applied_policy_id,
+            Policy.organization_id == employee.organization_id,
+            Policy.is_deleted.is_(False),
+        )
+        .first()
+    )
     if policy is None:
         return None
     items = (
@@ -170,10 +317,7 @@ def build_review_event(db: Session, report: ExpenseReport) -> dict[str, Any] | N
         vendor.id: vendor
         for vendor in db.query(Vendor).filter(Vendor.id.in_(vendor_ids)).all()
     } if vendor_ids else {}
-    event_id = uuid.uuid5(
-        uuid.NAMESPACE_URL,
-        f"presidio:expense-review:{report.id}:{report.applied_policy_id}:{report.submitted_at}",
-    )
+    event_id = _opaque_uuid("event", report.id, report.applied_policy_id, report.submitted_at)
     prior_submissions = (
         db.query(ApprovalHistory.id)
         .filter(
@@ -187,12 +331,12 @@ def build_review_event(db: Session, report: ExpenseReport) -> dict[str, Any] | N
         "event_type": "expense_report.resubmitted" if prior_submissions > 1 else "expense_report.submitted",
         "event_version": "1.0",
         "occurred_at": (report.submitted_at or datetime.now(UTC)).isoformat(),
-        "report_id": str(report.id),
-        "tenant_ref": f"tenant:{report.department_id}",
-        "submitter_ref": f"subject:{report.employee_user_id}",
+        "report_id": str(_opaque_uuid("report", report.id)),
+        "tenant_ref": _opaque_ref("tenant", employee.organization_id),
+        "submitter_ref": _opaque_ref("subject", report.employee_user_id),
         "items": [
             {
-                "line_id": str(item.id),
+                "line_id": str(_opaque_uuid("line", item.id)),
                 "expense_date": item.expense_date.isoformat(),
                 "category_code": _code(categories.get(item.category_id).code if item.category_id in categories else None, "UNCATEGORIZED"),
                 "vendor_code": _code(vendors[item.vendor_id].normalized_name, "VENDOR") if item.vendor_id in vendors else None,
@@ -203,19 +347,21 @@ def build_review_event(db: Session, report: ExpenseReport) -> dict[str, Any] | N
             for item in items
         ],
         "policy": {
-            "policy_version_ref": f"policy:{policy.id}",
+            "policy_version_ref": _opaque_ref("policy", policy.id),
             "rules": _policy_rules_snapshot(db, policy, items),
         },
-        "historical_baselines": [],
-        "known_receipt_digests": [],
+        "historical_baselines": _historical_baselines(db, report, category_ids, categories),
+        "known_receipt_digests": _known_receipt_digests(db, report),
     }
 
 
 def request_review(db: Session, report: ExpenseReport) -> str | None:
     """Enqueue an advisory review and retain only its opaque job identifier."""
 
+    if _service_url() is None:
+        return None
     event = build_review_event(db, report)
-    if event is None or _service_url() is None:
+    if event is None:
         return None
     job = _request("POST", "/v1/review-jobs", event)
     try:
@@ -250,6 +396,8 @@ def review_payload(report: ExpenseReport) -> dict[str, Any] | None:
         "summary": result.get("summary"),
         "key_insights": result.get("key_insights", []),
         "recommendation": result.get("recommendation"),
+        "cited_finding_ids": result.get("cited_finding_ids", []),
+        "cited_policy_rule_refs": result.get("cited_policy_rule_refs", []),
         "findings": (result.get("evaluation") or {}).get("findings", []),
         "risk_level": (result.get("evaluation") or {}).get("risk_level"),
         "provider": result.get("provider"),
@@ -270,7 +418,7 @@ def record_human_disposition(report: ExpenseReport, reviewer_id: uuid.UUID | str
             "POST",
             f"/v1/review-jobs/{report.ai_review_job_id}/dispositions",
             {
-                "reviewer_ref": f"subject:{reviewer_id}",
+                "reviewer_ref": _opaque_ref("subject", reviewer_id),
                 "action": action,
                 "remarks": remarks,
                 "finding_ids": [],

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_permission
-from app.services import policy_service, storage_service
+from app.services import policy_assistant_client, policy_service, storage_service
 
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
@@ -45,6 +46,19 @@ class PolicyUpdateInput(BaseModel):
     rules: list[PolicyRuleInput] | None = None
 
 
+class PolicyAssistantIndexInput(BaseModel):
+    """Explicit administrator-supplied evidence for the isolated RAG assistant."""
+
+    content: str = Field(min_length=1, max_length=50_000)
+
+
+class PolicyAssistantQuestionInput(BaseModel):
+    """A bounded, read-only policy question; answers are always advisory."""
+
+    question: str = Field(min_length=1, max_length=1_200)
+    top_k: int | None = Field(default=None, ge=1, le=8)
+
+
 def _policy_error(exc: Exception) -> None:
     if isinstance(exc, policy_service.PolicyNotFoundError):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -54,22 +68,27 @@ def _policy_error(exc: Exception) -> None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if isinstance(exc, storage_service.StorageError):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    if isinstance(exc, policy_assistant_client.PolicyAssistantError):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     raise exc
 
 
 @router.get("")
 async def list_policies(
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
 ):
-    return [policy_service.policy_payload(db, policy) for policy in policy_service.list_policies(db)]
+    return [
+        policy_service.policy_payload(db, policy)
+        for policy in policy_service.list_policies(db, user["organization_id"])
+    ]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_policy(
     payload: PolicyCreateInput,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
 ):
     try:
         policy = policy_service.create_policy_version(
@@ -77,6 +96,7 @@ async def create_policy(
             payload.name,
             payload.version_label,
             payload.effective_from,
+            organization_id=user["organization_id"],
             effective_to=payload.effective_to,
             rules_data=payload.rules,
         )
@@ -89,10 +109,13 @@ async def create_policy(
 async def get_policy(
     policy_id: str,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
 ):
     try:
-        return policy_service.policy_payload(db, policy_service.get_policy(db, policy_id))
+        return policy_service.policy_payload(
+            db,
+            policy_service.get_policy(db, policy_id, user["organization_id"]),
+        )
     except Exception as exc:
         _policy_error(exc)
 
@@ -102,13 +125,18 @@ async def update_policy(
     policy_id: str,
     payload: PolicyUpdateInput,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
 ):
     try:
         changes: dict[str, Any] = payload.model_dump(exclude_unset=True)
         if "rules" in changes and changes["rules"] is not None:
             changes["rules_data"] = changes.pop("rules")
-        policy = policy_service.update_policy_version(db, policy_id, **changes)
+        policy = policy_service.update_policy_version(
+            db,
+            policy_id,
+            organization_id=user["organization_id"],
+            **changes,
+        )
         return policy_service.policy_payload(db, policy)
     except Exception as exc:
         _policy_error(exc)
@@ -118,10 +146,62 @@ async def update_policy(
 async def activate_policy(
     policy_id: str,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
 ):
     try:
-        return policy_service.policy_payload(db, policy_service.activate_policy(db, policy_id))
+        return policy_service.policy_payload(
+            db,
+            policy_service.activate_policy(
+                db,
+                policy_id,
+                organization_id=user["organization_id"],
+            ),
+        )
+    except Exception as exc:
+        _policy_error(exc)
+
+
+@router.post("/{policy_id}/assistant-index")
+async def index_policy_for_assistant(
+    policy_id: str,
+    payload: PolicyAssistantIndexInput,
+    db: Session = Depends(get_db),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
+):
+    """Index explicit policy evidence without coupling core persistence to RAG data."""
+
+    try:
+        policy = policy_service.get_policy(db, policy_id, user["organization_id"])
+        indexing = await asyncio.to_thread(
+            policy_assistant_client.index_policy_text,
+            organization_id=str(user["organization_id"]),
+            policy_id=str(policy.id),
+            content=payload.content,
+        )
+        return {"policy_id": str(policy.id), "indexing": indexing}
+    except Exception as exc:
+        _policy_error(exc)
+
+
+@router.post("/{policy_id}/assistant-ask")
+async def ask_policy_assistant(
+    policy_id: str,
+    payload: PolicyAssistantQuestionInput,
+    db: Session = Depends(get_db),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
+):
+    """Return a cited policy answer from the isolated assistant, if configured."""
+
+    try:
+        policy = policy_service.get_policy(db, policy_id, user["organization_id"])
+        answer = await asyncio.to_thread(
+            policy_assistant_client.ask_policy,
+            organization_id=str(user["organization_id"]),
+            policy_id=str(policy.id),
+            question=payload.question,
+            top_k=payload.top_k,
+        )
+        return {"policy_id": str(policy.id), "answer": answer}
     except Exception as exc:
         _policy_error(exc)
 
@@ -131,13 +211,13 @@ async def upload_policy_document(
     policy_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: dict[str, str] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(require_permission("policy:manage")),
 ):
     attachment = None
     stored_path: str | None = None
     committed = False
     try:
-        policy = policy_service.get_policy(db, policy_id)
+        policy = policy_service.get_policy(db, policy_id, user["organization_id"])
         content = await file.read()
         attachment = storage_service.create_attachment(
             db,
@@ -150,7 +230,12 @@ async def upload_policy_document(
             kind="policy_document",
         )
         stored_path = attachment.storage_path
-        policy_service.attach_document(db, policy.id, attachment.id)
+        policy_service.attach_document(
+            db,
+            policy.id,
+            attachment.id,
+            organization_id=user["organization_id"],
+        )
         db.commit()
         committed = True
         db.refresh(policy)

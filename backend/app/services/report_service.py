@@ -65,11 +65,25 @@ def _require_owner(report: ExpenseReport, user_id: uuid.UUID | str) -> None:
         raise ReportError("Only the report owner can perform this action")
 
 
-def _active_policy(db: Session, at: datetime | None = None) -> Policy | None:
+def organization_id_for_report(db: Session, report: ExpenseReport) -> uuid.UUID:
+    """Resolve the report owner's tenant before reading tenant-owned data."""
+
+    employee = db.query(User).filter(User.id == report.employee_user_id, User.is_deleted.is_(False)).first()
+    if employee is None:
+        raise ReportError("Report employee no longer exists")
+    return employee.organization_id
+
+
+def _active_policy(
+    db: Session,
+    organization_id: uuid.UUID | str,
+    at: datetime | None = None,
+) -> Policy | None:
     at = at or utcnow()
     return (
         db.query(Policy)
         .filter(
+            Policy.organization_id == _as_uuid(organization_id),
             Policy.is_active.is_(True),
             Policy.is_deleted.is_(False),
             Policy.effective_from <= at,
@@ -195,7 +209,7 @@ def submit_report(db: Session, report_id: uuid.UUID | str, user_id: uuid.UUID | 
     if not items:
         raise ReportError("Add at least one expense item before submitting")
 
-    policy = _active_policy(db)
+    policy = _active_policy(db, organization_id_for_report(db, report))
     if policy is None:
         raise ReportError("No active policy is available for submission")
 
@@ -299,7 +313,16 @@ def get_items(db: Session, report_id: uuid.UUID | str) -> list[ExpenseItem]:
 def can_read_report(db: Session, report: ExpenseReport, actor: dict[str, Any]) -> bool:
     """Restrict reports to their owner, assigned approvers, and administrators."""
 
-    actor_id = _as_uuid(actor["user_id"])
+    try:
+        actor_id = _as_uuid(actor["user_id"])
+        actor_organization_id = _as_uuid(actor["organization_id"])
+    except (KeyError, ReportError):
+        return False
+    # A role is scoped to its organization. Check tenant ownership before the
+    # owner/admin/approval rules so a guessed report UUID never crosses a
+    # tenant boundary.
+    if organization_id_for_report(db, report) != actor_organization_id:
+        return False
     if actor_id == report.employee_user_id:
         return True
     roles = {str(role).lower() for role in actor.get("roles", [])}

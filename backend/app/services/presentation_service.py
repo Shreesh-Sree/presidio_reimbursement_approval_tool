@@ -13,7 +13,7 @@ from app.models.expense_item import ExpenseItem
 from app.models.expense_report import ExpenseReport
 from app.models.user import User
 from app.models.vendor import Vendor
-from app.services import approval_service, item_service, storage_service
+from app.services import approval_service, item_service, payment_service, storage_service
 
 
 def _iso(value) -> str | None:
@@ -52,12 +52,15 @@ def item_payload(db: Session, item: ExpenseItem) -> dict[str, Any]:
 
 
 def approval_history_payload(db: Session, history: ApprovalHistory) -> dict[str, Any]:
-    actor = db.get(User, history.performed_by)
+    actor = db.get(User, history.performed_by) if history.performed_by else None
+    acting_for = db.get(User, history.acting_for_user_id) if history.acting_for_user_id else None
     return {
         "id": str(history.id),
         "action": history.action,
-        "actor_id": str(history.performed_by),
-        "actor_name": actor.full_name if actor else None,
+        "actor_id": str(history.performed_by) if history.performed_by else None,
+        "actor_name": actor.full_name if actor else "Workflow automation",
+        "acting_for_user_id": str(history.acting_for_user_id) if history.acting_for_user_id else None,
+        "acting_for_name": acting_for.full_name if acting_for else None,
         "remarks": history.remarks,
         "created_at": _iso(history.performed_at or history.created_at),
     }
@@ -99,6 +102,7 @@ def report_payload(
         "line_items": items,
         "items": items,
         "approval_history": history,
+        "payment": payment_service.payment_for_report_payload(db, report),
         "ai_audit": ai_audit,
         "violations": violations,
     }

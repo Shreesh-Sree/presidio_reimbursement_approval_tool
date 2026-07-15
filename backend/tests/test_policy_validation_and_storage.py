@@ -25,12 +25,13 @@ def _draft_report(db, seeded_user, *, policy_id=None) -> ExpenseReport:
     return report
 
 
-def test_policy_version_creates_rules_and_preserves_effective_window(db):
+def test_policy_version_creates_rules_and_preserves_effective_window(db, seeded_org):
     policy = policy_service.create_policy_version(
         db,
         "Travel Policy",
         "v2",
         date(2026, 1, 1),
+        organization_id=seeded_org.id,
         effective_to=date(2026, 12, 31),
         rules_data=[
             {
@@ -49,10 +50,15 @@ def test_policy_version_creates_rules_and_preserves_effective_window(db):
     assert payload["rules"][0]["category_name"] == "Travel"
     assert payload["rules"][0]["vendor_name"] == "Acme Taxi"
 
-    active = policy_service.activate_policy(db, policy.id)
+    active = policy_service.activate_policy(db, policy.id, organization_id=seeded_org.id)
     assert active.is_active is True
     with pytest.raises(policy_service.PolicyConflictError):
-        policy_service.update_policy_version(db, active.id, name="Changed in place")
+        policy_service.update_policy_version(
+            db,
+            active.id,
+            organization_id=seeded_org.id,
+            name="Changed in place",
+        )
 
 
 def test_category_hierarchy_rejects_deleting_a_parent_with_active_children(db):
@@ -72,6 +78,7 @@ def test_validation_uses_policy_rules_and_does_not_change_report_status(db, seed
         "Travel Policy",
         "v3",
         date(2026, 1, 1),
+        organization_id=seeded_user.organization_id,
         rules_data=[
             {
                 "category_name": "Meals",

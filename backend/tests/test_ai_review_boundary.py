@@ -67,9 +67,9 @@ def test_ai_event_excludes_personal_and_document_content(db, seeded_user, seeded
     report = _submitted_snapshot(db, seeded_user, seeded_policy, seeded_category)
 
     event = ai_review_client.build_review_event(db, report)
-    serialized = json.dumps(event)
 
     assert event is not None
+    serialized = json.dumps(event)
     assert event["items"][0]["category_code"] == "TRAVEL"
     assert event["items"][0]["vendor_code"] == "SENSITIVE_VENDOR"
     assert event["items"][0]["receipt"]["digest"].startswith("sha256:")
@@ -77,6 +77,22 @@ def test_ai_event_excludes_personal_and_document_content(db, seeded_user, seeded
     assert "Sensitive Merchant Name" not in serialized
     assert "receipt.pdf" not in serialized
     assert "description" not in serialized
+    item = db.query(ExpenseItem).filter(ExpenseItem.expense_report_id == report.id).one()
+    rule = db.query(PolicyRule).filter(PolicyRule.policy_id == seeded_policy.id).one()
+    raw_identifiers = (
+        report.id,
+        report.department_id,
+        report.employee_user_id,
+        seeded_user.organization_id,
+        seeded_policy.id,
+        item.id,
+        rule.id,
+    )
+    for identifier in raw_identifiers:
+        assert str(identifier) not in serialized
+        assert identifier.hex not in serialized
+    assert event["report_id"] != str(report.id)
+    assert event["items"][0]["line_id"] != str(item.id)
 
 
 def test_only_opaque_ai_job_reference_is_kept_on_report(db, seeded_user, seeded_policy, seeded_category, monkeypatch):
@@ -91,3 +107,28 @@ def test_only_opaque_ai_job_reference_is_kept_on_report(db, seeded_user, seeded_
     db.refresh(report)
     assert report.ai_review_job_id == job_id
     assert report.ai_review_requested_at is not None
+
+
+def test_ai_disposition_pseudonymizes_the_reviewer_reference(
+    db, seeded_user, seeded_policy, seeded_category, monkeypatch
+):
+    report = _submitted_snapshot(db, seeded_user, seeded_policy, seeded_category)
+    report.ai_review_job_id = uuid.uuid4()
+    captured: dict[str, object] = {}
+
+    def fake_request(method, path, payload=None):
+        if method == "GET":
+            return {"status": "completed"}
+        captured.update({"path": path, "payload": payload})
+        return {}
+
+    monkeypatch.setenv("AI_REVIEW_SERVICE_URL", "http://ai-review.internal")
+    monkeypatch.setattr(ai_review_client, "_request", fake_request)
+
+    ai_review_client.record_human_disposition(report, seeded_user.id, "approve", "Looks good")
+
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert payload["reviewer_ref"].startswith("subject-")
+    assert str(seeded_user.id) not in str(payload)
+    assert seeded_user.id.hex not in str(payload)

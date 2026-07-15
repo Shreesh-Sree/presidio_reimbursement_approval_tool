@@ -20,6 +20,7 @@ from sqlalchemy.pool import StaticPool
 # Settings are read during app imports, so set safe test defaults first.
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("JWT_SECRET", "a-very-long-secret-key-for-testing-at-least-32-bytes-long-definitely")
+os.environ.setdefault("AI_REVIEW_REFERENCE_HMAC_KEY", "test-ai-review-reference-key")
 os.environ.setdefault("S3_BUCKET", "test-bucket")
 
 import app.models  # noqa: E402,F401 - registers every mapped table with Base
@@ -110,8 +111,9 @@ def seeded_user(db, seeded_org, seeded_department):
 
 
 @pytest.fixture()
-def seeded_policy(db):
+def seeded_policy(db, seeded_org):
     policy = Policy(
+        organization_id=seeded_org.id,
         name="Travel policy",
         version_label="v1",
         is_active=True,

@@ -28,8 +28,9 @@ def _client_for_routes(engine, seeded_user):
         for dependency in route.dependant.dependencies:
             if dependency.call is not get_db:
                 app.dependency_overrides[dependency.call] = lambda: {
-                    "user_id": str(seeded_user.id),
-                    "email": seeded_user.email,
+                "user_id": str(seeded_user.id),
+                "email": seeded_user.email,
+                "organization_id": str(seeded_user.organization_id),
                 }
     return TestClient(app)
 

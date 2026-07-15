@@ -16,3 +16,4 @@ class Organization(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Bas
 
     departments = relationship("Department", back_populates="organization")
     users = relationship("User", back_populates="organization")
+    policies = relationship("Policy", back_populates="organization")

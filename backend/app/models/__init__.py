@@ -18,6 +18,8 @@ from app.models.comment import Comment
 from app.models.delegation import Delegation
 from app.models.notification import Notification
 from app.models.payment_record import PaymentRecord
+from app.models.payment_batch import PaymentBatch
+from app.models.payment_event import PaymentEvent
 from app.models.session import Session
 from app.models.workflow_rule import WorkflowRule
 
@@ -43,6 +45,8 @@ __all__ = [
     "Delegation",
     "Notification",
     "PaymentRecord",
+    "PaymentBatch",
+    "PaymentEvent",
     "Session",
     "WorkflowRule",
 ]

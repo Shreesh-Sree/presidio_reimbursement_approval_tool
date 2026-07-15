@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.clerk import (
     ClerkConfigurationError,
@@ -120,6 +121,29 @@ def test_allowlisted_user_binds_first_clerk_subject_and_rejects_a_later_mismatch
     denied = client.get("/api/auth/me", headers=_oauth_headers())
     assert denied.status_code == 403
     assert denied.json()["detail"]["code"] == "access_not_granted"
+
+
+def test_first_admin_bootstrap_race_reuses_the_allowlist_row(db, seeded_user, monkeypatch):
+    """A concurrent first OAuth request must not turn into a transient 500."""
+
+    from app.services import oauth_access_service
+
+    seeded_user.email = "owner@example.com"
+    db.commit()
+    settings = _clerk_settings()
+    identity = ClerkIdentity(subject="user_owner", email="owner@example.com")
+    calls = iter(([], [seeded_user]))
+    monkeypatch.setattr(oauth_access_service, "_active_users_for_email", lambda *_args: next(calls))
+
+    def losing_bootstrap(*_args, **_kwargs):
+        raise IntegrityError("insert users", {}, RuntimeError("unique constraint"))
+
+    monkeypatch.setattr(oauth_access_service, "_bootstrap_super_administrator", losing_bootstrap)
+
+    user = oauth_access_service.resolve_oauth_user(db, identity=identity, settings=settings)
+
+    assert user.id == seeded_user.id
+    assert user.external_auth_subject == "user_owner"
 
 
 def test_clerk_token_requires_the_custom_verified_email_claims():

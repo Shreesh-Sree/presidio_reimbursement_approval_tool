@@ -13,6 +13,7 @@ from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.clerk import ClerkIdentity
@@ -155,7 +156,29 @@ def resolve_oauth_user(db: Session, *, identity: ClerkIdentity, settings: Settin
         # application administration; do not let configuration resurrect it.
         if users:
             raise OAuthAccessDeniedError()
-        return _bootstrap_super_administrator(db, identity=identity, settings=settings)
+        try:
+            return _bootstrap_super_administrator(db, identity=identity, settings=settings)
+        except IntegrityError as exc:
+            # React development mode, multiple browser tabs, or an operator
+            # signing in at the same moment can race the empty-database path.
+            # The unique allowlist constraints remain the authority; once a
+            # competing request wins, bind/return that same admin instead of
+            # surfacing a transient 500 or creating a second tenant.
+            db.rollback()
+            concurrent_users = [
+                user
+                for user in _active_users_for_email(db, identity.email)
+                if user.status == "active"
+            ]
+            if len(concurrent_users) != 1:
+                raise OAuthBootstrapConfigurationError(
+                    "Unable to provision the first OAuth administrator safely"
+                ) from exc
+            user = user_service.ensure_administrator_role(db, concurrent_users[0])
+            try:
+                return user_service.link_external_identity(db, user, subject=identity.subject)
+            except user_service.UserServiceError as link_error:
+                raise OAuthAccessDeniedError() from link_error
 
     user = active_users[0]
     if identity.email == super_admin_email:

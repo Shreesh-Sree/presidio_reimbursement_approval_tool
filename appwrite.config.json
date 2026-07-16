@@ -1,0 +1,30 @@
+{
+    "organizationId": "6a1593badbc2d6bc1b17",
+    "projectId": "algoqx",
+    "projectName": "presidio-reimbursement",
+    "endpoint": "https://sgp.cloud.appwrite.io/v1",
+    "buckets": [
+        {
+            "$id": "presidio-private-files",
+            "$permissions": [],
+            "fileSecurity": false,
+            "name": "Presidio private files",
+            "enabled": true,
+            "maximumFileSize": 15728640,
+            "allowedFileExtensions": [
+                "pdf",
+                "doc",
+                "docx",
+                "xls",
+                "xlsx",
+                "jpg",
+                "jpeg",
+                "png",
+                "webp"
+            ],
+            "compression": "zstd",
+            "encryption": true,
+            "antivirus": true
+        }
+    ]
+}

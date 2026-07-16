@@ -1,0 +1,107 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy-production
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      AWS_REGION: ap-south-1
+      AWS_ACCOUNT_ID: "366731215001"
+      ECR_PREFIX: presidio-reimburse-prod
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT }}
+      APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
+      APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure AWS through GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Apply Appwrite storage and RAG schema
+        run: |
+          npm install --global appwrite-cli
+          appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
+          appwrite push buckets
+          appwrite push tables
+
+      - name: Apply Neon migrations
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - working-directory: backend
+        run: |
+          uv sync --frozen --no-dev
+          DATABASE_URL="$NEON_DATABASE_URL" uv run alembic upgrade head
+
+      - name: Authenticate to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push immutable service images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build --tag "$REGISTRY/$ECR_PREFIX/api:$IMAGE_TAG" backend
+          docker build --tag "$REGISTRY/$ECR_PREFIX/ai-review:$IMAGE_TAG" ai_review_service
+          docker build --tag "$REGISTRY/$ECR_PREFIX/receipt-intelligence:$IMAGE_TAG" receipt_intelligence_service
+          docker build --tag "$REGISTRY/$ECR_PREFIX/policy-assistant:$IMAGE_TAG" policy_assistant_service
+          docker push "$REGISTRY/$ECR_PREFIX/api:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_PREFIX/ai-review:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_PREFIX/receipt-intelligence:$IMAGE_TAG"
+          docker push "$REGISTRY/$ECR_PREFIX/policy-assistant:$IMAGE_TAG"
+
+      - name: Roll App Runner services to the immutable images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          deploy_service() {
+            local service_name="$1"
+            local image_name="$2"
+            local service_arn source updated
+            service_arn=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$service_name'].ServiceArn | [0]" --output text)
+            test -n "$service_arn" && test "$service_arn" != "None"
+            source=$(aws apprunner describe-service --service-arn "$service_arn" --query 'Service.SourceConfiguration' --output json)
+            updated=$(printf '%s' "$source" | jq --arg image "$REGISTRY/$ECR_PREFIX/$image_name:$IMAGE_TAG" '.ImageRepository.ImageIdentifier = $image')
+            aws apprunner update-service --service-arn "$service_arn" --source-configuration "$updated" >/dev/null
+          }
+          deploy_service presidio-core-api api
+          deploy_service presidio-ai-review ai-review
+          deploy_service presidio-receipt-intelligence receipt-intelligence
+          deploy_service presidio-policy-assistant policy-assistant
+
+      - name: Deploy frontend to Vercel
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          npm install --global vercel@latest
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+          vercel build --prod --token "$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+
+      - name: Report deployment targets
+        run: |
+          aws apprunner list-services --region "$AWS_REGION" --query 'ServiceSummaryList[].{Name:ServiceName,Url:ServiceUrl,Status:Status}' --output table

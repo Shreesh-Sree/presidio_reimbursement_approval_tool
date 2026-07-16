@@ -28,3 +28,5 @@ CLAUDE.md
 .local-storage/
 deployment/terraform/backend.hcl
 receipt_intelligence_service/.env
+.vercel
+secrets.txt

@@ -469,7 +469,7 @@ def _xlsx_for_batch(batch: PaymentBatch, rows) -> bytes:
     sheet = workbook.active
     sheet.title = "Reimbursements"
     headers, values = _export_values(batch, rows)
-    sheet.append(["Presidio reimbursement export", batch.batch_reference])
+    sheet.append(["Reimbursement Tool export", batch.batch_reference])
     sheet.append(["Currency", batch.currency_code])
     sheet.append(["Total", f"{_money(batch.total_amount):.2f}"])
     sheet.append([])
@@ -498,7 +498,7 @@ def _pdf_for_batch(batch: PaymentBatch, rows) -> bytes:
     styles = getSampleStyleSheet()
     headers, values = _export_values(batch, rows)
     elements = [
-        Paragraph("Presidio reimbursement export", styles["Title"]),
+        Paragraph("Reimbursement Tool export", styles["Title"]),
         Paragraph(f"Batch {batch.batch_reference} · {batch.payment_count} reimbursements · {batch.currency_code} {_money(batch.total_amount):.2f}", styles["Normal"]),
         Spacer(1, 14),
     ]

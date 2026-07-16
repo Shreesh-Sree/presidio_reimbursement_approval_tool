@@ -30,3 +30,7 @@ deployment/terraform/backend.hcl
 receipt_intelligence_service/.env
 .vercel
 secrets.txt
+
+# Generated Playwright artifacts.
+frontend/test-results/
+frontend/playwright-report/

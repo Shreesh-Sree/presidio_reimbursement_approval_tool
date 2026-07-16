@@ -49,7 +49,7 @@ export function PolicyAssistantPanel({ policy }: Props) {
         onClick={() => setOpen(!open)}
       >
         <span>
-          <b><Sparkle aria-hidden size={16} weight="fill" /> Policy advisor</b>
+          <b className="advisor-label"><Sparkle aria-hidden size={16} weight="fill" /> Policy advisor <span className="service-tag">AI</span></b>
           <small>Grounded Q&amp;A for {policy.version_label}</small>
         </span>
         <span>{open ? <Minus aria-hidden size={18} weight="bold" /> : <Plus aria-hidden size={18} weight="bold" />}</span>

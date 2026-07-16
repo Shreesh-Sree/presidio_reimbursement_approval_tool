@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { Scan } from "@phosphor-icons/react";
 import { Button } from "../../components/ui/button";
 import {
   getApiErrorMessage,
@@ -19,6 +20,7 @@ export function ReceiptAnalysisPanel({ reportId, item }: Props) {
   const findings = result?.analysis.findings ?? [];
   return (
     <section className="receipt-advisor">
+      <div className="advisor-label"><Scan aria-hidden size={16} weight="bold" /><span>Receipt intelligence</span><span className="service-tag">OCR</span></div>
       <p>
         Receipt intelligence is advisory. Image OCR is performed only on the
         requested supported receipt. For other files, only receipt metadata is

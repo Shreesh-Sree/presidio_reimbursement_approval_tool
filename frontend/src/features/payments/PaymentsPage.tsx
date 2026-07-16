@@ -65,7 +65,7 @@ export function PaymentsPage() {
     queryKey: ["payments", "batches"],
     queryFn: () => paymentsApi.listBatches({ limit: 20 }),
   });
-  const rows = payments.data?.items ?? [];
+  const rows = useMemo(() => payments.data?.items ?? [], [payments.data?.items]);
   const chosen = useMemo(
     () => rows.filter((payment) => selected.has(payment.id)),
     [rows, selected],
@@ -120,7 +120,8 @@ export function PaymentsPage() {
       return;
     setSelected((current) => {
       const next = new Set(current);
-      next.has(payment.id) ? next.delete(payment.id) : next.add(payment.id);
+      if (next.has(payment.id)) next.delete(payment.id);
+      else next.add(payment.id);
       return next;
     });
   };

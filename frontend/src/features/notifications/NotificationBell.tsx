@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Bell } from "@phosphor-icons/react";
 import { notificationsApi } from "../../lib/api";
 import { NotificationFeed } from "./NotificationFeed";
 
@@ -22,7 +23,7 @@ export function NotificationBell() {
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        <span aria-hidden="true">🔔</span>
+        <Bell aria-hidden size={20} weight="bold" />
         {unreadCount > 0 && <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-xs font-semibold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </button>
       {open && (

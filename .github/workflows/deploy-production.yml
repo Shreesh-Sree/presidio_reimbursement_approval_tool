@@ -95,7 +95,6 @@ jobs:
           deploy_service presidio-policy-assistant policy-assistant
 
       - name: Deploy frontend to Vercel
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
         run: |
           npm install --global vercel@latest
           vercel pull --yes --environment=production --token "$VERCEL_TOKEN"

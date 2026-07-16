@@ -9,6 +9,7 @@ description = "Isolated, policy-grounded retrieval assistant for Presidio"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "appwrite>=22.0.0",
     "fastapi>=0.115",
     "pydantic>=2.7",
     "pydantic-settings>=2.0",

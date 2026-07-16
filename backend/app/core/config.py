@@ -39,9 +39,13 @@ class Settings(BaseSettings):
     # in days. A deployment can shorten this with APPROVAL_SLA_HOURS.
     approval_sla_hours: int = Field(default=72, ge=1, le=24 * 30)
     aws_region: str = "us-east-1"
-    # S3 is required only when STORAGE_BACKEND=s3; local storage is the safe
-    # development default and should not require placeholder cloud credentials.
+    # Object storage remains optional in development. Production uses Appwrite
+    # through a server-only API key; S3 is retained as a migration target.
     s3_bucket: str = ""
+    appwrite_endpoint: str = ""
+    appwrite_project_id: str = ""
+    appwrite_api_key: str = ""
+    appwrite_bucket_id: str = "presidio-private-files"
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     # Each advisory service is independently deployed and persisted. The core
     # application only owns these narrow HTTP-boundary settings.

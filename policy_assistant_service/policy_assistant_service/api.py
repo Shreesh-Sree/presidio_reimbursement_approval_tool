@@ -112,7 +112,7 @@ def create_app(
     async def ready() -> dict[str, str]:
         if not assistant.is_ready():
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="index unavailable")
-        return {"status": "ready", "persistence": "sqlite"}
+        return {"status": "ready", "persistence": resolved_settings.persistence_backend}
 
     protected = APIRouter(
         prefix="/v1",

@@ -2,9 +2,10 @@
 
 The application stores only metadata in the database.  Bytes are written through
 this module, which selects either a local filesystem backend (the default for
-development and tests) or an S3 backend configured by the deployment
-environment.  No access key or secret is accepted by application code; boto3
-uses its normal workload/CLI credential provider chain when S3 is selected.
+development and tests), Appwrite Storage, or an S3 backend configured by the
+deployment. Appwrite credentials are server-only configuration and files
+remain private; the API's authorization-checked download route is the only
+browser gateway.
 """
 
 from __future__ import annotations
@@ -185,9 +186,77 @@ class S3Storage:
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
 
+class AppwriteStorage:
+    """Private Appwrite Storage adapter for production uploads."""
+
+    scheme = "appwrite://"
+
+    def __init__(self):
+        settings = get_settings()
+        missing = [
+            name
+            for name, value in {
+                "APPWRITE_ENDPOINT": settings.appwrite_endpoint,
+                "APPWRITE_PROJECT_ID": settings.appwrite_project_id,
+                "APPWRITE_API_KEY": settings.appwrite_api_key,
+                "APPWRITE_BUCKET_ID": settings.appwrite_bucket_id,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise StorageError(f"Appwrite storage is not configured: {', '.join(missing)}")
+        try:
+            from appwrite.client import Client
+            from appwrite.services.storage import Storage
+        except ImportError as exc:  # pragma: no cover - production dependency
+            raise StorageError("appwrite is required when STORAGE_BACKEND=appwrite") from exc
+
+        client = Client()
+        client.set_endpoint(settings.appwrite_endpoint)
+        client.set_project(settings.appwrite_project_id)
+        client.set_key(settings.appwrite_api_key)
+        self.bucket_id = settings.appwrite_bucket_id
+        self.client = Storage(client)
+
+    def _file_id(self, storage_path: str) -> str:
+        file_id = storage_path.removeprefix(self.scheme)
+        if not file_id or "/" in file_id:
+            raise StorageError("Invalid Appwrite storage path")
+        return file_id
+
+    def put(self, key: str, content: bytes) -> str:
+        try:
+            from appwrite.id import ID
+            from appwrite.input_file import InputFile
+
+            file = self.client.create_file(
+                bucket_id=self.bucket_id,
+                file_id=ID.unique(),
+                file=InputFile.from_bytes(content, _safe_file_name(key)),
+                permissions=[],
+            )
+            return f"{self.scheme}{file.id}"
+        except Exception as exc:  # SDK exception types vary by transport version
+            raise StorageError("Could not store the uploaded file in Appwrite") from exc
+
+    def read(self, storage_path: str) -> bytes:
+        try:
+            return bytes(self.client.get_file_download(self.bucket_id, self._file_id(storage_path)))
+        except Exception as exc:  # SDK exception types vary by transport version
+            raise StorageError("Uploaded file was not found in Appwrite storage") from exc
+
+    def delete(self, storage_path: str) -> None:
+        try:
+            self.client.delete_file(self.bucket_id, self._file_id(storage_path))
+        except Exception as exc:  # delete must surface retention failures to callers
+            raise StorageError("Could not delete the uploaded Appwrite file") from exc
+
+
 def _storage_for_path(storage_path: str):
     if storage_path.startswith("s3://"):
         return S3Storage()
+    if storage_path.startswith(AppwriteStorage.scheme):
+        return AppwriteStorage()
     return LocalStorage()
 
 
@@ -197,7 +266,9 @@ def _active_storage():
         return LocalStorage()
     if backend == "s3":
         return S3Storage()
-    raise StorageError("STORAGE_BACKEND must be either 'local' or 's3'")
+    if backend == "appwrite":
+        return AppwriteStorage()
+    raise StorageError("STORAGE_BACKEND must be one of 'local', 'appwrite', or 's3'")
 
 
 def _storage_key(entity_type: str, entity_id: uuid.UUID, file_name: str) -> str:

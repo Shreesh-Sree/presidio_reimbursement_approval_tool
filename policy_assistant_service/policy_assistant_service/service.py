@@ -15,7 +15,7 @@ from .contracts import (
     PolicyDocumentIndexResponse,
 )
 from .sanitization import chunk_text, safe_excerpt, sanitize_policy_document, validate_question
-from .vector_store import IndexedChunk, SQLitePolicyStore, hashed_embedding
+from .vector_store import AppwritePolicyStore, IndexedChunk, SQLitePolicyStore, hashed_embedding
 
 
 class UnsafeQuestionError(ValueError):
@@ -34,10 +34,23 @@ _DECISION_LANGUAGE = re.compile(
 class PolicyAssistantService:
     """Local deterministic RAG implementation; it cannot call or mutate core systems."""
 
-    def __init__(self, settings: PolicyAssistantSettings, store: SQLitePolicyStore | None = None) -> None:
+    def __init__(self, settings: PolicyAssistantSettings, store: SQLitePolicyStore | AppwritePolicyStore | None = None) -> None:
         self.settings = settings
-        self.store = store or SQLitePolicyStore(settings.database_path)
+        self.store = store or self._build_store(settings)
         self.logger = logging.getLogger("policy_assistant")
+
+    @staticmethod
+    def _build_store(settings: PolicyAssistantSettings) -> SQLitePolicyStore | AppwritePolicyStore:
+        if settings.persistence_backend == "sqlite":
+            return SQLitePolicyStore(settings.database_path)
+        return AppwritePolicyStore(
+            endpoint=settings.appwrite_endpoint or "",
+            project_id=settings.appwrite_project_id or "",
+            api_key=settings.appwrite_api_key.get_secret_value() if settings.appwrite_api_key else "",
+            database_id=settings.appwrite_database_id,
+            documents_table_id=settings.appwrite_documents_table_id,
+            chunks_table_id=settings.appwrite_chunks_table_id,
+        )
 
     def index_document(self, request: PolicyDocumentIndexRequest) -> PolicyDocumentIndexResponse:
         if len(request.content) > self.settings.max_document_chars:

@@ -3,6 +3,161 @@
     "projectId": "algoqx",
     "projectName": "presidio-reimbursement",
     "endpoint": "https://sgp.cloud.appwrite.io/v1",
+    "tablesDB": [
+        {
+            "$id": "presidio-policy-rag",
+            "name": "Presidio policy RAG",
+            "enabled": true
+        }
+    ],
+    "tables": [
+        {
+            "$id": "policy-documents",
+            "$permissions": [],
+            "databaseId": "presidio-policy-rag",
+            "name": "Policy documents",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "tenant_ref",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 96,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "policy_version_ref",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 96,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "document_ref",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 96,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "content_digest",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "injection_flags_json",
+                    "type": "mediumtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "uq_document_scope",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "tenant_ref",
+                        "policy_version_ref",
+                        "document_ref"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "policy-chunks",
+            "$permissions": [],
+            "databaseId": "presidio-policy-rag",
+            "name": "Policy chunks",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "tenant_ref",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 96,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "policy_version_ref",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 96,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "document_ref",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 96,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "chunk_index",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "chunk_text",
+                    "type": "mediumtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "embedding_json",
+                    "type": "mediumtext",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "idx_chunk_scope",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "tenant_ref",
+                        "policy_version_ref",
+                        "chunk_index"
+                    ],
+                    "orders": [
+                        "ASC",
+                        "ASC",
+                        "ASC"
+                    ]
+                }
+            ]
+        }
+    ],
     "buckets": [
         {
             "$id": "presidio-private-files",

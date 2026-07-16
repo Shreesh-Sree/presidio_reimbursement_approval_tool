@@ -15,7 +15,14 @@ class PolicyAssistantSettings(BaseSettings):
         env_prefix="POLICY_ASSISTANT_", env_file=".env", extra="ignore"
     )
 
+    persistence_backend: Literal["sqlite", "appwrite"] = "sqlite"
     database_path: str = "var/policy-assistant.sqlite3"
+    appwrite_endpoint: str | None = None
+    appwrite_project_id: str | None = None
+    appwrite_api_key: SecretStr | None = Field(default=None, repr=False)
+    appwrite_database_id: str = "presidio-policy-rag"
+    appwrite_documents_table_id: str = "policy-documents"
+    appwrite_chunks_table_id: str = "policy-chunks"
     service_token: SecretStr = Field(..., min_length=16, repr=False)
     max_document_chars: int = Field(default=50_000, ge=500, le=250_000)
     max_question_chars: int = Field(default=1_200, ge=50, le=10_000)
@@ -33,34 +40,6 @@ class PolicyAssistantSettings(BaseSettings):
     openrouter_api_key: SecretStr | None = Field(default=None, repr=False)
     huggingface_api_key: SecretStr | None = Field(default=None, repr=False)
 
-    @field_validator("database_path", mode="before")
-    @classmethod
-    def require_local_sqlite(cls, value: object) -> str:
-        """Reject any network/core database URL before a connection is attempted."""
-
-        raw = str(value).strip()
-        lowered = raw.lower()
-        forbidden_schemes = (
-            "postgres:",
-            "postgresql:",
-            "postgresql+",
-            "mysql:",
-            "mariadb:",
-            "mssql:",
-            "oracle:",
-        )
-        if not raw or lowered.startswith(forbidden_schemes):
-            raise ValueError("POLICY_ASSISTANT_DATABASE_PATH must be a local SQLite path")
-
-        if lowered.startswith("sqlite:///"):
-            raw = raw[len("sqlite:///") :]
-        elif "://" in raw:
-            raise ValueError("only local SQLite paths are supported by the policy assistant")
-
-        if not raw or raw.startswith("//"):
-            raise ValueError("POLICY_ASSISTANT_DATABASE_PATH must be a local SQLite path")
-        return raw
-
     @field_validator("service_token", mode="before")
     @classmethod
     def trim_service_token(cls, value: object) -> str:
@@ -73,4 +52,23 @@ class PolicyAssistantSettings(BaseSettings):
     def validate_chunk_settings(self) -> "PolicyAssistantSettings":
         if self.chunk_overlap_chars >= self.chunk_size_chars:
             raise ValueError("chunk_overlap_chars must be smaller than chunk_size_chars")
+        if self.persistence_backend == "sqlite":
+            raw = self.database_path.strip()
+            lowered = raw.lower()
+            forbidden_schemes = (
+                "postgres:", "postgresql:", "postgresql+", "mysql:",
+                "mariadb:", "mssql:", "oracle:",
+            )
+            if not raw or lowered.startswith(forbidden_schemes) or ("://" in raw and not lowered.startswith("sqlite:///")):
+                raise ValueError("POLICY_ASSISTANT_DATABASE_PATH must be a local SQLite path")
+        else:
+            missing = [
+                name for name, value in {
+                    "POLICY_ASSISTANT_APPWRITE_ENDPOINT": self.appwrite_endpoint,
+                    "POLICY_ASSISTANT_APPWRITE_PROJECT_ID": self.appwrite_project_id,
+                    "POLICY_ASSISTANT_APPWRITE_API_KEY": self.appwrite_api_key,
+                }.items() if not value
+            ]
+            if missing:
+                raise ValueError(f"Appwrite RAG persistence is not configured: {', '.join(missing)}")
         return self

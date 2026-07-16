@@ -61,7 +61,7 @@ export function UsersPage() {
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
         <div>
-          <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Administration</p>
+          <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Administration</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Users and reporting lines</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Allowlist work emails for OAuth sign-in, manage access roles, and assign each employee to their reporting manager.</p>
         </div>
@@ -76,10 +76,10 @@ export function UsersPage() {
       </header>
 
       {users.isLoading && <LoadingState label="Loading users" />}
-      {users.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load users.</p>}
-      {roles.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load available roles.</p>}
-      {bulkCreate.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700" role="alert">Bulk import failed. Use a CSV with email, full_name, and semicolon-separated roles columns.</p>}
-      {bulkCreate.data && <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">Imported {bulkCreate.data.created_count} user(s); {bulkCreate.data.error_count} row(s) need review.</p>}
+      {users.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load users.</p>}
+      {roles.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load available roles.</p>}
+      {bulkCreate.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700" role="alert">Bulk import failed. Use a CSV with email, full_name, and semicolon-separated roles columns.</p>}
+      {bulkCreate.data && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-800">Imported {bulkCreate.data.created_count} user(s); {bulkCreate.data.error_count} row(s) need review.</p>}
 
       {users.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
@@ -110,7 +110,7 @@ export function UsersPage() {
                   <td className="px-4 py-3">
                     <div className="flex min-w-40 flex-wrap gap-1">
                       {user.roles.length > 0 ? user.roles.map((role) => (
-                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-200" key={role}>
+                        <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-950/50 dark:text-orange-200" key={role}>
                           {labelForRole(role)}
                         </span>
                       )) : <span className="text-slate-500 dark:text-slate-400">No roles</span>}
@@ -118,7 +118,7 @@ export function UsersPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{user.manager_name ?? "No reporting manager"}</td>
                   <td className="px-4 py-3">
-                    <span className={isActive ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"}>
+                    <span className={isActive ? "rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-950 dark:text-orange-300" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"}>
                       {labelForStatus(user.status)}
                     </span>
                   </td>
@@ -142,7 +142,7 @@ export function UsersPage() {
         </table>
       </div>
 
-      {deactivateUser.isError && <p className="text-sm text-rose-600 dark:text-rose-300" role="alert">Unable to deactivate this user.</p>}
+      {deactivateUser.isError && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">Unable to deactivate this user.</p>}
 
       <UserForm
         isError={saveUser.isError}

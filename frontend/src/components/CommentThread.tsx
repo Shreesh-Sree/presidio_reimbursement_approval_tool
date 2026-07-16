@@ -36,7 +36,7 @@ export function CommentThread({ reportId }: CommentThreadProps) {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Share context with the employee or keep an internal note for approvers.</p>
       </div>
       {comments.isLoading && <LoadingState label="Loading comments" />}
-      {comments.isError && <p className="text-sm text-rose-600">Unable to load comments.</p>}
+      {comments.isError && <p className="text-sm text-orange-600">Unable to load comments.</p>}
       {comments.data?.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>}
       <div className="space-y-3">
         {comments.data?.map((comment) => (
@@ -72,7 +72,7 @@ export function CommentThread({ reportId }: CommentThreadProps) {
           </FormField>
           <Button disabled={!body.trim() || addComment.isPending} type="submit">{addComment.isPending ? "Posting…" : "Post comment"}</Button>
         </div>
-        {addComment.isError && <p className="text-sm text-rose-600">Unable to post this comment.</p>}
+        {addComment.isError && <p className="text-sm text-orange-600">Unable to post this comment.</p>}
       </Form>
     </section>
   );

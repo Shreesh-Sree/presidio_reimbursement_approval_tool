@@ -45,8 +45,8 @@ export function ActionBar({ reportId, disabled = false, onCompleted }: ActionBar
         <Label htmlFor="approval-remarks">Remarks</Label>
         <Textarea disabled={disabled || actionMutation.isPending} id="approval-remarks" onChange={(event) => setRemarks(event.target.value)} placeholder="Add context for the employee" value={remarks} />
       </div>
-      {actionMutation.isError && <p className="text-sm text-rose-600">Unable to submit this decision. Please try again.</p>}
-      {actionMutation.isSuccess && <p aria-live="polite" className="text-sm text-emerald-700 dark:text-emerald-300">Decision submitted.</p>}
+      {actionMutation.isError && <p className="text-sm text-orange-600">Unable to submit this decision. Please try again.</p>}
+      {actionMutation.isSuccess && <p aria-live="polite" className="text-sm text-orange-700 dark:text-orange-300">Decision submitted.</p>}
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button disabled={disabled || actionMutation.isPending || remarks.trim() === ""} onClick={() => submitAction("send_back")} variant="secondary">
           Send back

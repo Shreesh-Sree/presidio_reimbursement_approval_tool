@@ -164,9 +164,9 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
   const isEditable = status === "draft" || status === "sent_back";
   const canSubmit = isEditable && items.length > 0 && violationMessages.length === 0;
 
-  if (!id) return <main className="p-6 text-sm text-rose-700">A report ID is required.</main>;
+  if (!id) return <main className="p-6 text-sm text-orange-700">A report ID is required.</main>;
   if (reportQuery.isLoading) return <main className="p-6"><LoadingState label="Loading report" /></main>;
-  if (reportQuery.isError || !report) return <main className="p-6 text-sm text-rose-700">Unable to load this report.</main>;
+  if (reportQuery.isError || !report) return <main className="p-6 text-sm text-orange-700">Unable to load this report.</main>;
 
   const addLineItem = () => {
     setItemError(null);
@@ -196,9 +196,9 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between dark:border-slate-800">
         <div className="w-full max-w-xl space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Expense report</p>
+            <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Expense report</p>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">{displayStatus(report.status)}</span>
-            {report.payment && <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-100">Reimbursement: {displayStatus(report.payment.status)}</span>}
+            {report.payment && <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800 dark:bg-orange-950 dark:text-orange-100">Reimbursement: {displayStatus(report.payment.status)}</span>}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField className="sm:col-span-2">
@@ -221,7 +221,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
           <div className="flex flex-col gap-2 sm:flex-row">
             {isEditable && <Button disabled={saveReport.isPending || title.trim() === "" || Boolean(startDate && endDate && endDate < startDate)} onClick={() => saveReport.mutate({ title: title.trim(), description: description.trim(), start_date: startDate || undefined, end_date: endDate || undefined })}>{status === "sent_back" ? "Save changes" : "Save draft"}</Button>}
           </div>
-          {reportError && <p className="text-sm text-rose-600" role="alert">{reportError}</p>}
+          {reportError && <p className="text-sm text-orange-600" role="alert">{reportError}</p>}
           {report.payment && (
             <p className="text-sm text-slate-600 dark:text-slate-300">
               Payment reference: <span className="font-medium text-slate-800 dark:text-slate-100">{report.payment.payment_reference}</span>
@@ -242,7 +242,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
       )}
 
       {violationMessages.length > 0 && (
-        <section aria-live="polite" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100" role="alert">
+        <section aria-live="polite" className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-orange-900 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-100" role="alert">
           <h2 className="font-semibold">Submission blocked by policy violations</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
             {violationMessages.map((message) => <li key={message}>{message}</li>)}
@@ -259,7 +259,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
           <Button disabled={!isEditable} onClick={addLineItem}>Add line item</Button>
         </div>
         {items.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No line items yet. Add at least one complete item before submitting.</p>}
-        {itemError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200" role="alert">{itemError}</p>}
+        {itemError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200" role="alert">{itemError}</p>}
         <div className="space-y-4">
           {items.map((item, index) => (
             <LineItemRow
@@ -292,7 +292,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
           </Button>
         )}
       </footer>
-      {submitError && <p className="text-sm text-rose-600" role="alert">{submitError}</p>}
+      {submitError && <p className="text-sm text-orange-600" role="alert">{submitError}</p>}
     </main>
   );
 }

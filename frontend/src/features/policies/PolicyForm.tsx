@@ -100,7 +100,7 @@ export function PolicyForm({ open, onOpenChange, policy }: PolicyFormProps) {
           <RuleEditor onChange={(rules) => updateValue("rules", rules)} value={values.rules} />
 
           {policy && <PolicyUpload currentDocumentUrl={policy.document_url} policyId={policy.id} />}
-          {savePolicy.isError && <p className="text-sm text-rose-600">Unable to save this policy version.</p>}
+          {savePolicy.isError && <p className="text-sm text-orange-600">Unable to save this policy version.</p>}
           <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
             <Button onClick={() => onOpenChange(false)} variant="outline">
               Cancel

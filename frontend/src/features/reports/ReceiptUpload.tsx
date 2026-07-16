@@ -61,7 +61,7 @@ export function ReceiptUpload({ itemId, disabled = false, onUploadComplete }: Re
         </Button>
       </div>
       {selectedFile && <p className="text-xs text-slate-600 dark:text-slate-300">{selectedFile.name}</p>}
-      {fileError && <p className="text-sm text-rose-600" role="alert">{fileError}</p>}
+      {fileError && <p className="text-sm text-orange-600" role="alert">{fileError}</p>}
     </div>
   );
 }

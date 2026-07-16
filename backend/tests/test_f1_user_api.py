@@ -32,7 +32,7 @@ def test_bootstrap_user_lifecycle_and_org_chart(client):
 
     roles = client.get("/api/roles", headers=headers)
     assert roles.status_code == 200
-    assert {role["code"] for role in roles.json()} >= {"administrator", "approver", "employee"}
+    assert {role["code"] for role in roles.json()} == {"administrator", "approver", "employee", "finance"}
 
     manager = client.post(
         "/api/users",
@@ -47,6 +47,21 @@ def test_bootstrap_user_lifecycle_and_org_chart(client):
     assert manager.status_code == 201, manager.text
     manager_payload = manager.json()
     assert set(manager_payload["roles"]) == {"employee", "approver"}
+    assert manager_payload["organization_name"] == "Acme Reimbursement"
+    assert manager_payload["department_name"] == "Finance"
+
+    finance = client.post(
+        "/api/users",
+        headers=headers,
+        json={
+            "full_name": "Fiona Finance",
+            "email": "fiona.finance@example.com",
+            "password": "correct-horse-battery-staple",
+            "roles": ["finance"],
+        },
+    )
+    assert finance.status_code == 201, finance.text
+    assert finance.json()["roles"] == ["finance"]
 
     employee = client.post(
         "/api/users",

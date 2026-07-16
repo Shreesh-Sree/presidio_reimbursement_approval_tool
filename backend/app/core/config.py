@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     clerk_issuer: str = ""
     clerk_audience: str = ""
     clerk_authorized_parties: str = ""
+    # Server-only Clerk credential used to send administrator-created
+    # invitations. It must never be exposed to the browser.
+    clerk_secret_key: str = ""
+    clerk_invitation_redirect_url: str = ""
     # This is intentionally configuration, not source code: it is the one
     # verified OAuth email allowed to create the first application admin.
     super_admin_email: str = ""

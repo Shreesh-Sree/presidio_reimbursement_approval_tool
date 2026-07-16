@@ -144,7 +144,7 @@ export function UserForm({
                   <label className="flex min-h-10 items-center gap-2 rounded-md border border-slate-300 px-3 text-sm text-slate-800 dark:border-slate-700 dark:text-slate-100" htmlFor={roleId} key={role.code}>
                     <input
                       checked={values.roles.includes(role.code)}
-                      className="size-4 accent-indigo-600"
+                      className="size-4 accent-orange-600"
                       id={roleId}
                       onChange={(event) => setRoleSelected(role.code, event.target.checked)}
                       type="checkbox"
@@ -172,8 +172,8 @@ export function UserForm({
             </Select>
           </FormField>
 
-          {validationMessage && <p className="text-sm text-rose-600 dark:text-rose-300" role="alert">{validationMessage}</p>}
-          {isError && <p className="text-sm text-rose-600 dark:text-rose-300" role="alert">Unable to save this user. Review the details and try again.</p>}
+          {validationMessage && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">{validationMessage}</p>}
+          {isError && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">Unable to save this user. Review the details and try again.</p>}
 
           <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
             <Button disabled={isPending} onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>

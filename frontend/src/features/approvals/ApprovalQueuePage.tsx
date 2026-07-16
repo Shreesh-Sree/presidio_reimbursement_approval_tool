@@ -16,13 +16,13 @@ export function ApprovalQueuePage() {
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
       <header className="border-b border-slate-200 pb-5 dark:border-slate-800">
-        <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Manager workspace</p>
+        <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Manager workspace</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Approval queue</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Review submitted reimbursement reports awaiting your decision.</p>
       </header>
 
       {queue.isLoading && <LoadingState label="Loading approval queue" />}
-      {queue.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load the approval queue.</p>}
+      {queue.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load the approval queue.</p>}
       {queue.data?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">Your approval queue is clear.</p>}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {queue.data?.map((report) => (
@@ -31,7 +31,7 @@ export function ApprovalQueuePage() {
               <div>
                 <h2 className="font-semibold text-slate-950 dark:text-white">{report.title}</h2>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{report.submitter_name ?? "Employee not listed"}</p>
-                {report.acting_for_name && <p className="mt-1 text-xs font-medium text-indigo-600 dark:text-indigo-300">Acting for {report.acting_for_name}</p>}
+                {report.acting_for_name && <p className="mt-1 text-xs font-medium text-orange-600 dark:text-orange-300">Acting for {report.acting_for_name}</p>}
               </div>
               <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">{formatStatus(report.status)}</span>
             </div>
@@ -48,7 +48,7 @@ export function ApprovalQueuePage() {
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Review reports you have already approved, rejected, sent back, or had withdrawn.</p>
         </div>
       {history.isLoading && <LoadingState label="Loading approval history" />}
-        {history.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load your approval history.</p>}
+        {history.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load your approval history.</p>}
         {history.data?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No completed team reviews yet.</p>}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {history.data?.map((report) => (

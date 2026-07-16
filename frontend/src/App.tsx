@@ -81,9 +81,9 @@ function RouteLoading() {
 function AuthenticationErrorPage({ message }: { message: string }) {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl items-center p-6">
-      <div className="w-full rounded-xl border border-rose-200 bg-rose-50 p-6 text-center dark:border-rose-950 dark:bg-rose-950/30">
-        <h1 className="text-lg font-semibold text-rose-950 dark:text-rose-100">We could not verify your access</h1>
-        <p className="mt-2 text-sm text-rose-800 dark:text-rose-200">{message}</p>
+      <div className="w-full rounded-xl border border-orange-200 bg-orange-50 p-6 text-center dark:border-orange-950 dark:bg-orange-950/30">
+        <h1 className="text-lg font-semibold text-orange-950 dark:text-orange-100">We could not verify your access</h1>
+        <p className="mt-2 text-sm text-orange-800 dark:text-orange-200">{message}</p>
       </div>
     </main>
   );

@@ -86,15 +86,15 @@ export function ReportReview({ reportId }: ReportReviewProps) {
   const humanReviewMessage = asText(humanReview?.message)
     ?? "AI recommendations are advisory; an authorized human must make the workflow decision.";
 
-  if (!id) return <main className="p-6 text-sm text-rose-700">A report ID is required.</main>;
+  if (!id) return <main className="p-6 text-sm text-orange-700">A report ID is required.</main>;
   if (reportQuery.isLoading) return <main className="p-6"><LoadingState label="Loading report" /></main>;
-  if (reportQuery.isError || !report) return <main className="p-6 text-sm text-rose-700">Unable to load this report.</main>;
+  if (reportQuery.isError || !report) return <main className="p-6 text-sm text-orange-700">Unable to load this report.</main>;
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between dark:border-slate-800">
         <div>
-          <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Manager review</p>
+          <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Manager review</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">{report.title}</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Submitted by {report.submitter_name ?? report.submitter_email ?? "employee"}</p>
         </div>
@@ -105,7 +105,7 @@ export function ReportReview({ reportId }: ReportReviewProps) {
       </header>
 
       {violations.length > 0 && (
-        <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
+        <section className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-orange-900 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-100">
           <h2 className="font-semibold">Policy violations</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{violations.map((violation) => <li key={violation}>{violation}</li>)}</ul>
         </section>
@@ -129,8 +129,8 @@ export function ReportReview({ reportId }: ReportReviewProps) {
                   </div>
                   <p className="font-semibold text-slate-950 dark:text-white">{new Intl.NumberFormat("en-US", { style: "currency", currency: item.currency ?? report.currency ?? "USD" }).format(Number(item.amount) || 0)}</p>
                 </div>
-                {receiptUrl && <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-indigo-600 underline underline-offset-2 hover:bg-transparent dark:text-indigo-300" url={receiptUrl}>View receipt</AuthenticatedAttachmentLink>}
-                {violation && <p className="text-sm text-rose-700 dark:text-rose-300">Policy violation: {violation}</p>}
+                {receiptUrl && <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-orange-600 underline underline-offset-2 hover:bg-transparent dark:text-orange-300" url={receiptUrl}>View receipt</AuthenticatedAttachmentLink>}
+                {violation && <p className="text-sm text-orange-700 dark:text-orange-300">Policy violation: {violation}</p>}
                 <ReceiptAnalysisPanel item={item} reportId={id} />
               </article>
             );
@@ -144,7 +144,7 @@ export function ReportReview({ reportId }: ReportReviewProps) {
             <h2 className="font-semibold text-slate-950 dark:text-white" id="ai-review-heading">AI review advisory</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">AI analysis highlights evidence and possible risks. It cannot approve, reject, or send back this report.</p>
           </div>
-          {aiStatus && <span className="w-fit rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200">{displayStatus(aiStatus)}</span>}
+          {aiStatus && <span className="w-fit rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800 dark:bg-orange-950 dark:text-orange-200">{displayStatus(aiStatus)}</span>}
         </div>
 
         {!aiAudit ? (
@@ -204,29 +204,29 @@ export function ReportReview({ reportId }: ReportReviewProps) {
             </div>
 
             {(citedFindingIds.length > 0 || citedPolicyRuleRefs.length > 0) && (
-              <section className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900 dark:bg-indigo-950/30">
-                <h3 className="text-sm font-semibold text-indigo-950 dark:text-indigo-100">Grounding citations</h3>
-                <p className="mt-1 text-sm text-indigo-900 dark:text-indigo-100">The advisory is grounded only in these supplied finding and policy references.</p>
+              <section className="rounded-lg border border-orange-200 bg-orange-50/70 p-3 dark:border-orange-900 dark:bg-orange-950/30">
+                <h3 className="text-sm font-semibold text-orange-950 dark:text-orange-100">Grounding citations</h3>
+                <p className="mt-1 text-sm text-orange-900 dark:text-orange-100">The advisory is grounded only in these supplied finding and policy references.</p>
                 {citedFindingIds.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-800 dark:text-indigo-200">Findings</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-orange-800 dark:text-orange-200">Findings</p>
                     <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="Cited findings">
-                      {citedFindingIds.map((findingId) => <li className="rounded-full bg-white px-2 py-1 font-mono text-xs text-indigo-950 dark:bg-slate-900 dark:text-indigo-100" key={findingId}>{findingId}</li>)}
+                      {citedFindingIds.map((findingId) => <li className="rounded-full bg-white px-2 py-1 font-mono text-xs text-orange-950 dark:bg-slate-900 dark:text-orange-100" key={findingId}>{findingId}</li>)}
                     </ul>
                   </div>
                 )}
                 {citedPolicyRuleRefs.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-800 dark:text-indigo-200">Policy rules</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-orange-800 dark:text-orange-200">Policy rules</p>
                     <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="Cited policy rules">
-                      {citedPolicyRuleRefs.map((ruleRef) => <li className="rounded-full bg-white px-2 py-1 font-mono text-xs text-indigo-950 dark:bg-slate-900 dark:text-indigo-100" key={ruleRef}>{ruleRef}</li>)}
+                      {citedPolicyRuleRefs.map((ruleRef) => <li className="rounded-full bg-white px-2 py-1 font-mono text-xs text-orange-950 dark:bg-slate-900 dark:text-orange-100" key={ruleRef}>{ruleRef}</li>)}
                     </ul>
                   </div>
                 )}
               </section>
             )}
 
-            <p className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100"><span className="font-semibold">Human review required:</span> {humanReviewMessage}</p>
+            <p className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-950 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-100"><span className="font-semibold">Human review required:</span> {humanReviewMessage}</p>
 
             <details className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
               <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">View raw AI review data</summary>
@@ -242,7 +242,7 @@ export function ReportReview({ reportId }: ReportReviewProps) {
           <ol className="mt-4 space-y-4 border-l-2 border-slate-200 pl-5 dark:border-slate-700">
             {report.approval_history.map((entry) => (
               <li className="relative" key={entry.id}>
-                <span className="absolute -left-[1.8rem] top-1.5 size-3 rounded-full border-2 border-white bg-indigo-600 dark:border-slate-900 dark:bg-indigo-400" />
+                <span className="absolute -left-[1.8rem] top-1.5 size-3 rounded-full border-2 border-white bg-orange-600 dark:border-slate-900 dark:bg-orange-400" />
                 <p className="font-medium text-slate-950 dark:text-white">{displayStatus(entry.action)}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
                   {entry.actor_name ?? "Workflow automation"}{entry.acting_for_name ? ` · acting for ${entry.acting_for_name}` : ""} · <time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time>

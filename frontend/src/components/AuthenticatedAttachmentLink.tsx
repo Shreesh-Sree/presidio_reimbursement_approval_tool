@@ -51,7 +51,7 @@ export function AuthenticatedAttachmentLink({ url, children, className }: Authen
       >
         {openAttachment.isPending ? "Opening…" : children}
       </Button>
-      {error && <span className="text-sm text-rose-600" role="alert">{error}</span>}
+      {error && <span className="text-sm text-orange-600" role="alert">{error}</span>}
     </span>
   );
 }

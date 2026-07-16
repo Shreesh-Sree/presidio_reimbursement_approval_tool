@@ -282,7 +282,7 @@ export function WorkflowRuleForm({ open, onOpenChange, rule }: WorkflowRuleFormP
             ))}
           </section>
 
-          {saveRule.isError && <p className="text-sm text-rose-600" role="alert">{getApiErrorMessage(saveRule.error, "Unable to save this workflow rule.")}</p>}
+          {saveRule.isError && <p className="text-sm text-orange-600" role="alert">{getApiErrorMessage(saveRule.error, "Unable to save this workflow rule.")}</p>}
           <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
             <Button onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>
             <Button disabled={saveRule.isPending} type="submit">{saveRule.isPending ? "Saving…" : "Save rule"}</Button>

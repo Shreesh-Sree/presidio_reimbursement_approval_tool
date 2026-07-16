@@ -1,6 +1,6 @@
 # Reimbursement Tool — Intern Capstone Project
 
-Reimbursement Tool is an India-first reimbursement-management **intern capstone project**. It demonstrates a full-stack approach to employee expense submission, multi-level approval, payment-ready exports, audit logging, OCR, and policy-aware AI assistance.
+Reimbursement Tool is an **intern capstone project** for managing employee expense reimbursements. It includes report submission, approvals, payment exports, audit logging, OCR, and policy-aware AI assistance.
 
 This repository is an educational project and portfolio demonstration, not a claim of a certified or production-operated financial service. Its architecture and implementation explore the engineering practices that would be required for such a system.
 

@@ -9,7 +9,12 @@ from ai_review_service.service import ExpenseReviewService
 
 def test_private_ai_service_exposes_advisory_job_contract(event_factory):
     service = ExpenseReviewService(InMemoryReviewRepository())
-    client = TestClient(create_app(service))
+    client = TestClient(
+        create_app(
+            service,
+            settings=AIReviewSettings(service_token=None, auto_process_jobs=True),
+        )
+    )
     event = event_factory()
 
     queued = client.post("/v1/review-jobs", json=event.model_dump(mode="json"))
@@ -30,6 +35,7 @@ def test_new_jobs_are_processed_automatically_by_the_local_worker(event_factory)
         create_app(
             service,
             settings=AIReviewSettings(
+                service_token=None,
                 auto_process_jobs=True,
                 local_worker_retry_delay_seconds=0,
             ),

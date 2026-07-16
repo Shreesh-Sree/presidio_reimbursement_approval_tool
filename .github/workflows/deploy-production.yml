@@ -43,8 +43,8 @@ jobs:
         run: |
           npm install --global appwrite-cli
           appwrite client --endpoint "$APPWRITE_ENDPOINT" --project-id "$APPWRITE_PROJECT_ID" --key "$APPWRITE_API_KEY"
-          appwrite push buckets
-          appwrite push tables
+          appwrite push buckets --all --force
+          appwrite push tables --all --force
 
       - name: Apply Neon migrations
         uses: astral-sh/setup-uv@v6

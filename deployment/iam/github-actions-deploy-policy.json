@@ -41,7 +41,10 @@
       ],
       "Condition": {
         "StringEquals": {
-          "iam:PassedToService": "tasks.apprunner.amazonaws.com"
+          "iam:PassedToService": [
+            "build.apprunner.amazonaws.com",
+            "tasks.apprunner.amazonaws.com"
+          ]
         }
       }
     }

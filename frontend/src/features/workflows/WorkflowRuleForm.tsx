@@ -192,7 +192,7 @@ export function WorkflowRuleForm({ open, onOpenChange, rule }: WorkflowRuleFormP
                 id="workflow-currency"
                 maxLength={10}
                 onChange={(event) => setValues((current) => ({ ...current, currencyCode: event.target.value }))}
-                placeholder="USD"
+                placeholder="INR"
                 value={values.currencyCode}
               />
             </FormField>

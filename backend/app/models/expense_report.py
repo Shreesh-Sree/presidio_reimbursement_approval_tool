@@ -24,7 +24,7 @@ class ExpenseReport(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Ba
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    currency_code: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     total_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0, nullable=False)
     last_saved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

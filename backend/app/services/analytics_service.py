@@ -138,7 +138,7 @@ def overview(db: Session, user: dict[str, object], *, period_months: int = 6) ->
     total_requested: dict[tuple[str], Decimal] = defaultdict(lambda: Decimal("0"))
     monthly_spend: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0"))
     for report in reports:
-        currency = (report.currency_code or "USD").upper()
+        currency = (report.currency_code or "INR").upper()
         amount = Decimal(report.total_amount or 0)
         total_requested[(currency,)] += amount
         if month := _month_key(report.created_at):
@@ -149,7 +149,7 @@ def overview(db: Session, user: dict[str, object], *, period_months: int = 6) ->
     for item, category in item_rows:
         report = report_by_id[item.expense_report_id]
         category_name = category.name if category and not category.is_deleted else "Uncategorized"
-        currency = (item.currency_code or report.currency_code or "USD").upper()
+        currency = (item.currency_code or report.currency_code or "INR").upper()
         category_spend[(category_name, currency)] += Decimal(item.amount or 0)
         violation_count += int(bool(item.is_policy_violated))
 

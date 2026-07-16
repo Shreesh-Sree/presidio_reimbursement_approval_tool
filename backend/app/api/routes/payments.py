@@ -112,16 +112,19 @@ async def get_payment_batch(
 @router.post("/batches/{batch_id}/export")
 async def export_payment_batch(
     batch_id: str,
+    format: str = Query(default="csv", pattern="^(csv|xlsx|pdf)$"),
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("payment:manage")),
 ):
     organization_id, actor_id = _scope(user)
     try:
-        batch, csv_content = payment_service.export_batch(db, batch_id, organization_id, actor_id)
+        batch, content, media_type, extension = payment_service.export_batch_file(
+            db, batch_id, organization_id, actor_id, file_format=format
+        )
         return Response(
-            content=csv_content,
-            media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{batch.batch_reference}.csv"'},
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{batch.batch_reference}.{extension}"'},
         )
     except Exception as exc:
         _raise_payment_error(exc)

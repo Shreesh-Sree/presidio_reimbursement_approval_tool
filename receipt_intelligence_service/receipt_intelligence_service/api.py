@@ -15,7 +15,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import JSONResponse
 
 from .config import ReceiptIntelligenceSettings
-from .contracts import HealthResponse, ReceiptAnalysisRequest, ReceiptAnalysisResponse
+from .contracts import HealthResponse, OcrRequest, OcrResponse, ReceiptAnalysisRequest, ReceiptAnalysisResponse
+from .ocr import OcrError, extract_text
 from .observability import (
     LOGGER_NAME,
     configure_logging,
@@ -78,10 +79,7 @@ def create_app(
     app = FastAPI(
         title="Presidio Receipt Intelligence",
         version="1.0",
-        description=(
-            "Internal deterministic receipt metadata analysis. It accepts no raw files, "
-            "does not perform OCR, and persists only scoped SHA-256 digest observations."
-        ),
+        description="Internal receipt analysis with explicit, ephemeral local OCR for image receipts.",
         lifespan=lifespan,
     )
     token_guard = _bearer_guard(settings.service_token)
@@ -155,5 +153,14 @@ def create_app(
         """Analyze ephemeral caller metadata/text; suitable for a queue consumer callback."""
 
         return intelligence_service.analyze(request)
+
+    @app.post("/v1/ocr", response_model=OcrResponse, dependencies=[Depends(token_guard)])
+    async def ocr_receipt(request: OcrRequest) -> OcrResponse:
+        if not settings.ocr_enabled:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="OCR is disabled")
+        try:
+            return OcrResponse(text=extract_text(request.content_base64, max_bytes=settings.max_ocr_bytes, languages=settings.ocr_languages))
+        except OcrError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
 
     return app

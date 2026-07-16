@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
+import { LoadingState } from "../../components/ui/loading-state";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../../components/ui/dialog";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { Form, FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -40,10 +42,10 @@ function categoryTree(categories: Category[]) {
 
 function CategoryBranch({ category, depth, onEdit, onDelete }: { category: Category; depth: number; onEdit: (category: Category) => void; onDelete: (category: Category) => void }) {
   return (
-    <li className="space-y-2" role="treeitem">
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900" style={{ marginLeft: `${depth * 1.25}rem` }}>
+    <li className="relative space-y-2" role="treeitem">
+      <div className={`relative flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900 ${depth ? "before:absolute before:-left-5 before:top-1/2 before:h-px before:w-5 before:bg-slate-300 dark:before:bg-slate-700" : ""}`}>
         <div>
-          <p className="font-medium text-slate-950 dark:text-white">{category.name}</p>
+          <p className="font-semibold text-slate-950 dark:text-white">{category.name}</p>
           <p className="text-sm text-slate-600 dark:text-slate-300">
             {category.code}{category.description ? ` · ${category.description}` : ""}
           </p>
@@ -54,7 +56,7 @@ function CategoryBranch({ category, depth, onEdit, onDelete }: { category: Categ
         </div>
       </div>
       {category.children && category.children.length > 0 && (
-        <ul className="space-y-2" role="group">
+        <ul className="relative ml-5 space-y-2 border-l border-slate-300 pl-5 dark:border-slate-700" role="group">
           {category.children.map((child) => <CategoryBranch category={child} depth={depth + 1} key={child.id} onDelete={onDelete} onEdit={onEdit} />)}
         </ul>
       )}
@@ -66,9 +68,13 @@ export function CategoriesPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [values, setValues] = useState<CategoryFormState>(emptyForm);
-  const categories = useQuery({ queryKey: ["categories"], queryFn: categoriesApi.list });
-  const allCategories = useMemo(() => flattenCategories(categories.data ?? []), [categories.data]);
+  const categories = useQuery({ queryKey: ["categories", showArchived], queryFn: () => showArchived ? categoriesApi.listWithArchived() : categoriesApi.list() });
+  const activeCategories = useMemo(() => (categories.data ?? []).filter((category) => !category.is_deleted), [categories.data]);
+  const archivedCategories = useMemo(() => (categories.data ?? []).filter((category) => category.is_deleted), [categories.data]);
+  const allCategories = useMemo(() => flattenCategories(activeCategories), [activeCategories]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -119,25 +125,39 @@ export function CategoriesPage() {
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Expense categories</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Organize categories into a hierarchy for policy rules and report line items.</p>
         </div>
-        <Button onClick={openCreate}>New category</Button>
+        <div className="flex gap-2"><Button onClick={() => setShowArchived((value) => !value)} variant="outline">{showArchived ? "Hide archived" : "Archived categories"}</Button><Button onClick={openCreate}>New category</Button></div>
       </header>
 
-      {categories.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading categories…</p>}
+      {categories.isLoading && <LoadingState label="Loading categories" />}
       {categories.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load categories.</p>}
       {categories.data?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No categories have been created.</p>}
       <ul className="space-y-2" role="tree">
-        {categoryTree(categories.data ?? []).map((category) => (
+        {categoryTree(activeCategories).map((category) => (
           <CategoryBranch
             category={category}
             depth={0}
             key={category.id}
-            onDelete={(selected) => {
-              if (window.confirm(`Delete ${selected.name}?`)) deleteCategory.mutate(selected.id);
-            }}
+            onDelete={setDeletingCategory}
             onEdit={openEdit}
           />
         ))}
       </ul>
+      {showArchived && (
+        <section className="overflow-hidden rounded-2xl border border-amber-400/30 bg-amber-50/60 dark:border-amber-300/20 dark:bg-amber-950/15">
+          <header className="border-b border-amber-400/25 px-5 py-4 dark:border-amber-300/15">
+            <p className="text-sm font-bold text-amber-900 dark:text-amber-100">Archived categories</p>
+            <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-100/70">Archived records are hidden from reports. Restore one to use its code again.</p>
+          </header>
+          <div className="divide-y divide-amber-400/20 dark:divide-amber-300/15">
+            {archivedCategories.length ? archivedCategories.map((category) => (
+              <article className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between" key={`archived-${category.id}`}>
+                <div><p className="font-semibold text-[#202020] dark:text-[#fcfcfc]">{category.name}</p><p className="mt-1 text-sm text-[#646464] dark:text-white/65">Code: {category.code}{category.description ? ` · ${category.description}` : ""}</p></div>
+                <div className="flex flex-wrap gap-2"><Button onClick={() => categoriesApi.restore(category.id).then(() => queryClient.invalidateQueries({ queryKey: ["categories"] }))} variant="outline">Restore category</Button><Button onClick={() => categoriesApi.permanentlyDelete(category.id).then(() => queryClient.invalidateQueries({ queryKey: ["categories"] }))} variant="destructive">Delete permanently</Button></div>
+              </article>
+            )) : <p className="px-5 py-6 text-sm text-[#646464] dark:text-white/65">There are no archived categories.</p>}
+          </div>
+        </section>
+      )}
 
       <Dialog onOpenChange={setDialogOpen} open={dialogOpen}>
         <DialogContent>
@@ -179,6 +199,13 @@ export function CategoriesPage() {
           </Form>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        description={`Delete ${deletingCategory?.name ?? "this category"}? This cannot be undone.`}
+        onConfirm={() => deletingCategory && deleteCategory.mutate(deletingCategory.id, { onSuccess: () => setDeletingCategory(null) })}
+        onOpenChange={(open) => !open && setDeletingCategory(null)}
+        open={Boolean(deletingCategory)}
+        title="Delete category"
+      />
     </main>
   );
 }

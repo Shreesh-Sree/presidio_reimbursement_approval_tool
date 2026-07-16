@@ -7,6 +7,7 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { AccessDeniedPage } from "./features/auth/AccessDeniedPage";
 import { OAuthConfigurationPage } from "./features/auth/OAuthConfigurationPage";
 import { SignInPage } from "./features/auth/SignInPage";
+import { LumaSpin } from "./components/ui/luma-spin";
 
 const AppShell = lazy(async () => {
   const module = await import("./components/layout/AppShell");
@@ -74,7 +75,7 @@ const PaymentsPage = lazy(async () => {
 });
 
 function RouteLoading() {
-  return <main className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading page…</main>;
+  return <main className="route-loading"><LumaSpin label="Loading workspace" /><p>Preparing your workspace…</p></main>;
 }
 
 function AuthenticationErrorPage({ message }: { message: string }) {
@@ -118,7 +119,10 @@ function AppContent() {
 
   return (
     <Routes>
-      <Route path="/sign-in" element={<SignInRoute />} />
+      {/* Clerk completes OAuth on a nested callback path such as
+          /sign-in/sso-callback. Keep that route inside the sign-in surface so
+          React Router does not send it through the catch-all redirect first. */}
+      <Route path="/sign-in/*" element={<SignInRoute />} />
       <Route path="/login" element={<Navigate replace to="/sign-in" />} />
       <Route path="/bootstrap" element={<Navigate replace to="/sign-in" />} />
       <Route path="/access-denied" element={<AccessDeniedPage />} />

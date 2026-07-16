@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 import secrets
 from uuid import UUID
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .config import AIReviewSettings
@@ -33,8 +33,13 @@ def _bearer_guard(service_token: str | None):
     bearer = HTTPBearer(auto_error=False)
 
     async def require_service_token(
+        request: Request,
         credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     ) -> None:
+        # Liveness endpoints reveal no review data and must remain probeable
+        # when bearer authentication is enabled on the advisory API.
+        if request.url.path in {"/health", "/ready"}:
+            return
         if service_token is None:
             return
         if credentials is None or not secrets.compare_digest(credentials.credentials, service_token):
@@ -89,6 +94,14 @@ def create_app(
         dependencies=[Depends(_bearer_guard(settings.service_token))],
         lifespan=lifespan,
     )
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok", "service": "ai-review"}
+
+    @app.get("/ready")
+    async def ready() -> dict[str, str]:
+        return {"status": "ready", "service": "ai-review"}
 
     @app.post("/v1/review-jobs", response_model=ReviewJob, status_code=status.HTTP_202_ACCEPTED)
     async def enqueue_review(

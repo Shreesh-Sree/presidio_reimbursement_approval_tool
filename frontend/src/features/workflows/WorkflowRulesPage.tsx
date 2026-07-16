@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
+import { LoadingState } from "../../components/ui/loading-state";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { workflowsApi, type WorkflowApprovalStep, type WorkflowRule } from "../../lib/api";
 import { WorkflowRuleForm } from "./WorkflowRuleForm";
 
@@ -23,11 +25,22 @@ export function WorkflowRulesPage() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<WorkflowRule | null>(null);
-  const rules = useQuery({ queryKey: ["workflow-rules"], queryFn: workflowsApi.list });
+  const [deletingRule, setDeletingRule] = useState<WorkflowRule | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const rules = useQuery({
+    queryKey: ["workflow-rules", showArchived],
+    queryFn: () => showArchived ? workflowsApi.listWithArchived() : workflowsApi.list(),
+  });
   const removeRule = useMutation({
     mutationFn: workflowsApi.remove,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workflow-rules"] }),
   });
+  const restoreRule = useMutation({
+    mutationFn: workflowsApi.restore,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workflow-rules"] }),
+  });
+  const activeRules = (rules.data ?? []).filter((rule) => !rule.is_deleted);
+  const archivedRules = (rules.data ?? []).filter((rule) => rule.is_deleted);
 
   const openCreate = () => {
     setEditingRule(null);
@@ -42,18 +55,23 @@ export function WorkflowRulesPage() {
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Approval workflows</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Escalate reports to the appropriate manager, named reviewer, or approval role.</p>
         </div>
-        <Button onClick={openCreate}>New workflow rule</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setShowArchived((value) => !value)} variant="outline">
+            {showArchived ? "Hide archived" : "Archived workflows"}
+          </Button>
+          <Button onClick={openCreate}>New workflow rule</Button>
+        </div>
       </header>
 
-      {rules.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading workflow rules…</p>}
+      {rules.isLoading && <LoadingState label="Loading workflow rules" />}
       {rules.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load workflow rules.</p>}
-      {rules.data?.length === 0 && (
+      {activeRules.length === 0 && !rules.isLoading && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
           No custom workflow rules yet. Reports continue to use their direct manager by default.
         </div>
       )}
       <div className="grid gap-4 lg:grid-cols-2">
-        {rules.data?.map((rule) => (
+        {activeRules.map((rule) => (
           <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" key={rule.id}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -70,21 +88,46 @@ export function WorkflowRulesPage() {
             <div className="mt-5 flex flex-wrap gap-2">
               <Button onClick={() => { setEditingRule(rule); setFormOpen(true); }} variant="outline">Edit</Button>
               <Button
-                aria-label={`Delete ${rule.name}`}
+                aria-label={`Archive ${rule.name}`}
                 disabled={removeRule.isPending}
-                onClick={() => {
-                  if (window.confirm(`Delete ${rule.name}?`)) removeRule.mutate(rule.id);
-                }}
+                onClick={() => setDeletingRule(rule)}
                 variant="ghost"
               >
-                Delete
+                Archive
               </Button>
             </div>
           </article>
         ))}
       </div>
+      {showArchived && (
+        <section className="overflow-hidden rounded-2xl border border-amber-400/30 bg-amber-50/60 dark:border-amber-300/20 dark:bg-amber-950/15">
+          <header className="border-b border-amber-400/25 px-5 py-4 dark:border-amber-300/15">
+            <p className="text-sm font-bold text-amber-900 dark:text-amber-100">Archived workflows</p>
+            <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-100/70">Archived rules are excluded from approval routing. Restore one to make it available again.</p>
+          </header>
+          <div className="divide-y divide-amber-400/20 dark:divide-amber-300/15">
+            {archivedRules.length ? archivedRules.map((rule) => (
+              <article className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between" key={`archived-${rule.id}`}>
+                <div>
+                  <p className="font-semibold text-slate-950 dark:text-white">{rule.name}</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Priority {rule.priority} · {thresholdLabel(rule)}</p>
+                </div>
+                <Button disabled={restoreRule.isPending} onClick={() => restoreRule.mutate(rule.id)} variant="outline">Restore workflow</Button>
+              </article>
+            )) : <p className="px-5 py-6 text-sm text-slate-600 dark:text-slate-300">There are no archived workflow rules.</p>}
+          </div>
+        </section>
+      )}
 
       <WorkflowRuleForm onOpenChange={setFormOpen} open={formOpen} rule={editingRule} />
+      <ConfirmDialog
+        confirmLabel="Archive"
+        description={`Archive ${deletingRule?.name ?? "this workflow rule"}? It will no longer route approvals, and an administrator can restore it later.`}
+        onConfirm={() => deletingRule && removeRule.mutate(deletingRule.id, { onSuccess: () => setDeletingRule(null) })}
+        onOpenChange={(open) => !open && setDeletingRule(null)}
+        open={Boolean(deletingRule)}
+        title="Archive workflow rule"
+      />
     </main>
   );
 }

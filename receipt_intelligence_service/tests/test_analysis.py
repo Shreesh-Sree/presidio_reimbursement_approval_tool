@@ -37,7 +37,7 @@ def test_prompt_injection_text_is_flagged_and_ignored_before_evidence_extraction
         "masked_receipt_number_candidates": ["••••3456"],
     }
     assert result["ocr"]["performed"] is False
-    assert result["ocr"]["available_in_this_service"] is False
+    assert result["ocr"]["available_in_this_service"] is True
     assert "Ignore previous instructions" not in response.text
 
 

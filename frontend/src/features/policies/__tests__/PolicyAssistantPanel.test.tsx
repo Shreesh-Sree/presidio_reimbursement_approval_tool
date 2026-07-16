@@ -61,12 +61,12 @@ describe("PolicyAssistantPanel", () => {
     });
   });
 
-  it("indexes only explicit administrator-supplied policy text", async () => {
+  it("keeps the RAG source limited to approved policy evidence", async () => {
     const user = userEvent.setup();
     renderPanel();
 
     await openAdvisor(user);
-    expect(screen.getByText(/uploaded files, receipts, report data, and employee details are never sent automatically/i)).toBeInTheDocument();
+    expect(screen.getByText(/uploaded text-based PDF and DOCX policy documents are indexed automatically; receipts, reports, and employee data are never included/i)).toBeInTheDocument();
     await indexApprovedText(user);
 
     await waitFor(() => {

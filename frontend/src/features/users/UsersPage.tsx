@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
+import { LoadingState } from "../../components/ui/loading-state";
 import { type ManagedUser, type UserInput, userAdminApi } from "./api";
 import { UserForm } from "./UserForm";
 
@@ -16,6 +17,7 @@ export function UsersPage() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
   const users = useQuery({ queryKey: ["users"], queryFn: userAdminApi.list });
   const roles = useQuery({ queryKey: ["roles"], queryFn: userAdminApi.listRoles });
 
@@ -38,6 +40,10 @@ export function UsersPage() {
     mutationFn: (userId: string) => userAdminApi.deactivate(userId),
     onSuccess: refreshUserData,
   });
+  const bulkCreate = useMutation({
+    mutationFn: userAdminApi.bulkCreate,
+    onSuccess: () => { refreshUserData(); setBulkFile(null); },
+  });
 
   const openCreate = () => {
     saveUser.reset();
@@ -59,12 +65,21 @@ export function UsersPage() {
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Users and reporting lines</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Allowlist work emails for OAuth sign-in, manage access roles, and assign each employee to their reporting manager.</p>
         </div>
-        <Button disabled={roles.isLoading || roles.isError} onClick={openCreate}>Allowlist user</Button>
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-[#202020] bg-white px-5 py-2.5 text-sm font-bold text-[#202020] dark:border-white dark:bg-[#202020] dark:text-white">
+            <input accept=".csv,text/csv" className="sr-only" onChange={(event) => setBulkFile(event.target.files?.[0] ?? null)} type="file" />
+            {bulkFile ? bulkFile.name : "Choose CSV"}
+          </label>
+          <Button disabled={!bulkFile || bulkCreate.isPending} onClick={() => bulkFile && bulkCreate.mutate(bulkFile)} variant="outline">{bulkCreate.isPending ? "Importing…" : "Bulk allowlist"}</Button>
+          <Button disabled={roles.isLoading || roles.isError} onClick={openCreate}>Allowlist user</Button>
+        </div>
       </header>
 
-      {users.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading users…</p>}
+      {users.isLoading && <LoadingState label="Loading users" />}
       {users.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load users.</p>}
       {roles.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load available roles.</p>}
+      {bulkCreate.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700" role="alert">Bulk import failed. Use a CSV with email, full_name, and semicolon-separated roles columns.</p>}
+      {bulkCreate.data && <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">Imported {bulkCreate.data.created_count} user(s); {bulkCreate.data.error_count} row(s) need review.</p>}
 
       {users.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">

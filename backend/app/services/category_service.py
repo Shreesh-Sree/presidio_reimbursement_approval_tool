@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.expense_category import ExpenseCategory
@@ -47,7 +48,6 @@ def _active_category(db: Session, category_id: str | uuid.UUID) -> ExpenseCatego
 def _ensure_code_available(db: Session, code: str, excluding_id: uuid.UUID | None = None) -> None:
     statement = select(ExpenseCategory).where(
         func.lower(ExpenseCategory.code) == code.lower(),
-        ExpenseCategory.is_deleted.is_(False),
     )
     if excluding_id is not None:
         statement = statement.where(ExpenseCategory.id != excluding_id)
@@ -104,7 +104,11 @@ def create_category(
         max_amount=Decimal(str(max_amount)) if max_amount is not None else None,
     )
     db.add(category)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise CategoryConflictError("A category with that code already exists") from exc
     db.refresh(category)
     return category
 
@@ -134,19 +138,20 @@ def update_category(db: Session, category_id: str | uuid.UUID, **changes: Any) -
     if "max_amount" in changes:
         value = changes["max_amount"]
         category.max_amount = Decimal(str(value)) if value is not None else None
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise CategoryConflictError("A category with that code already exists") from exc
     db.refresh(category)
     return category
 
 
-def list_categories(db: Session) -> list[ExpenseCategory]:
-    return list(
-        db.scalars(
-            select(ExpenseCategory)
-            .where(ExpenseCategory.is_deleted.is_(False))
-            .order_by(ExpenseCategory.name.asc())
-        )
-    )
+def list_categories(db: Session, *, include_archived: bool = False) -> list[ExpenseCategory]:
+    statement = select(ExpenseCategory).order_by(ExpenseCategory.name.asc())
+    if not include_archived:
+        statement = statement.where(ExpenseCategory.is_deleted.is_(False))
+    return list(db.scalars(statement))
 
 
 def get_category(db: Session, category_id: str | uuid.UUID) -> ExpenseCategory:
@@ -169,6 +174,33 @@ def deactivate_category(db: Session, category_id: str | uuid.UUID) -> ExpenseCat
     return category
 
 
+def restore_category(db: Session, category_id: str | uuid.UUID) -> ExpenseCategory:
+    category_id = _uuid(category_id)
+    category = db.scalar(select(ExpenseCategory).where(ExpenseCategory.id == category_id))
+    if category is None:
+        raise CategoryNotFoundError("Category not found")
+    category.is_deleted = False
+    category.deleted_at = None
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def permanently_delete_category(db: Session, category_id: str | uuid.UUID) -> None:
+    category_id = _uuid(category_id)
+    category = db.scalar(select(ExpenseCategory).where(ExpenseCategory.id == category_id))
+    if category is None:
+        raise CategoryNotFoundError("Category not found")
+    if not category.is_deleted:
+        raise CategoryConflictError("Archive the category before permanently deleting it")
+    db.delete(category)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise CategoryConflictError("This archived category is referenced by historical records and cannot be permanently deleted") from exc
+
+
 def category_payload(category: ExpenseCategory, children: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "id": str(category.id),
@@ -178,6 +210,7 @@ def category_payload(category: ExpenseCategory, children: list[dict[str, Any]] |
         "description": category.description,
         "receipt_required": category.receipt_required,
         "max_amount": float(category.max_amount) if category.max_amount is not None else None,
+        "is_deleted": category.is_deleted,
         "children": children or [],
     }
 

@@ -445,6 +445,101 @@ def _csv_for_batch(batch: PaymentBatch, rows) -> str:
     return output.getvalue()
 
 
+def _export_values(batch: PaymentBatch, rows) -> tuple[list[str], list[list[str]]]:
+    headers = ["Batch reference", "Payment reference", "Report number", "Employee number", "Amount", "Currency"]
+    values = [
+        [
+            batch.batch_reference,
+            payment.payment_reference,
+            report.report_number,
+            employee.employee_number,
+            f"{_money(payment.amount):.2f}",
+            report.currency_code,
+        ]
+        for payment, report, employee in rows
+    ]
+    return headers, values
+
+
+def _xlsx_for_batch(batch: PaymentBatch, rows) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Reimbursements"
+    headers, values = _export_values(batch, rows)
+    sheet.append(["Presidio reimbursement export", batch.batch_reference])
+    sheet.append(["Currency", batch.currency_code])
+    sheet.append(["Total", f"{_money(batch.total_amount):.2f}"])
+    sheet.append([])
+    sheet.append(headers)
+    for cell in sheet[5]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="202020")
+    for row in values:
+        sheet.append(row)
+    sheet.freeze_panes = "A6"
+    for column, width in {"A": 22, "B": 24, "C": 18, "D": 20, "E": 16, "F": 12}.items():
+        sheet.column_dimensions[column].width = width
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def _pdf_for_batch(batch: PaymentBatch, rows) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    output = io.BytesIO()
+    document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=28)
+    styles = getSampleStyleSheet()
+    headers, values = _export_values(batch, rows)
+    elements = [
+        Paragraph("Presidio reimbursement export", styles["Title"]),
+        Paragraph(f"Batch {batch.batch_reference} · {batch.payment_count} reimbursements · {batch.currency_code} {_money(batch.total_amount):.2f}", styles["Normal"]),
+        Spacer(1, 14),
+    ]
+    table = Table([headers, *values], repeatRows=1, colWidths=[110, 125, 100, 110, 80, 65])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#202020")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#BBBBBB")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F3F0E8")]),
+        ("ALIGN", (4, 1), (4, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    elements.append(table)
+    document.build(elements)
+    return output.getvalue()
+
+
+def export_batch_file(
+    db: Session,
+    batch_id: uuid.UUID | str,
+    organization_id: uuid.UUID | str,
+    actor_user_id: uuid.UUID | str,
+    *,
+    file_format: str,
+) -> tuple[PaymentBatch, bytes | str, str, str]:
+    """Export an auditable payment batch in CSV, Excel, or PDF form."""
+
+    if file_format not in {"csv", "xlsx", "pdf"}:
+        raise PaymentValidationError("Unsupported export format")
+    batch, csv_content = export_batch(db, batch_id, organization_id, actor_user_id)
+    rows = _batch_rows_for_export(db, batch)
+    if file_format == "csv":
+        return batch, csv_content, "text/csv; charset=utf-8", "csv"
+    if file_format == "xlsx":
+        return batch, _xlsx_for_batch(batch, rows), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+    return batch, _pdf_for_batch(batch, rows), "application/pdf", "pdf"
+
+
 def export_batch(
     db: Session,
     batch_id: uuid.UUID | str,

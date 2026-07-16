@@ -80,8 +80,10 @@ describe("ReportEditor", () => {
     await user.click(await screen.findByRole("button", { name: /add line item/i }));
     await user.type(screen.getByLabelText(/description for line item 1/i), "Airport transfer");
     fireEvent.change(screen.getByLabelText(/amount for line item 1/i), { target: { value: "42.50" } });
-    await user.selectOptions(screen.getByLabelText(/category for line item 1/i), "category-1");
-    await user.selectOptions(screen.getByLabelText(/saved vendor/i), "vendor-1");
+    await user.click(screen.getByLabelText(/category for line item 1/i));
+    await user.click(screen.getByRole("option", { name: "Travel" }));
+    await user.click(screen.getByLabelText(/saved vendor/i));
+    await user.click(screen.getByRole("option", { name: "City Taxi" }));
     await user.click(screen.getByRole("button", { name: /save item/i }));
 
     await expect.poll(() => addItem.mock.calls.length).toBe(1);

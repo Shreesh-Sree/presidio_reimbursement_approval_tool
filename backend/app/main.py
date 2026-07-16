@@ -4,7 +4,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.observability import RequestCorrelationMiddleware, configure_structured_logging
+from app.core.observability import (
+    RequestCorrelationMiddleware,
+    SecurityHeadersMiddleware,
+    configure_structured_logging,
+)
 from app.api.routes import (
     analytics,
     approvals,
@@ -29,13 +33,14 @@ app = FastAPI(title="Reimbursement API", version="1.0.0")
 settings = get_settings()
 configure_structured_logging()
 app.add_middleware(RequestCorrelationMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "X-Visitor-ID"],
     expose_headers=["X-Request-ID"],
 )
 

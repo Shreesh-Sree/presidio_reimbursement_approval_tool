@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "./ui/button";
+import { LoadingState } from "./ui/loading-state";
 import { Form, FormField } from "./ui/form";
 import { Label } from "./ui/label";
 import { Select } from "./ui/select";
@@ -34,7 +35,7 @@ export function CommentThread({ reportId }: CommentThreadProps) {
         <h2 className="font-semibold text-slate-950 dark:text-white" id="comments-heading">Comments</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Share context with the employee or keep an internal note for approvers.</p>
       </div>
-      {comments.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading comments…</p>}
+      {comments.isLoading && <LoadingState label="Loading comments" />}
       {comments.isError && <p className="text-sm text-rose-600">Unable to load comments.</p>}
       {comments.data?.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>}
       <div className="space-y-3">

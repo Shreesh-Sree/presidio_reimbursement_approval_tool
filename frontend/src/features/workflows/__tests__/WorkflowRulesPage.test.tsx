@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rolesApi, usersApi, workflowsApi, type WorkflowRule } from "../../../lib/api";
@@ -38,10 +38,9 @@ describe("WorkflowRulesPage", () => {
     vi.spyOn(workflowsApi, "remove").mockResolvedValue(undefined);
   });
 
-  it("lists configured routing rules and removes a rule", async () => {
+  it("lists configured routing rules and archives a rule", async () => {
     const user = userEvent.setup();
     vi.spyOn(workflowsApi, "list").mockResolvedValue([rule]);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const remove = vi.mocked(workflowsApi.remove);
     renderPage();
 
@@ -49,7 +48,8 @@ describe("WorkflowRulesPage", () => {
     expect(screen.getByText(/1,000 USD and above/i)).toBeInTheDocument();
     expect(screen.getByText(/manager level 1/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /delete large travel escalation/i }));
+    await user.click(screen.getByRole("button", { name: /archive large travel escalation/i }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^archive$/i }));
     await waitFor(() => expect(remove).toHaveBeenCalled());
     expect(remove.mock.calls[0]?.[0]).toBe("workflow-1");
   });

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { type OrgChartNode, userAdminApi } from "./api";
+import { LoadingState } from "../../components/ui/loading-state";
 
 function labelForRole(role: string) {
   return role.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -54,7 +55,7 @@ export function OrgChartPage() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">View reporting lines and the roles assigned to each person.</p>
       </header>
 
-      {orgChart.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading organization chart…</p>}
+      {orgChart.isLoading && <LoadingState label="Loading organization chart" />}
       {orgChart.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load the organization chart.</p>}
       {orgChart.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">

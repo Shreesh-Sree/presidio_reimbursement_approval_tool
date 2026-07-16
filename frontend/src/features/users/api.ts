@@ -91,6 +91,10 @@ export const userAdminApi = {
     unwrap(apiClient.patch<ApiManagedUser>(`/users/${userId}`, input)).then(normalizeUser),
   deactivate: (userId: string) =>
     unwrap(apiClient.post<ApiManagedUser>(`/users/${userId}/deactivate`)).then(normalizeUser),
+  bulkCreate: (file: File) => {
+    const form = new FormData(); form.append("file", file);
+    return unwrap(apiClient.post<{ created_count: number; error_count: number; errors: Array<{ row: number; email: string; message: string }> }>("/users/bulk", form));
+  },
   listRoles: () => unwrap(apiClient.get<RoleOption[]>("/roles")),
   orgChart: () => unwrap(apiClient.get<OrgChartResponse>("/org-chart")).then(normalizeOrgChart),
 };

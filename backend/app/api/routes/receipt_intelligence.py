@@ -135,12 +135,19 @@ async def analyze_receipt_metadata(
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:read")),
 ):
-    """Run an ephemeral advisory check without reading or storing receipt bytes."""
+    """Run an advisory check with explicit ephemeral OCR for supported receipt images."""
 
     report = _report_for_authorized_read(db, report_id, user)
     item = _item_for_report(db, report, item_id)
     receipt = _receipt_for_item(db, item, payload.attachment_id if payload else None)
     try:
+        extracted_text = None
+        if receipt is not None and receipt.mime_type in {"image/jpeg", "image/png", "image/webp"}:
+            extracted_text = await asyncio.to_thread(
+                receipt_intelligence_client.extract_receipt_text,
+                content=storage_service.read_attachment(receipt),
+                media_type=receipt.mime_type,
+            )
         result = await asyncio.to_thread(
             receipt_intelligence_client.analyze_receipt,
             organization_id=str(user["organization_id"]),
@@ -158,6 +165,8 @@ async def analyze_receipt_metadata(
                 item,
                 user["organization_id"],
             ),
+            supplied_text=extracted_text,
+            text_source="service_ocr" if extracted_text is not None else "not_provided",
         )
     except receipt_intelligence_client.ReceiptIntelligenceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc

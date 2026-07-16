@@ -34,7 +34,7 @@ const missingConfigurationValue: AuthContextType = {
 };
 
 function ClerkSessionProvider({ children }: { children: ReactNode }) {
-  const { getToken, isLoaded, isSignedIn, signOut } = useClerkAuth();
+  const { getToken, isLoaded, isSignedIn, sessionId, signOut } = useClerkAuth();
   const { user: clerkUser } = useUser();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -81,11 +81,13 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const getClerkApiToken = ({ forceRefresh = false }: { forceRefresh?: boolean } = {}) =>
+        const getClerkApiToken = ({ forceRefresh = true }: { forceRefresh?: boolean } = {}) =>
           getToken({ template: clerkJwtTemplate, skipCache: forceRefresh });
 
         setApiTokenProvider(getClerkApiToken);
-        const clerkToken = await getClerkApiToken();
+        // A session can change while `isSignedIn` remains true after sign-out
+        // and a new sign-in. Always ask Clerk for a token from this session.
+        const clerkToken = await getClerkApiToken({ forceRefresh: true });
         if (!clerkToken) throw new Error("A Clerk API token could not be created for this session.");
         if (cancelled) return;
 
@@ -114,7 +116,7 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [getToken, isLoaded, isSignedIn]);
+  }, [getToken, isLoaded, isSignedIn, sessionId]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,

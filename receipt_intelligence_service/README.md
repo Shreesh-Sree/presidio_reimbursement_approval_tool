@@ -35,7 +35,11 @@ the service boundary without persisting receipt content in a job queue.
   from evidence extraction; and
 - returns an explicit OCR disclosure.
 
-This release does not run OCR. OCR is optional and any future OCR adapter must
+This release runs explicit local Tesseract OCR for JPEG, PNG, and WebP receipts.
+It receives image bytes only for the active advisory request and never persists them
+or the extracted text. Install the `tesseract-ocr` system package on the service host.
+The included Dockerfile installs that engine automatically.
+PDF OCR remains intentionally unsupported. Any future OCR adapter must
 be explicit, independently reviewed, and keep the same no-core-database
 boundary. It makes no LLM, model-provider, web, or third-party API calls.
 

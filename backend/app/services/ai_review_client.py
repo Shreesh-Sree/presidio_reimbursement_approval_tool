@@ -28,6 +28,7 @@ from app.models.expense_item import ExpenseItem
 from app.models.expense_report import ExpenseReport
 from app.models.policy import Policy, PolicyRule
 from app.models.user import User
+from app.core.config import get_settings
 from app.models.vendor import Vendor
 from app.services import storage_service
 
@@ -44,9 +45,9 @@ def _reference_hmac_key() -> bytes:
     integrations, while still keeping every exported core identifier keyed.
     """
 
-    key = os.getenv("AI_REVIEW_REFERENCE_HMAC_KEY", "").strip()
+    key = os.getenv("AI_REVIEW_REFERENCE_HMAC_KEY", "").strip() or get_settings().ai_review_reference_hmac_key.strip()
     if not key:
-        key = os.getenv("AI_REVIEW_SERVICE_TOKEN", "").strip()
+        key = os.getenv("AI_REVIEW_SERVICE_TOKEN", "").strip() or get_settings().ai_review_service_token.strip()
     if not key:
         raise AIReviewError("AI review reference key is not configured")
     return key.encode("utf-8")
@@ -83,13 +84,13 @@ def _opaque_uuid(namespace: str, *values: object) -> uuid.UUID:
 
 
 def _service_url() -> str | None:
-    value = os.getenv("AI_REVIEW_SERVICE_URL", "").strip().rstrip("/")
+    value = (os.getenv("AI_REVIEW_SERVICE_URL", "").strip() or get_settings().ai_review_service_url.strip()).rstrip("/")
     return value or None
 
 
 def _timeout() -> float:
     try:
-        return max(0.1, float(os.getenv("AI_REVIEW_TIMEOUT_SECONDS", "2")))
+        return max(0.1, float(os.getenv("AI_REVIEW_TIMEOUT_SECONDS", "") or get_settings().ai_review_timeout_seconds))
     except ValueError:
         return 2.0
 
@@ -99,7 +100,7 @@ def _request(method: str, path: str, payload: dict[str, Any] | None = None) -> d
     if not base_url:
         raise AIReviewError("AI review service is not configured")
     headers = {"Accept": "application/json"}
-    token = os.getenv("AI_REVIEW_SERVICE_TOKEN", "").strip()
+    token = os.getenv("AI_REVIEW_SERVICE_TOKEN", "").strip() or get_settings().ai_review_service_token.strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
     data = None

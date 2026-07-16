@@ -43,6 +43,19 @@ class Settings(BaseSettings):
     # development default and should not require placeholder cloud credentials.
     s3_bucket: str = ""
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    # Each advisory service is independently deployed and persisted. The core
+    # application only owns these narrow HTTP-boundary settings.
+    ai_review_service_url: str = ""
+    ai_review_service_token: str = ""
+    ai_review_reference_hmac_key: str = ""
+    ai_review_timeout_seconds: float = Field(default=2.0, ge=0.1, le=30.0)
+    receipt_intelligence_service_url: str = ""
+    receipt_intelligence_service_token: str = ""
+    receipt_intelligence_timeout_seconds: float = Field(default=4.0, ge=0.1, le=30.0)
+    policy_assistant_service_url: str = ""
+    policy_assistant_service_token: str = ""
+    policy_assistant_reference_hmac_key: str = ""
+    policy_assistant_timeout_seconds: float = Field(default=4.0, ge=0.1, le=30.0)
 
     @property
     def cors_origins_list(self) -> list[str]:

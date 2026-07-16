@@ -58,7 +58,8 @@ describe("UsersPage", () => {
     await user.type(screen.getByLabelText(/^full name$/i), "Priya Patel");
     await user.type(screen.getByLabelText(/^email$/i), "priya@example.com");
     await user.click(screen.getByRole("checkbox", { name: "Approver" }));
-    await user.selectOptions(screen.getByLabelText(/reporting manager/i), "manager-1");
+    await user.click(screen.getByLabelText(/reporting manager/i));
+    await user.click(screen.getByRole("option", { name: /Morgan Manager/i }));
     await user.click(screen.getByRole("button", { name: /add to allowlist/i }));
 
     await waitFor(() => {

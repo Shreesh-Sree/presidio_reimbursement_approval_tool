@@ -262,19 +262,19 @@ def workflow_rule_payload(rule: WorkflowRule) -> dict[str, Any]:
         "approval_chain": list(rule.approval_chain_json or []),
         "priority": rule.priority,
         "is_active": rule.is_active,
+        "is_deleted": rule.is_deleted,
         "created_at": rule.created_at.isoformat() if rule.created_at else None,
         "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
     }
 
 
-def list_workflow_rules(db: Session, organization_id: uuid.UUID | str) -> list[WorkflowRule]:
+def list_workflow_rules(db: Session, organization_id: uuid.UUID | str, *, include_archived: bool = False) -> list[WorkflowRule]:
     organization = _as_uuid(organization_id, field_name="organization id")
     rules = db.scalars(
         select(WorkflowRule)
-        .where(WorkflowRule.is_deleted.is_(False))
         .order_by(WorkflowRule.priority.asc(), WorkflowRule.created_at.asc())
     ).all()
-    return [rule for rule in rules if _belongs_to_organization(rule, organization)]
+    return [rule for rule in rules if _belongs_to_organization(rule, organization) and (include_archived or not rule.is_deleted)]
 
 
 def get_workflow_rule(
@@ -400,3 +400,14 @@ def delete_workflow_rule(
         performed_by=str(actor_user_id),
     )
     db.commit()
+
+
+def restore_workflow_rule(db: Session, rule_id: uuid.UUID | str, *, organization_id: uuid.UUID | str) -> WorkflowRule:
+    organization = _as_uuid(organization_id, field_name="organization id")
+    rule = db.scalar(select(WorkflowRule).where(WorkflowRule.id == _as_uuid(rule_id, field_name="workflow rule id")))
+    if rule is None or not _belongs_to_organization(rule, organization):
+        raise WorkflowRuleNotFoundError("Workflow rule not found")
+    rule.is_deleted = False
+    rule.deleted_at = None
+    db.commit(); db.refresh(rule)
+    return rule

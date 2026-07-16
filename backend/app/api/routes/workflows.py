@@ -33,13 +33,14 @@ def _raise_workflow_error(exc: Exception) -> None:
 
 @router.get("")
 async def list_workflows(
+    include_archived: bool = False,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("workflow:manage")),
 ):
     organization_id, _ = _scope(current_user)
     return [
         workflow_service.workflow_rule_payload(rule)
-        for rule in workflow_service.list_workflow_rules(db, organization_id)
+        for rule in workflow_service.list_workflow_rules(db, organization_id, include_archived=include_archived)
     ]
 
 
@@ -62,6 +63,15 @@ async def create_workflow(
             is_active=payload.is_active,
         )
         return workflow_service.workflow_rule_payload(rule)
+    except Exception as exc:
+        _raise_workflow_error(exc)
+
+
+@router.post("/{rule_id}/restore")
+async def restore_workflow(rule_id: UUID, db: Session = Depends(get_db), current_user: dict[str, object] = Depends(require_permission("workflow:manage"))):
+    organization_id, _ = _scope(current_user)
+    try:
+        return workflow_service.workflow_rule_payload(workflow_service.restore_workflow_rule(db, rule_id, organization_id=organization_id))
     except Exception as exc:
         _raise_workflow_error(exc)
 

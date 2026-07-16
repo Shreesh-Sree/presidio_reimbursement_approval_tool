@@ -146,9 +146,11 @@ def test_receipt_analysis_sends_only_authorized_metadata_and_returns_advice(
         "receipt_mime_type",
         "receipt_size_bytes",
         "expense_amount",
-        "currency",
-        "receipt_required_at_or_above",
-    }
+            "currency",
+            "receipt_required_at_or_above",
+            "supplied_text",
+            "text_source",
+        }
     assert captured["organization_id"] == str(seeded_user.organization_id)
     assert captured["report_id"] == str(report.id)
     assert captured["item_id"] == str(item.id)

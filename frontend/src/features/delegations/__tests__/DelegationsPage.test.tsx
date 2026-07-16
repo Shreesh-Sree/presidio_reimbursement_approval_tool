@@ -52,7 +52,8 @@ describe("DelegationsPage", () => {
 
     expect(await screen.findByText("Devon Delegate")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /delegate approvals/i }));
-    await user.selectOptions(screen.getByLabelText(/delegate to/i), "delegate-1");
+    await user.click(screen.getByLabelText(/delegate to/i));
+    await user.click(screen.getByRole("option", { name: "Devon Delegate" }));
     await user.type(screen.getByLabelText(/starts on/i), "2026-07-20");
     await user.type(screen.getByLabelText(/ends on/i), "2026-07-22");
     await user.click(screen.getByRole("button", { name: /^save delegation$/i }));

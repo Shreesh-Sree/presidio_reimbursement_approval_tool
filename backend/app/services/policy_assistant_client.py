@@ -16,19 +16,21 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from app.core.config import get_settings
+
 
 class PolicyAssistantError(RuntimeError):
     """Safe error for an unavailable or malformed optional assistant service."""
 
 
 def _service_url() -> str | None:
-    value = os.getenv("POLICY_ASSISTANT_SERVICE_URL", "").strip().rstrip("/")
+    value = (os.getenv("POLICY_ASSISTANT_SERVICE_URL", "").strip() or get_settings().policy_assistant_service_url.strip()).rstrip("/")
     return value or None
 
 
 def _timeout() -> float:
     try:
-        return max(0.1, min(30.0, float(os.getenv("POLICY_ASSISTANT_TIMEOUT_SECONDS", "4"))))
+        return max(0.1, min(30.0, float(os.getenv("POLICY_ASSISTANT_TIMEOUT_SECONDS", "") or get_settings().policy_assistant_timeout_seconds)))
     except ValueError:
         return 4.0
 
@@ -41,9 +43,9 @@ def _reference_hmac_key() -> bytes:
     integration safe for current installations while still using a keyed hash.
     """
 
-    key = os.getenv("POLICY_ASSISTANT_REFERENCE_HMAC_KEY", "").strip()
+    key = os.getenv("POLICY_ASSISTANT_REFERENCE_HMAC_KEY", "").strip() or get_settings().policy_assistant_reference_hmac_key.strip()
     if not key:
-        key = os.getenv("POLICY_ASSISTANT_SERVICE_TOKEN", "").strip()
+        key = os.getenv("POLICY_ASSISTANT_SERVICE_TOKEN", "").strip() or get_settings().policy_assistant_service_token.strip()
     if not key:
         raise PolicyAssistantError("Policy assistant reference key is not configured")
     return key.encode("utf-8")
@@ -81,7 +83,7 @@ def _request(method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
     base_url = _service_url()
     if not base_url:
         raise PolicyAssistantError("Policy assistant is not configured")
-    token = os.getenv("POLICY_ASSISTANT_SERVICE_TOKEN", "").strip()
+    token = os.getenv("POLICY_ASSISTANT_SERVICE_TOKEN", "").strip() or get_settings().policy_assistant_service_token.strip()
     if not token:
         raise PolicyAssistantError("Policy assistant credentials are not configured")
     encoded = json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8")

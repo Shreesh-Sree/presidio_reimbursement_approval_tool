@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
+import { LoadingState } from "../../components/ui/loading-state";
 import { policiesApi, type Policy } from "../../lib/api";
 import { PolicyAssistantPanel } from "./PolicyAssistantPanel";
 import { PolicyForm } from "./PolicyForm";
@@ -53,7 +54,7 @@ export function PoliciesPage() {
         <Button onClick={openCreate}>New policy</Button>
       </header>
 
-      {policies.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading policies…</p>}
+      {policies.isLoading && <LoadingState label="Loading policies" />}
       {policies.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load policies.</p>}
       {policies.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">

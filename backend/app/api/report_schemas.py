@@ -18,7 +18,7 @@ class ReportCreateInput(ReportApiModel):
     description: str | None = Field(default=None, max_length=10_000)
     start_date: date | None = None
     end_date: date | None = None
-    currency: str = Field(default="USD", min_length=3, max_length=10)
+    currency: str = Field(default="INR", min_length=3, max_length=10)
 
     @model_validator(mode="after")
     def dates_are_ordered(self):

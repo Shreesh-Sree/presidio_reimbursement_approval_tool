@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { Button } from "../../components/ui/button";
+import { LoadingState } from "../../components/ui/loading-state";
 import { FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -37,7 +38,7 @@ function requestForItem(item: ReportLineItem): ReportLineItemInput {
     ...(item.vendor_id ? { vendor_id: item.vendor_id } : {}),
     ...(!item.vendor_id && merchantName ? { merchant_name: merchantName } : {}),
     amount: Number(item.amount) || 0,
-    currency: (item.currency ?? item.currency_code ?? "USD").toUpperCase(),
+    currency: (item.currency ?? item.currency_code ?? "INR").toUpperCase(),
     description: item.description.trim(),
     expense_date: item.expense_date?.slice(0, 10),
   };
@@ -164,7 +165,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
   const canSubmit = isEditable && items.length > 0 && violationMessages.length === 0;
 
   if (!id) return <main className="p-6 text-sm text-rose-700">A report ID is required.</main>;
-  if (reportQuery.isLoading) return <main className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading report…</main>;
+  if (reportQuery.isLoading) return <main className="p-6"><LoadingState label="Loading report" /></main>;
   if (reportQuery.isError || !report) return <main className="p-6 text-sm text-rose-700">Unable to load this report.</main>;
 
   const addLineItem = () => {
@@ -175,7 +176,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
         id: `new-${Date.now()}-${current.length}`,
         amount: 0,
         description: "",
-        currency: report.currency ?? "USD",
+        currency: report.currency ?? "INR",
         expense_date: new Date().toISOString().slice(0, 10),
       },
     ]);
@@ -230,7 +231,7 @@ export function ReportEditor({ reportId }: ReportEditorProps) {
         </div>
         <div className="rounded-lg bg-slate-100 px-4 py-3 text-right dark:bg-slate-800">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Live total</p>
-          <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">Total: {new Intl.NumberFormat("en-US", { style: "currency", currency: report.currency ?? "USD" }).format(total)}</p>
+          <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">Total: {new Intl.NumberFormat("en-IN", { style: "currency", currency: report.currency ?? "INR" }).format(total)}</p>
         </div>
       </header>
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_permission
-from app.services import policy_assistant_client, policy_service, storage_service
+from app.services import policy_assistant_client, policy_document_text, policy_service, storage_service
 
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
@@ -239,7 +239,28 @@ async def upload_policy_document(
         db.commit()
         committed = True
         db.refresh(policy)
-        return policy_service.policy_payload(db, policy)
+        response = policy_service.policy_payload(db, policy)
+        try:
+            extracted_text = await asyncio.to_thread(
+                policy_document_text.extract_policy_text,
+                file_name=attachment.original_file_name,
+                content=content,
+            )
+            indexing = await asyncio.to_thread(
+                policy_assistant_client.index_policy_text,
+                organization_id=str(user["organization_id"]),
+                policy_id=str(policy.id),
+                content=extracted_text,
+            )
+            response["assistant_indexing"] = {
+                "status": "indexed",
+                "chunk_count": indexing.get("chunk_count", 0),
+            }
+        except (policy_document_text.PolicyDocumentExtractionError, policy_assistant_client.PolicyAssistantError) as exc:
+            # Keep the approved source document durable even when the optional
+            # assistant is offline or a legacy/scanned file has no text layer.
+            response["assistant_indexing"] = {"status": "unavailable", "message": str(exc)}
+        return response
     except Exception as exc:
         db.rollback()
         if stored_path is not None and not committed:

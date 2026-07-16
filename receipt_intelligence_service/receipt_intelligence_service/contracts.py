@@ -20,6 +20,7 @@ class TextSource(StrEnum):
 
     NOT_PROVIDED = "not_provided"
     CALLER_EXTRACTED = "caller_extracted"
+    SERVICE_OCR = "service_ocr"
 
 
 class FindingSeverity(StrEnum):
@@ -86,10 +87,10 @@ class ReceiptDocumentInput(BaseModel):
     @model_validator(mode="after")
     def validate_text_source(self) -> "ReceiptDocumentInput":
         has_text = bool(self.supplied_text and self.supplied_text.strip())
-        if has_text and self.text_source != TextSource.CALLER_EXTRACTED:
-            raise ValueError("supplied_text requires text_source='caller_extracted'")
+        if has_text and self.text_source not in {TextSource.CALLER_EXTRACTED, TextSource.SERVICE_OCR}:
+            raise ValueError("supplied_text requires an extracted text source")
         if not has_text and self.text_source != TextSource.NOT_PROVIDED:
-            raise ValueError("text_source='caller_extracted' requires non-empty supplied_text")
+            raise ValueError("an extracted text source requires non-empty supplied_text")
         return self
 
 
@@ -192,6 +193,22 @@ class OcrDisclosure(BaseModel):
     available_in_this_service: bool = False
     text_source: TextSource
     message: str
+
+
+class OcrRequest(BaseModel):
+    """Ephemeral image input for the explicitly enabled local OCR adapter."""
+
+    model_config = ConfigDict(extra="forbid")
+    media_type: str = Field(pattern=r"^image/(jpeg|png|webp)$")
+    content_base64: str = Field(min_length=4, max_length=140_000_000)
+
+
+class OcrResponse(BaseModel):
+    """Text is returned only to the core service for immediate analysis."""
+
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(max_length=100_000)
+    performed: bool = True
 
 
 class HealthResponse(BaseModel):

@@ -7,6 +7,7 @@ it never reads object storage, receives filenames, or accepts extracted text.
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -17,6 +18,8 @@ import uuid
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from app.core.config import get_settings
 
 
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
@@ -47,13 +50,13 @@ class ReceiptAnalysisResult:
 
 
 def _service_url() -> str | None:
-    value = os.getenv("RECEIPT_INTELLIGENCE_SERVICE_URL", "").strip().rstrip("/")
+    value = (os.getenv("RECEIPT_INTELLIGENCE_SERVICE_URL", "").strip() or get_settings().receipt_intelligence_service_url.strip()).rstrip("/")
     return value or None
 
 
 def _timeout() -> float:
     try:
-        return max(0.1, min(30.0, float(os.getenv("RECEIPT_INTELLIGENCE_TIMEOUT_SECONDS", "4"))))
+        return max(0.1, min(30.0, float(os.getenv("RECEIPT_INTELLIGENCE_TIMEOUT_SECONDS", "") or get_settings().receipt_intelligence_timeout_seconds)))
     except ValueError:
         return 4.0
 
@@ -112,7 +115,7 @@ def _request(method: str, path: str, payload: dict[str, Any], request_id: str) -
     base_url = _service_url()
     if not base_url:
         raise ReceiptIntelligenceError("Receipt intelligence service is not configured")
-    token = os.getenv("RECEIPT_INTELLIGENCE_SERVICE_TOKEN", "").strip()
+    token = os.getenv("RECEIPT_INTELLIGENCE_SERVICE_TOKEN", "").strip() or get_settings().receipt_intelligence_service_token.strip()
     if not token:
         raise ReceiptIntelligenceError("Receipt intelligence service credentials are not configured")
     request = Request(
@@ -158,6 +161,8 @@ def analyze_receipt(
     expense_amount: Decimal | float | int | str,
     currency: str,
     receipt_required_at_or_above: Decimal | float | int | str | None,
+    supplied_text: str | None = None,
+    text_source: str = "not_provided",
 ) -> ReceiptAnalysisResult:
     """Request a one-off advisory check without transmitting core identifiers.
 
@@ -197,16 +202,20 @@ def analyze_receipt(
     if not _CURRENCY_PATTERN.fullmatch(normalized_currency):
         raise ReceiptIntelligenceError("Receipt intelligence received an invalid currency")
 
+    receipt_payload = _receipt_payload(
+        checksum=receipt_checksum,
+        mime_type=receipt_mime_type,
+        size_bytes=receipt_size_bytes,
+    )
+    if receipt_payload is not None and supplied_text:
+        receipt_payload["supplied_text"] = supplied_text[:100_000]
+        receipt_payload["text_source"] = text_source
     payload: dict[str, Any] = {
         "event_id": context.event_id,
         "event_type": "receipt.analysis.requested",
         "event_version": "1.0",
         "organization_scope": context.organization_ref,
-        "receipt": _receipt_payload(
-            checksum=receipt_checksum,
-            mime_type=receipt_mime_type,
-            size_bytes=receipt_size_bytes,
-        ),
+        "receipt": receipt_payload,
         "policy": {
             "expense_amount": _decimal_string(expense_amount, label="expense amount"),
             "currency": normalized_currency,
@@ -219,3 +228,20 @@ def analyze_receipt(
     }
     analysis = _request("POST", "/v1/analyze", payload, f"receipt-{event_id.hex}")
     return ReceiptAnalysisResult(context=context, analysis=analysis)
+
+
+def extract_receipt_text(*, content: bytes, media_type: str) -> str:
+    """Use the isolated OCR endpoint; image bytes are never persisted by it."""
+
+    if media_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise ReceiptIntelligenceError("OCR currently supports JPEG, PNG, and WebP receipt images")
+    response = _request(
+        "POST",
+        "/v1/ocr",
+        {"media_type": media_type, "content_base64": base64.b64encode(content).decode("ascii")},
+        f"ocr-{uuid.uuid4().hex}",
+    )
+    text = response.get("text")
+    if not isinstance(text, str):
+        raise ReceiptIntelligenceError("Receipt intelligence returned invalid OCR text")
+    return text

@@ -26,6 +26,9 @@ class ReceiptIntelligenceSettings(BaseSettings):
         "image/webp",
     )
     log_level: str = "INFO"
+    ocr_enabled: bool = True
+    ocr_languages: str = "eng"
+    max_ocr_bytes: int = Field(default=10 * 1024 * 1024, ge=1, le=100 * 1024 * 1024)
 
     @field_validator("service_token", mode="before")
     @classmethod

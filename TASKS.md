@@ -1,6 +1,6 @@
 # Project Tasks — Presidio Reimbursement Approval Tool
 
-Status: **Phase 0-5 Complete** (Phases 6-8 Backend Done, Frontend Pending)
+Status: **Core workflow complete** — frontend, OCR, exports, and advisory services are implemented. Production infrastructure controls remain tracked in the runbooks.
 
 ## Phase 0 — Foundation & Infra
 
@@ -40,7 +40,7 @@ Status: **Phase 0-5 Complete** (Phases 6-8 Backend Done, Frontend Pending)
 | 3.1 | Policy + PolicyRule models, Alembic migration 002 | ✅ DONE | fd80a97 |
 | 3.2 | Category & vendor CRUD services + routes | ✅ DONE | 7d133e4 |
 | 3.3 | Policy service (versioning, activation, S3 doc upload) | ✅ DONE | 7d133e4 |
-| 3.4 | Frontend UI (PoliciesPage, CategoryEditor, PolicyUpload) | ⏳ PENDING | — |
+| 3.4 | Frontend UI (PoliciesPage, CategoryEditor, PolicyUpload) | ✅ DONE | — |
 
 ## Phase 4 — F3/F4: Expense Reports & Line Items
 
@@ -48,7 +48,7 @@ Status: **Phase 0-5 Complete** (Phases 6-8 Backend Done, Frontend Pending)
 |------|-------------|--------|--------|
 | 4.1 | Report service (draft/submit/withdraw, snapshot policy) | ✅ DONE | ce5c6c5 |
 | 4.2 | Item service (add/edit/delete, running total, soft-delete) | ✅ DONE | ce5c6c5 |
-| 4.3 | Frontend UI (ReportEditor, LineItemRow, live totals) | ⏳ PENDING | — |
+| 4.3 | Frontend UI (ReportEditor, LineItemRow, live totals) | ✅ DONE | — |
 
 ## Phase 5 — F5: Receipt Uploads
 
@@ -64,14 +64,14 @@ Status: **Phase 0-5 Complete** (Phases 6-8 Backend Done, Frontend Pending)
 | 6.1 | Validation engine (against snapshot policy rules) | ✅ DONE | 838faaa |
 | 6.2 | Submit-time enforcement (block violations, no override) | ✅ DONE | 838faaa |
 | 6.3 | AI audit re-wire (port agent.py to new models) | ✅ DONE | 838faaa |
-| 6.4 | Frontend UI (violation warnings, block submit) | ⏳ PENDING | — |
+| 6.4 | Frontend UI (violation warnings, block submit) | ✅ DONE | — |
 
 ## Phase 7 — F7: Multi-level Approval Workflow
 
 | Task | Description | Status | Commit |
 |------|-------------|--------|--------|
 | 7.1 | Workflow init + approval service (manager routing, multi-level) | ✅ DONE | 838faaa |
-| 7.2 | Frontend UI (ApprovalQueuePage, ReportReview, ActionBar) | ⏳ PENDING | — |
+| 7.2 | Frontend UI (ApprovalQueuePage, ReportReview, ActionBar) | ✅ DONE | — |
 
 ## Phase 8 — F8: Status Tracking & Notifications
 
@@ -79,7 +79,7 @@ Status: **Phase 0-5 Complete** (Phases 6-8 Backend Done, Frontend Pending)
 |------|-------------|--------|--------|
 | 8.1 | Email + in-app notification service (SMTP + in-app on status change) | ✅ DONE | 838faaa |
 | 8.2 | Comment service (public/approvers-only visibility) | ✅ DONE | 838faaa |
-| 8.3 | Frontend UI (NotificationBell, CommentThread, status timeline) | ⏳ PENDING | — |
+| 8.3 | Frontend UI (NotificationBell, CommentThread, status timeline) | ✅ DONE | — |
 
 ## Security
 

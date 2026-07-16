@@ -103,7 +103,7 @@ def create_draft(
     description: str | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
-    currency_code: str = "USD",
+    currency_code: str = "INR",
 ) -> ExpenseReport:
     if not title.strip():
         raise ReportError("A report title is required")

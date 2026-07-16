@@ -45,10 +45,12 @@ def _category_error(exc: Exception) -> None:
 
 @router.get("")
 async def list_categories(
+    include_archived: bool = False,
     db: Session = Depends(get_db),
     _user: dict[str, str] = Depends(require_permission("category:read")),
 ):
-    return category_service.category_tree_payload(category_service.list_categories(db))
+    categories = category_service.list_categories(db, include_archived=include_archived)
+    return category_service.category_tree_payload(categories) if not include_archived else [category_service.category_payload(category) for category in categories]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -99,6 +101,23 @@ async def delete_category(
 ) -> Response:
     try:
         category_service.deactivate_category(db, category_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as exc:
+        _category_error(exc)
+
+
+@router.post("/{category_id}/restore")
+async def restore_category(category_id: str, db: Session = Depends(get_db), _user: dict[str, str] = Depends(require_permission("category:manage"))):
+    try:
+        return category_service.category_payload(category_service.restore_category(db, category_id))
+    except Exception as exc:
+        _category_error(exc)
+
+
+@router.delete("/{category_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def permanently_delete_category(category_id: str, db: Session = Depends(get_db), _user: dict[str, str] = Depends(require_permission("category:manage"))) -> Response:
+    try:
+        category_service.permanently_delete_category(db, category_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
         _category_error(exc)

@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
+import { getVisitorId } from "../security/fingerprint";
 
 export type PolicyRule = {
   id?: string;
@@ -23,6 +24,7 @@ export type Policy = {
   rules: PolicyRule[];
   document_url?: string | null;
   updated_at?: string;
+  assistant_indexing?: { status: "indexed" | "unavailable"; chunk_count?: number; message?: string };
 };
 
 export type PolicyInput = Pick<Policy, "name" | "version_label" | "effective_from"> & {
@@ -91,6 +93,7 @@ export type WorkflowRule = {
   is_active: boolean;
   created_at?: string | null;
   updated_at?: string | null;
+  is_deleted?: boolean;
 };
 
 export type WorkflowRuleInput = Omit<WorkflowRule, "id" | "created_at" | "updated_at">;
@@ -108,6 +111,7 @@ export type Category = {
   description?: string | null;
   receipt_required?: boolean;
   max_amount?: number | null;
+  is_deleted?: boolean;
   children?: Category[];
 };
 
@@ -432,6 +436,8 @@ apiClient.interceptors.request.use(async (config) => {
 
   const token = await resolveApiToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  const visitorId = await getVisitorId();
+  if (visitorId) config.headers["X-Visitor-ID"] = visitorId;
   return config;
 });
 
@@ -522,10 +528,13 @@ export const rolesApi = {
 
 export const categoriesApi = {
   list: () => unwrap(apiClient.get<Category[]>("/categories")),
+  listWithArchived: () => unwrap(apiClient.get<Category[]>("/categories", { params: { include_archived: true } })),
   create: (input: CategoryInput) => unwrap(apiClient.post<Category>("/categories", input)),
   update: (categoryId: string, input: Partial<CategoryInput>) =>
     unwrap(apiClient.patch<Category>(`/categories/${categoryId}`, input)),
   remove: (categoryId: string) => unwrap(apiClient.delete<void>(`/categories/${categoryId}`)),
+  restore: (categoryId: string) => unwrap(apiClient.post<Category>(`/categories/${categoryId}/restore`)),
+  permanentlyDelete: (categoryId: string) => unwrap(apiClient.delete<void>(`/categories/${categoryId}/permanent`)),
 };
 
 export const vendorsApi = {
@@ -539,6 +548,8 @@ export const workflowsApi = {
   update: (workflowId: string, input: Partial<WorkflowRuleInput>) =>
     unwrap(apiClient.patch<WorkflowRule>(`/workflows/${workflowId}`, input)),
   remove: (workflowId: string) => unwrap(apiClient.delete<void>(`/workflows/${workflowId}`)),
+  listWithArchived: () => unwrap(apiClient.get<WorkflowRule[]>("/workflows", { params: { include_archived: true } })),
+  restore: (workflowId: string) => unwrap(apiClient.post<WorkflowRule>(`/workflows/${workflowId}/restore`)),
 };
 
 export const reportsApi = {
@@ -655,11 +666,11 @@ export const paymentsApi = {
   },
   createBatch: (input: PaymentBatchCreateInput) =>
     unwrap(apiClient.post<PaymentBatchSummary>("/payments/batches", input)),
-  exportBatch: async (batchId: string): Promise<PaymentCsvDownload> => {
-    const response = await apiClient.post<Blob>(`/payments/batches/${batchId}/export`, undefined, { responseType: "blob" });
+  exportBatch: async (batchId: string, format: "csv" | "xlsx" | "pdf" = "xlsx"): Promise<PaymentCsvDownload> => {
+    const response = await apiClient.post<Blob>(`/payments/batches/${batchId}/export`, undefined, { params: { format }, responseType: "blob" });
     return {
       blob: response.data,
-      filename: csvFilename(response.headers["content-disposition"], `payment-batch-${batchId}.csv`),
+      filename: csvFilename(response.headers["content-disposition"], `payment-batch-${batchId}.${format}`),
     };
   },
   markPaid: (paymentId: string, input: PaymentPaidInput) =>

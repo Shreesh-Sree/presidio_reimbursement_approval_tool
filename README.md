@@ -19,11 +19,12 @@ comments, and isolated advisory services.
   history, reimbursement `approved_pending_payment` status, in-app alerts, and
   opt-in SMTP email delivery for status changes.
 - Finance payment operations: a permission-protected queue, immutable payment
-  events, currency-safe export batches/CSV, and explicit paid/failed outcomes.
+  events, currency-safe CSV/Excel/PDF export batches, and explicit paid/failed outcomes.
 - Temporary approver delegation with cycle protection, preserved acting-for
   provenance, due dates, reminders, and idempotent SLA escalation.
-- A Material UI light/dark/system theme, route-level error boundary, and an
-  accessible aggregate reimbursement analytics dashboard.
+- A custom React/Tailwind design system (no MUI), Radix dialogs/selects,
+  Luma loading states, route-level error boundary, and an accessible aggregate
+  reimbursement analytics dashboard.
 - An advisory-only `ai_review_service` with its own datastore. It receives a
   minimized policy/report snapshot, never mutates the reimbursement workflow,
   and requires a human decision.

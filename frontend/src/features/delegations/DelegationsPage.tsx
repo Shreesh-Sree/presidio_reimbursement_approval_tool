@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
+import { LoadingState } from "../../components/ui/loading-state";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../../components/ui/dialog";
 import { Form, FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
@@ -69,7 +70,7 @@ export function DelegationsPage() {
           <h2 className="font-semibold text-slate-950 dark:text-white" id="active-delegations-heading">Active delegations</h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Only one overlapping approval delegation is allowed, so responsibility is always clear.</p>
         </div>
-        {delegations.isLoading && <p className="text-sm text-slate-600 dark:text-slate-300">Loading delegations…</p>}
+      {delegations.isLoading && <LoadingState label="Loading delegations" />}
         {delegations.isError && <p className="rounded-lg bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-100">{getApiErrorMessage(delegations.error, "Unable to load delegations.")}</p>}
         {delegations.data?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No active delegation is configured.</p>}
         <div className="grid gap-4 md:grid-cols-2">

@@ -33,7 +33,7 @@ def _historical_report(
             category_id=seeded_category.id,
             amount=line_amount,
             original_amount=line_amount,
-            currency_code="USD",
+            currency_code="INR",
             expense_date=date.today(),
         )
         db.add(item)

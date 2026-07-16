@@ -137,10 +137,13 @@ class ReceiptIntelligenceService:
             deduplication=deduplication,
             evidence=evidence,
             ocr=OcrDisclosure(
+                performed=text_source == TextSource.SERVICE_OCR,
+                available_in_this_service=self._settings.ocr_enabled,
                 text_source=text_source,
                 message=(
-                    "OCR is optional and is not performed by this release; any analyzed text was "
-                    "caller-extracted plain text supplied for this request only."
+                    "Receipt text was extracted locally for this advisory check only."
+                    if text_source == TextSource.SERVICE_OCR
+                    else "OCR was not performed; any analyzed text was supplied by a trusted caller."
                 ),
             ),
             findings=tuple(findings),

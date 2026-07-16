@@ -7,6 +7,7 @@ import type { ReportLineItem } from "../../lib/api";
 import { reportsApi } from "../../lib/api";
 import { ActionBar } from "./ActionBar";
 import { ReceiptAnalysisPanel } from "./ReceiptAnalysisPanel";
+import { LoadingState } from "../../components/ui/loading-state";
 
 type ReportReviewProps = {
   reportId?: string;
@@ -86,7 +87,7 @@ export function ReportReview({ reportId }: ReportReviewProps) {
     ?? "AI recommendations are advisory; an authorized human must make the workflow decision.";
 
   if (!id) return <main className="p-6 text-sm text-rose-700">A report ID is required.</main>;
-  if (reportQuery.isLoading) return <main className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading report…</main>;
+  if (reportQuery.isLoading) return <main className="p-6"><LoadingState label="Loading report" /></main>;
   if (reportQuery.isError || !report) return <main className="p-6 text-sm text-rose-700">Unable to load this report.</main>;
 
   return (

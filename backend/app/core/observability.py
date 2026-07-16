@@ -90,3 +90,28 @@ class RequestCorrelationMiddleware:
                     "duration_ms": round((time.perf_counter() - started) * 1000, 2),
                 },
             )
+
+
+class SecurityHeadersMiddleware:
+    """Attach conservative browser security headers to every API response."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        async def send_with_security_headers(message: Message) -> None:
+            if scope["type"] == "http" and message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                names = {key.lower() for key, _ in headers}
+                defaults = {
+                    b"x-content-type-options": b"nosniff",
+                    b"x-frame-options": b"DENY",
+                    b"referrer-policy": b"no-referrer",
+                    b"permissions-policy": b"camera=(), microphone=(), geolocation=()",
+                    b"content-security-policy": b"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+                }
+                headers.extend((key, value) for key, value in defaults.items() if key not in names)
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_security_headers)

@@ -151,7 +151,7 @@ export function LineItemRow({
             id={`item-currency-${index}`}
             maxLength={3}
             onChange={(event) => update({ currency: event.target.value.toUpperCase() })}
-            placeholder="USD"
+            placeholder="INR"
             value={item.currency ?? item.currency_code ?? ""}
           />
         </FormField>

@@ -24,6 +24,7 @@ awscliv2.zip
 .claude/
 CLAUDE.md
 .agents/
+.kilo/
 .neon
 .local-storage/
 deployment/terraform/backend.hcl
@@ -34,3 +35,7 @@ secrets.txt
 # Generated Playwright artifacts.
 frontend/test-results/
 frontend/playwright-report/
+
+# Local one-off diagnostics and generated database files.
+scratch_*.py
+*.db

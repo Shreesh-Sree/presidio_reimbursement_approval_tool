@@ -81,7 +81,7 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const getClerkApiToken = ({ forceRefresh = true }: { forceRefresh?: boolean } = {}) =>
+        const getClerkApiToken = ({ forceRefresh = false }: { forceRefresh?: boolean } = {}) =>
           getToken({ template: clerkJwtTemplate, skipCache: forceRefresh });
 
         setApiTokenProvider(getClerkApiToken);

@@ -60,7 +60,7 @@ SYSTEM_PERMISSIONS: dict[str, str] = {
 SYSTEM_ROLES: dict[str, tuple[str, set[str]]] = {
     "administrator": ("Administrator", set(SYSTEM_PERMISSIONS)),
     "approver": (
-        "Approver",
+        "Manager / Approver",
         {
             "report:create",
             "report:read",
@@ -69,6 +69,17 @@ SYSTEM_ROLES: dict[str, tuple[str, set[str]]] = {
             "vendor:read",
             "notification:read",
             "comment:create",
+            "comment:read",
+        },
+    ),
+    "finance": (
+        "Finance",
+        {
+            "report:read",
+            "payment:manage",
+            "category:read",
+            "vendor:read",
+            "notification:read",
             "comment:read",
         },
     ),
@@ -194,7 +205,11 @@ def list_roles(db: Session) -> list[dict[str, str]]:
     ensure_system_roles_and_permissions(db)
     roles = db.scalars(
         select(Role)
-        .where(Role.is_deleted.is_(False), Role.is_active.is_(True))
+        .where(
+            Role.code.in_(SYSTEM_ROLES),
+            Role.is_deleted.is_(False),
+            Role.is_active.is_(True),
+        )
         .order_by(Role.name)
     ).all()
     return [{"code": role.code, "name": role.name} for role in roles]
@@ -204,6 +219,9 @@ def _active_role_records(db: Session, role_codes: Iterable[str]) -> list[Role]:
     codes = sorted({code.strip().lower() for code in role_codes if code.strip()})
     if not codes:
         raise UserServiceError("at least one role is required")
+    unsupported = sorted(set(codes) - set(SYSTEM_ROLES))
+    if unsupported:
+        raise UserServiceError(f"Unsupported role: {', '.join(unsupported)}")
 
     roles = db.scalars(
         select(Role).where(
@@ -380,9 +398,32 @@ def user_response(db: Session, user: User) -> dict[str, object]:
         # Never expose Clerk's subject.  Administrators only need to know
         # whether their email allowlist entry has completed first sign-in.
         "oauth_status": "linked" if user.external_auth_subject else "invited",
+        "organization_id": str(user.organization_id),
+        "organization_name": user.organization.name if user.organization and not user.organization.is_deleted else None,
+        "organization_code": user.organization.code if user.organization and not user.organization.is_deleted else None,
+        "department_id": str(user.department_id),
+        "department_name": user.department.name if user.department and not user.department.is_deleted else None,
         "manager_id": str(user.manager_user_id) if user.manager_user_id else None,
         "manager_name": manager.full_name if manager and not manager.is_deleted else None,
     }
+
+
+def validate_user_creation(
+    db: Session,
+    *,
+    organization_id: uuid.UUID,
+    email: str,
+    role_codes: Iterable[str],
+    manager_id: uuid.UUID | None,
+) -> None:
+    """Validate all local prerequisites before sending a Clerk invitation."""
+
+    ensure_system_roles_and_permissions(db)
+    normalized_email = email.lower()
+    if _email_exists(db, organization_id, normalized_email):
+        raise UserServiceError("A user with that email already exists", 409)
+    _active_role_records(db, role_codes)
+    _validate_manager(db, organization_id, manager_id)
 
 
 def create_user(
@@ -397,11 +438,14 @@ def create_user(
     password: str | None = None,
     external_auth_subject: str | None = None,
 ) -> dict[str, object]:
-    ensure_system_roles_and_permissions(db)
+    validate_user_creation(
+        db,
+        organization_id=organization_id,
+        email=email,
+        role_codes=role_codes,
+        manager_id=manager_id,
+    )
     normalized_email = email.lower()
-    if _email_exists(db, organization_id, normalized_email):
-        raise UserServiceError("A user with that email already exists", 409)
-    _validate_manager(db, organization_id, manager_id)
 
     user = User(
         organization_id=organization_id,

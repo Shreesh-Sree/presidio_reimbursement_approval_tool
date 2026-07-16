@@ -100,9 +100,11 @@ export function UserForm({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
-        <DialogTitle>{isEditing ? "Edit allowlist user" : "Add user to allowlist"}</DialogTitle>
+        <DialogTitle>{isEditing ? "Edit user" : "Invite user"}</DialogTitle>
         <DialogDescription>
-          This grants the specified work email access through OAuth. Assign one or more roles and, when applicable, an approver as the reporting manager.
+          {isEditing
+            ? "Update roles and reporting ownership for this user."
+            : "This creates a pending Clerk invitation and the application access record together. The recipient completes access by accepting the email invitation."}
         </DialogDescription>
         <Form
           className="mt-5"
@@ -136,7 +138,7 @@ export function UserForm({
 
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-slate-900 dark:text-slate-100">Roles</legend>
-            <p className="text-sm text-slate-600 dark:text-slate-300">A manager can also retain their employee role.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">There are four roles. A manager can also retain their employee role.</p>
             <div className="grid gap-2 sm:grid-cols-3">
               {roles.map((role) => {
                 const roleId = `user-role-${role.code}`;
@@ -170,6 +172,11 @@ export function UserForm({
                 </option>
               ))}
             </Select>
+            {managerCandidates.length === 0 && (
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                No reporting managers yet. Create an active user with the Manager / Approver role first, then assign them here.
+              </p>
+            )}
           </FormField>
 
           {validationMessage && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">{validationMessage}</p>}
@@ -178,7 +185,7 @@ export function UserForm({
           <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
             <Button disabled={isPending} onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>
             <Button disabled={isPending || roles.length === 0} type="submit">
-              {isPending ? "Saving…" : isEditing ? "Save changes" : "Add to allowlist"}
+              {isPending ? "Saving…" : isEditing ? "Save changes" : "Send Clerk invitation"}
             </Button>
           </div>
         </Form>

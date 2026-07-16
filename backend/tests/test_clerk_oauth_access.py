@@ -16,6 +16,7 @@ from app.core.clerk import (
 )
 from app.core.config import Settings
 from app.models.user import User
+from app.services.clerk_provisioning_service import ClerkInvitation
 
 
 def _clerk_settings(*, super_admin_email: str = "owner@example.com") -> Settings:
@@ -46,11 +47,18 @@ def _mock_clerk_identity(monkeypatch, identity: ClerkIdentity, settings: Setting
 
 
 def test_configured_super_admin_is_provisioned_on_first_verified_oauth_login(client, db, monkeypatch):
+    import app.api.routes.users as users_routes
+
     settings = _clerk_settings()
     _mock_clerk_identity(
         monkeypatch,
         ClerkIdentity(subject="user_owner", email="owner@example.com"),
         settings,
+    )
+    monkeypatch.setattr(
+        users_routes.clerk_provisioning_service,
+        "invite_user",
+        lambda **kwargs: ClerkInvitation(id="inv_test", email=kwargs["email"]),
     )
 
     response = client.get("/api/auth/me", headers=_oauth_headers())

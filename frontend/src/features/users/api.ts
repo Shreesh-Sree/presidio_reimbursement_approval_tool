@@ -11,6 +11,12 @@ export type ManagedUser = {
   full_name: string;
   status: string;
   roles: string[];
+  oauth_status?: "invited" | "linked";
+  organization_id?: string;
+  organization_name?: string | null;
+  organization_code?: string | null;
+  department_id?: string;
+  department_name?: string | null;
   manager_id?: string | null;
   manager_name?: string | null;
 };

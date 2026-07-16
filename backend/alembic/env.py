@@ -6,7 +6,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.core.config import get_settings
 from app.core.database import Base
 import app.models  # noqa: F401 - register every mapped table for migration metadata
 
@@ -17,8 +16,24 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+
+def _database_url() -> str:
+    """Read only the migration dependency, without constructing app Settings.
+
+    Alembic runs before the API process.  Requiring authentication, mail, or
+    AI configuration here can block a perfectly valid schema migration.
+    """
+
+    value = os.environ.get("DATABASE_URL", "").strip()
+    if value:
+        return value
+    value = config.get_main_option("sqlalchemy.url").strip()
+    if value:
+        return value
+    raise RuntimeError("DATABASE_URL is required to run database migrations")
+
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    url = _database_url()
     context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
     
     with context.begin_transaction():
@@ -26,9 +41,8 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    settings = get_settings()
     configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = settings.database_url
+    configuration["sqlalchemy.url"] = _database_url()
     
     connectable = engine_from_config(
         configuration,

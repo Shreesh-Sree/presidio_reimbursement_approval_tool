@@ -38,12 +38,7 @@
       "Resource": [
         "arn:aws:iam::366731215001:role/presidio-apprunner-runtime",
         "arn:aws:iam::366731215001:role/presidio-apprunner-ecr-access"
-      ],
-      "Condition": {
-        "StringEquals": {
-          "iam:PassedToService": "apprunner.amazonaws.com"
-        }
-      }
+      ]
     }
   ]
 }

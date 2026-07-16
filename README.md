@@ -1,8 +1,8 @@
 # Reimbursement Tool — Intern Capstone Project
 
-Reimbursement Tool is an **intern capstone project** for managing employee expense reimbursements. It includes report submission, approvals, payment exports, audit logging, OCR, and policy-aware AI assistance.
+Reimbursement Tool is an **intern capstone project** that I built during my internship at Presidio. It helps manage employee expense reimbursements through report submission, approvals, payment exports, audit logging, OCR, and policy-aware AI assistance.
 
-This repository is an educational project and portfolio demonstration, not a claim of a certified or production-operated financial service. Its architecture and implementation explore the engineering practices that would be required for such a system.
+This repository documents the project, its architecture, and the workflows it demonstrates.
 
 One core design principle guides the project: automation can advise, extract, classify, and explain; only the core workflow is designed to approve, reject, pay, or change financial records.
 

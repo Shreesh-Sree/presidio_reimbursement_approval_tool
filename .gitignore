@@ -23,6 +23,7 @@ awscliv2.zip
 # Local agent/tool state and environment-specific deployment links.
 .claude/
 CLAUDE.md
+.agents/
 .neon
 .local-storage/
 deployment/terraform/backend.hcl

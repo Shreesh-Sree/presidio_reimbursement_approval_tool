@@ -290,3 +290,135 @@ class SQLitePolicyStore:
             return {"policy_documents", "policy_chunks"}.issubset(tables)
         except sqlite3.Error:
             return False
+
+
+class AppwritePolicyStore:
+    """Tenant-scoped vector-like store backed by private Appwrite Tables."""
+
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        project_id: str,
+        api_key: str,
+        database_id: str,
+        documents_table_id: str,
+        chunks_table_id: str,
+    ) -> None:
+        from appwrite.client import Client
+        from appwrite.services.tables_db import TablesDB
+
+        client = Client()
+        client.set_endpoint(endpoint)
+        client.set_project(project_id)
+        client.set_key(api_key)
+        self.client = TablesDB(client)
+        self.database_id = database_id
+        self.documents_table_id = documents_table_id
+        self.chunks_table_id = chunks_table_id
+
+    @staticmethod
+    def _scope_queries(tenant_ref: str, policy_version_ref: str, document_ref: str | None = None) -> list[str]:
+        from appwrite.query import Query
+
+        queries = [
+            Query.equal("tenant_ref", [tenant_ref]),
+            Query.equal("policy_version_ref", [policy_version_ref]),
+        ]
+        if document_ref is not None:
+            queries.append(Query.equal("document_ref", [document_ref]))
+        return queries
+
+    @staticmethod
+    def _document_row_id(tenant_ref: str, policy_version_ref: str, document_ref: str) -> str:
+        material = f"{tenant_ref}\x00{policy_version_ref}\x00{document_ref}".encode("utf-8")
+        return f"doc-{hashlib.sha256(material).hexdigest()[:32]}"
+
+    def replace_document(
+        self,
+        *,
+        tenant_ref: str,
+        policy_version_ref: str,
+        document_ref: str,
+        content_digest: str,
+        injection_flags: tuple[str, ...],
+        chunks: Sequence[IndexedChunk],
+    ) -> None:
+        scope = self._scope_queries(tenant_ref, policy_version_ref, document_ref)
+        self.client.delete_rows(self.database_id, self.chunks_table_id, queries=scope)
+        self.client.delete_rows(self.database_id, self.documents_table_id, queries=scope)
+        self.client.create_row(
+            self.database_id,
+            self.documents_table_id,
+            self._document_row_id(tenant_ref, policy_version_ref, document_ref),
+            {
+                "tenant_ref": tenant_ref,
+                "policy_version_ref": policy_version_ref,
+                "document_ref": document_ref,
+                "content_digest": content_digest,
+                "injection_flags_json": json.dumps(injection_flags),
+            },
+            permissions=[],
+        )
+        for index, chunk in enumerate(chunks):
+            self.client.create_row(
+                self.database_id,
+                self.chunks_table_id,
+                chunk.chunk_id,
+                {
+                    "tenant_ref": chunk.tenant_ref,
+                    "policy_version_ref": chunk.policy_version_ref,
+                    "document_ref": chunk.document_ref,
+                    "chunk_index": index,
+                    "chunk_text": chunk.text,
+                    "embedding_json": json.dumps(chunk.embedding),
+                },
+                permissions=[],
+            )
+
+    def search(
+        self,
+        *,
+        tenant_ref: str,
+        policy_version_ref: str,
+        query_embedding: Sequence[float],
+        top_k: int,
+        minimum_similarity: float,
+    ) -> tuple[RetrievedChunk, ...]:
+        from appwrite.query import Query
+
+        result = self.client.list_rows(
+            self.database_id,
+            self.chunks_table_id,
+            queries=[*self._scope_queries(tenant_ref, policy_version_ref), Query.limit(100)],
+            total=False,
+            ttl=0,
+        )
+        matches: list[RetrievedChunk] = []
+        for row in result.rows:
+            data = row.data
+            similarity = cosine_similarity(query_embedding, json.loads(data["embedding_json"]))
+            if similarity >= minimum_similarity:
+                matches.append(
+                    RetrievedChunk(
+                        chunk_id=row.id,
+                        tenant_ref=data["tenant_ref"],
+                        policy_version_ref=data["policy_version_ref"],
+                        document_ref=data["document_ref"],
+                        text=data["chunk_text"],
+                        similarity=similarity,
+                    )
+                )
+        matches.sort(key=lambda match: (-match.similarity, match.chunk_id))
+        return tuple(matches[:top_k])
+
+    def is_ready(self) -> bool:
+        try:
+            from appwrite.query import Query
+
+            self.client.list_rows(
+                self.database_id, self.chunks_table_id, queries=[Query.limit(1)], total=False, ttl=0
+            )
+            return True
+        except Exception:
+            return False

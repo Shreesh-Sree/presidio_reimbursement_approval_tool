@@ -56,12 +56,26 @@ wheels = [
 ]
 
 [[package]]
+name = "appwrite"
+version = "22.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/a4/78a122da22c8444e950be945a736f1b2279c3588b27b698e1fec078c6a4c/appwrite-22.0.0.tar.gz", hash = "sha256:a0148fe78dd4aacd1ce98931288e8699188776631a1292b4823c93e163c85b01", size = 176851, upload-time = "2026-07-13T07:59:51.632Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6f/9b/8fb63502194c7f302c76809526382908690f91e150a38b080cc79de6c742/appwrite-22.0.0-py3-none-any.whl", hash = "sha256:04e857b4e745bc06a060617d7b272e155d0abf37454aff518dda8074eaa9e0a5", size = 313132, upload-time = "2026-07-13T07:59:50.226Z" },
+]
+
+[[package]]
 name = "backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiosmtplib" },
     { name = "alembic" },
+    { name = "appwrite" },
     { name = "bcrypt" },
     { name = "boto3" },
     { name = "email-validator" },
@@ -93,6 +107,7 @@ dev = [
 requires-dist = [
     { name = "aiosmtplib", specifier = ">=5.1.2" },
     { name = "alembic", specifier = ">=1.18.5" },
+    { name = "appwrite", specifier = ">=13.0.0" },
     { name = "bcrypt", specifier = ">=5.0.0" },
     { name = "boto3", specifier = ">=1.43.48" },
     { name = "email-validator", specifier = ">=2.3.0" },

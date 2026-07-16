@@ -1,6 +1,6 @@
-# Presidio Reimbursement — Intern Capstone Project
+# Reimbursement Tool — Intern Capstone Project
 
-Presidio is an India-first reimbursement-management **intern capstone project**. It demonstrates a full-stack approach to employee expense submission, multi-level approval, payment-ready exports, audit logging, OCR, and policy-aware AI assistance.
+Reimbursement Tool is an India-first reimbursement-management **intern capstone project**. It demonstrates a full-stack approach to employee expense submission, multi-level approval, payment-ready exports, audit logging, OCR, and policy-aware AI assistance.
 
 This repository is an educational project and portfolio demonstration, not a claim of a certified or production-operated financial service. Its architecture and implementation explore the engineering practices that would be required for such a system.
 
@@ -41,7 +41,7 @@ One core design principle guides the project: automation can advise, extract, cl
 - Multi-stage approval, delegated approvals, SLA tracking, comments, notifications, and audit exports.
 - Receipt OCR with low-confidence, unsupported-PDF, and unavailable-service states.
 - Policy document ingestion plus a retrieval-augmented assistant that answers from approved policy evidence with citations.
-- Custom React UI using Tailwind, Radix primitives, Phosphor icons, and the orange/pink Presidio design system.
+- Custom React UI using Tailwind, Radix primitives, Phosphor icons, and an orange/pink design system.
 
 ## Architecture
 
@@ -111,7 +111,7 @@ Each service owns its own `pyproject.toml`, lockfile, Dockerfile, environment ex
 
 ## Roles and reporting hierarchy
 
-Presidio deliberately exposes exactly four application roles. Roles are additive: a reporting manager normally has both Employee and Manager / Approver roles.
+The tool deliberately exposes exactly four application roles. Roles are additive: a reporting manager normally has both Employee and Manager / Approver roles.
 
 | Role | Typical responsibility | Key permissions |
 | --- | --- | --- |
@@ -303,7 +303,7 @@ flowchart LR
 
 1. Confirm the administrator has `user:create`.
 2. Confirm `CLERK_SECRET_KEY` is present on the core API runtime.
-3. Confirm the email is not already an active Presidio user or pending Clerk invitation.
+3. Confirm the email is not already an active Reimbursement Tool user or pending Clerk invitation.
 4. If rate limited, wait for Clerk’s `Retry-After` period; invitation APIs have instance limits.
 
 ### A user does not appear as a reporting-manager option

@@ -34,7 +34,7 @@ code, pre, .font-mono { font-family: "DM Mono", "JetBrains Mono", ui-monospace, 
 .advisor-label { align-items:center; display:flex; font-size:13px; font-weight:800; gap:7px; }.advisor-label .service-tag { margin-left:2px; }
 
 /* Dark-mode utility surfaces are deliberately neutral. Tailwind's slate
-   shades have a blue cast, which conflicts with Presidio's orange/pink system. */
+   shades have a blue cast, which conflicts with the tool's orange/pink system. */
 :root.dark .bg-slate-950,:root.dark .bg-slate-900 { background-color:#202020 !important; }
 :root.dark .bg-slate-800 { background-color:#302927 !important; }
 :root.dark .bg-slate-700 { background-color:#463b37 !important; }

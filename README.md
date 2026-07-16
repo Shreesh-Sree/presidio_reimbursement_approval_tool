@@ -1,8 +1,10 @@
-# Presidio Reimbursement Platform
+# Reimbursement Tool — Intern Capstone Project
 
-Presidio is an India-first, production-oriented reimbursement platform for organisations that need controlled employee expense submission, multi-level approval, payment-ready exports, and a defensible audit trail.
+Reimbursement Tool is an **intern capstone project** that I built during my internship at Presidio. It helps manage employee expense reimbursements through report submission, approvals, payment exports, audit logging, OCR, and policy-aware AI assistance.
 
-It is designed around one important boundary: automation can advise, extract, classify, and explain; only the core workflow may approve, reject, pay, or change financial records.
+This repository documents the project, its architecture, and the workflows it demonstrates.
+
+One core design principle guides the project: automation can advise, extract, classify, and explain; only the core workflow is designed to approve, reject, pay, or change financial records.
 
 ## Contents
 
@@ -16,7 +18,7 @@ It is designed around one important boundary: automation can advise, extract, cl
 - [Local development](#local-development)
 - [Configuration and secrets](#configuration-and-secrets)
 - [Testing and quality gates](#testing-and-quality-gates)
-- [Deployment and release flow](#deployment-and-release-flow)
+- [Demonstration deployment flow](#demonstration-deployment-flow)
 - [Operations and troubleshooting](#operations-and-troubleshooting)
 - [Security model](#security-model)
 
@@ -39,7 +41,7 @@ It is designed around one important boundary: automation can advise, extract, cl
 - Multi-stage approval, delegated approvals, SLA tracking, comments, notifications, and audit exports.
 - Receipt OCR with low-confidence, unsupported-PDF, and unavailable-service states.
 - Policy document ingestion plus a retrieval-augmented assistant that answers from approved policy evidence with citations.
-- Custom React UI using Tailwind, Radix primitives, Phosphor icons, and the orange/pink Presidio design system.
+- Custom React UI using Tailwind, Radix primitives, Phosphor icons, and an orange/pink design system.
 
 ## Architecture
 
@@ -84,12 +86,12 @@ flowchart LR
 
 ```text
 .
-├── frontend/                     React application deployed to Vercel
+├── frontend/                     React application (Vercel deployment target)
 │   ├── src/auth/                 Clerk session and permission adapter
 │   ├── src/components/           Shared design-system and application shell
 │   ├── src/features/             Feature-local pages, APIs, and tests
 │   └── e2e/                      Playwright browser coverage
-├── backend/                      Core FastAPI application deployed to AWS
+├── backend/                      Core FastAPI application (AWS deployment target)
 │   ├── app/api/                  HTTP routes and request schemas
 │   ├── app/services/             Workflow, export, storage, audit, and Clerk logic
 │   ├── app/models/               SQLAlchemy domain models
@@ -105,11 +107,11 @@ flowchart LR
 └── appwrite.config.json          Appwrite schema/storage definition; no credentials
 ```
 
-Each deployable service owns its own `pyproject.toml`, lockfile, Dockerfile, environment example, tests, and concise service README. Cross-service policies live at the repository root so that deployment boundaries remain obvious.
+Each service owns its own `pyproject.toml`, lockfile, Dockerfile, environment example, tests, and concise service README. Cross-service policies live at the repository root so that deployment boundaries remain obvious.
 
 ## Roles and reporting hierarchy
 
-Presidio deliberately exposes exactly four application roles. Roles are additive: a reporting manager normally has both Employee and Manager / Approver roles.
+The tool deliberately exposes exactly four application roles. Roles are additive: a reporting manager normally has both Employee and Manager / Approver roles.
 
 | Role | Typical responsibility | Key permissions |
 | --- | --- | --- |
@@ -268,9 +270,9 @@ cd receipt_intelligence_service && uv run pytest -q
 cd policy_assistant_service && uv run pytest -q
 ```
 
-CI runs the backend, frontend, all three microservices, Terraform formatting/validation, CodeQL, and gitleaks. Pull requests cannot merge until required checks pass. Playwright contains browser smoke coverage; authenticated production journeys should be run with an invitation-only test identity.
+CI runs the backend, frontend, all three microservices, Terraform formatting/validation, CodeQL, and gitleaks. Pull requests cannot merge until required checks pass. Playwright contains browser smoke coverage; authenticated demonstration journeys should be run with an invitation-only test identity.
 
-## Deployment and release flow
+## Demonstration deployment flow
 
 ```mermaid
 flowchart LR
@@ -283,9 +285,9 @@ flowchart LR
     Vercel --> Verify[Health checks and Playwright smoke]
 ```
 
-`main` is the release branch. The production workflow uses GitHub OIDC for AWS, so it does not need persistent AWS access keys. It deliberately runs Alembic from `DATABASE_URL` alone; database migrations do not depend on JWT or browser-auth settings.
+`main` is the integration branch for this capstone. The demonstration workflow uses GitHub OIDC for AWS, so it does not need persistent AWS access keys. It deliberately runs Alembic from `DATABASE_URL` alone; database migrations do not depend on JWT or browser-auth settings.
 
-### Production topology
+### Demonstration topology
 
 - Frontend: Vercel (`presidio.algoqx.tech`)
 - Core API and advisory services: AWS App Runner in `ap-south-1`
@@ -301,7 +303,7 @@ flowchart LR
 
 1. Confirm the administrator has `user:create`.
 2. Confirm `CLERK_SECRET_KEY` is present on the core API runtime.
-3. Confirm the email is not already an active Presidio user or pending Clerk invitation.
+3. Confirm the email is not already an active Reimbursement Tool user or pending Clerk invitation.
 4. If rate limited, wait for Clerk’s `Retry-After` period; invitation APIs have instance limits.
 
 ### A user does not appear as a reporting-manager option
@@ -318,7 +320,7 @@ Confirm `NEON_DATABASE_URL` is configured in GitHub Actions. Alembic intentional
 
 ### A browser still shows the old UI
 
-Wait for the Vercel production deployment tied to the merged `main` commit, then perform a hard refresh. Preview deployments do not replace the production alias until the production workflow completes.
+Wait for the Vercel deployment tied to the merged `main` commit, then perform a hard refresh. Preview deployments do not replace the configured alias until the workflow completes.
 
 ## Security model
 
@@ -328,7 +330,7 @@ Wait for the Vercel production deployment tied to the merged `main` commit, then
 - Documents are private, and advisory microservices receive narrow, purpose-specific requests.
 - Audit events record administration, approval, and payment-export activity.
 - CI scans committed history for secrets and validates infrastructure configuration.
-- Production credentials are stored in managed secret systems, never in Git or frontend bundles.
+- Demonstration/deployment credentials are stored in managed secret systems, never in Git or frontend bundles.
 
 ## Contributing
 
@@ -338,4 +340,4 @@ Wait for the Vercel production deployment tied to the merged `main` commit, then
 4. Run the relevant local checks before opening a PR.
 5. Keep commits focused and use rebase merges to preserve linear history.
 
-For production changes, verify both the GitHub Actions deployment and the Vercel deployment before treating a release as complete.
+For capstone deployment changes, verify both the GitHub Actions deployment and the Vercel deployment before treating the demonstration build as complete.

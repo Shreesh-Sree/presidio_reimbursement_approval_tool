@@ -10,6 +10,7 @@ function labelForStatus(status: string) {
 }
 
 function labelForRole(role: string) {
+  if (role === "approver") return "Manager / Approver";
   return role.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
@@ -63,27 +64,27 @@ export function UsersPage() {
         <div>
           <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Administration</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Users and reporting lines</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Allowlist work emails for OAuth sign-in, manage access roles, and assign each employee to their reporting manager.</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Invite work emails through Clerk, manage the four platform roles, and maintain the reporting structure.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <label className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-[#202020] bg-white px-5 py-2.5 text-sm font-bold text-[#202020] dark:border-white dark:bg-[#202020] dark:text-white">
             <input accept=".csv,text/csv" className="sr-only" onChange={(event) => setBulkFile(event.target.files?.[0] ?? null)} type="file" />
             {bulkFile ? bulkFile.name : "Choose CSV"}
           </label>
-          <Button disabled={!bulkFile || bulkCreate.isPending} onClick={() => bulkFile && bulkCreate.mutate(bulkFile)} variant="outline">{bulkCreate.isPending ? "Importing…" : "Bulk allowlist"}</Button>
-          <Button disabled={roles.isLoading || roles.isError} onClick={openCreate}>Allowlist user</Button>
+          <Button disabled={!bulkFile || bulkCreate.isPending} onClick={() => bulkFile && bulkCreate.mutate(bulkFile)} variant="outline">{bulkCreate.isPending ? "Inviting…" : "Bulk invite"}</Button>
+          <Button disabled={roles.isLoading || roles.isError} onClick={openCreate}>Invite user</Button>
         </div>
       </header>
 
       {users.isLoading && <LoadingState label="Loading users" />}
       {users.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load users.</p>}
       {roles.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load available roles.</p>}
-      {bulkCreate.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700" role="alert">Bulk import failed. Use a CSV with email, full_name, and semicolon-separated roles columns.</p>}
-      {bulkCreate.data && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-800">Imported {bulkCreate.data.created_count} user(s); {bulkCreate.data.error_count} row(s) need review.</p>}
+      {bulkCreate.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700" role="alert">Bulk invite failed. Use a CSV with email, full_name, and semicolon-separated roles columns.</p>}
+      {bulkCreate.data && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-800">Invited {bulkCreate.data.created_count} user(s); {bulkCreate.data.error_count} row(s) need review.</p>}
 
       {users.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-          No work emails have been allowlisted yet.
+          No users have been invited yet.
         </div>
       )}
 
@@ -92,6 +93,8 @@ export function UsersPage() {
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-900">
               <th className="px-4 py-3 font-medium">User</th>
+              <th className="px-4 py-3 font-medium">Organisation</th>
+              <th className="px-4 py-3 font-medium">Department</th>
               <th className="px-4 py-3 font-medium">Roles</th>
               <th className="px-4 py-3 font-medium">Reporting manager</th>
               <th className="px-4 py-3 font-medium">Status</th>
@@ -107,6 +110,11 @@ export function UsersPage() {
                     <p className="font-medium text-slate-950 dark:text-white">{user.full_name}</p>
                     <p className="text-slate-600 dark:text-slate-300">{user.email}</p>
                   </td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+                    <p className="font-medium">{user.organization_name ?? "Organisation unavailable"}</p>
+                    {user.organization_code && <p className="text-xs text-slate-500 dark:text-slate-400">{user.organization_code}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{user.department_name ?? "General"}</td>
                   <td className="px-4 py-3">
                     <div className="flex min-w-40 flex-wrap gap-1">
                       {user.roles.length > 0 ? user.roles.map((role) => (
@@ -121,6 +129,7 @@ export function UsersPage() {
                     <span className={isActive ? "rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-950 dark:text-orange-300" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"}>
                       {labelForStatus(user.status)}
                     </span>
+                    {user.oauth_status === "invited" && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Clerk invitation pending</p>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap justify-end gap-2">

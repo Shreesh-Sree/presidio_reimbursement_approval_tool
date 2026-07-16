@@ -26,7 +26,8 @@ const managedUsers: ManagedUser[] = [
 
 const roles: RoleOption[] = [
   { code: "employee", name: "Employee" },
-  { code: "approver", name: "Approver" },
+  { code: "approver", name: "Manager / Approver" },
+  { code: "finance", name: "Finance" },
   { code: "administrator", name: "Administrator" },
 ];
 
@@ -49,18 +50,18 @@ describe("UsersPage", () => {
     vi.spyOn(userAdminApi, "deactivate").mockResolvedValue({ ...managedUsers[0], status: "inactive" });
   });
 
-  it("allowlists a user with multiple roles and a reporting manager", async () => {
+  it("invites a user with multiple roles and a reporting manager", async () => {
     const user = userEvent.setup();
     const create = vi.mocked(userAdminApi.create);
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: /allowlist user/i }));
+    await user.click(await screen.findByRole("button", { name: /invite user/i }));
     await user.type(screen.getByLabelText(/^full name$/i), "Priya Patel");
     await user.type(screen.getByLabelText(/^email$/i), "priya@example.com");
-    await user.click(screen.getByRole("checkbox", { name: "Approver" }));
+    await user.click(screen.getByRole("checkbox", { name: "Manager / Approver" }));
     await user.click(screen.getByLabelText(/reporting manager/i));
     await user.click(screen.getByRole("option", { name: /Morgan Manager/i }));
-    await user.click(screen.getByRole("button", { name: /add to allowlist/i }));
+    await user.click(screen.getByRole("button", { name: /send clerk invitation/i }));
 
     await waitFor(() => {
       expect(create).toHaveBeenCalledWith({

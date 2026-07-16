@@ -49,7 +49,7 @@ locals {
     AI_REVIEW_LOCAL_WORKER_MAX_CONCURRENCY     = "1"
     AI_REVIEW_LOCAL_WORKER_RETRY_DELAY_SECONDS = "0.25"
     AI_REVIEW_JOB_MAX_ATTEMPTS                 = "3"
-    AI_REVIEW_PROVIDER                          = var.ai_review_provider
+    AI_REVIEW_PROVIDER                         = var.ai_review_provider
     AI_REVIEW_GEMINI_API_KEY                   = var.gemini_api_key
     AI_REVIEW_GEMINI_MODEL                     = "gemini-2.5-flash"
     AI_REVIEW_GROQ_API_KEY                     = var.groq_api_key

@@ -32,7 +32,7 @@ export function NotificationFeed({ notifications }: NotificationFeedProps) {
         return (
           <li key={notification.id}>
             <button
-              className={unread ? "w-full bg-indigo-50 px-4 py-3 text-left transition hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/60" : "w-full px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"}
+              className={unread ? "w-full bg-orange-50 px-4 py-3 text-left transition hover:bg-orange-100 dark:bg-orange-950/40 dark:hover:bg-orange-950/60" : "w-full px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"}
               disabled={markRead.isPending}
               onClick={() => {
                 if (unread) markRead.mutate(notification.id);
@@ -40,7 +40,7 @@ export function NotificationFeed({ notifications }: NotificationFeedProps) {
               type="button"
             >
               <span className="flex items-start gap-2">
-                {unread && <span aria-label="Unread" className="mt-1.5 size-2 shrink-0 rounded-full bg-indigo-600 dark:bg-indigo-400" />}
+                {unread && <span aria-label="Unread" className="mt-1.5 size-2 shrink-0 rounded-full bg-orange-600 dark:bg-orange-400" />}
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-slate-950 dark:text-white">{notification.title}</span>
                   {notification.body && <span className="mt-1 block text-sm text-slate-600 dark:text-slate-300">{notification.body}</span>}

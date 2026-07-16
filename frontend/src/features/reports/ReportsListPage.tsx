@@ -64,7 +64,7 @@ export function ReportsListPage() {
       </div>
 
       {reports.isLoading && <LoadingState label="Loading reports" />}
-      {reports.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load reports.</p>}
+      {reports.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load reports.</p>}
       {reports.data?.length === 0 && <p className="rounded-2xl border border-dashed border-[#202020]/30 p-8 text-center text-sm text-[#646464] dark:border-white/30 dark:text-white/70">No reports match this filter.</p>}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {reports.data?.map((report) => (
@@ -114,7 +114,7 @@ export function ReportsListPage() {
                 <Input id="new-report-end-date" min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} required type="date" value={endDate} />
               </FormField>
             </div>
-            {createReport.isError && <p className="text-sm text-rose-600">Unable to create this report.</p>}
+            {createReport.isError && <p className="text-sm text-orange-600">Unable to create this report.</p>}
             <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
               <Button onClick={() => setDialogOpen(false)} variant="outline">Cancel</Button>
               <Button disabled={createReport.isPending || title.trim() === "" || description.trim() === "" || !startDate || !endDate} type="submit">{createReport.isPending ? "Creating…" : "Create report"}</Button>

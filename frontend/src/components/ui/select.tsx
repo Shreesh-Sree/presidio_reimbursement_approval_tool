@@ -22,7 +22,7 @@ export function Select({ className, children, disabled, id, name, onChange, valu
     <SelectPrimitive.Root disabled={disabled} name={name} onValueChange={change} value={selectedValue}>
       <SelectPrimitive.Trigger
         className={cn(
-          "flex min-h-11 w-full items-center justify-between gap-3 rounded-full border border-[#202020]/20 bg-white px-5 py-2.5 text-left text-sm text-[#202020] outline-none transition focus:border-[#202020] focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-[#202020] dark:text-[#fcfcfc]",
+          "flex min-h-11 w-full items-center justify-between gap-3 rounded-full border border-[#202020]/20 bg-white px-5 py-2.5 text-left text-sm text-[#202020] outline-none transition focus:border-[#202020] focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-[#202020] dark:text-[#fcfcfc]",
           className,
         )}
         id={id}

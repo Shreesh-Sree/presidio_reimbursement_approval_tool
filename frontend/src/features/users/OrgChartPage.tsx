@@ -21,7 +21,7 @@ function OrgChartBranch({ node, level, ancestors }: { node: OrgChartNode; level:
           </div>
           <div className="flex flex-wrap gap-1">
             {node.roles.length > 0 ? node.roles.map((role) => (
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-200" key={role}>
+              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-950/50 dark:text-orange-200" key={role}>
                 {labelForRole(role)}
               </span>
             )) : <span className="text-xs text-slate-500 dark:text-slate-400">No roles assigned</span>}
@@ -50,13 +50,13 @@ export function OrgChartPage() {
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6">
       <header className="border-b border-slate-200 pb-5 dark:border-slate-800">
-        <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Administration</p>
+        <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Administration</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Organization chart</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">View reporting lines and the roles assigned to each person.</p>
       </header>
 
       {orgChart.isLoading && <LoadingState label="Loading organization chart" />}
-      {orgChart.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load the organization chart.</p>}
+      {orgChart.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load the organization chart.</p>}
       {orgChart.data?.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
           No reporting relationships have been configured yet.

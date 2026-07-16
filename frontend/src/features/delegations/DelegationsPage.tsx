@@ -58,7 +58,7 @@ export function DelegationsPage() {
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between dark:border-slate-800">
         <div>
-          <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Manager workspace</p>
+          <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Manager workspace</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Approval delegation</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">Assign a temporary, eligible approver while you are unavailable. The workflow keeps your name as the original approval owner.</p>
         </div>
@@ -71,7 +71,7 @@ export function DelegationsPage() {
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Only one overlapping approval delegation is allowed, so responsibility is always clear.</p>
         </div>
       {delegations.isLoading && <LoadingState label="Loading delegations" />}
-        {delegations.isError && <p className="rounded-lg bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-100">{getApiErrorMessage(delegations.error, "Unable to load delegations.")}</p>}
+        {delegations.isError && <p className="rounded-lg bg-orange-50 p-4 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-100">{getApiErrorMessage(delegations.error, "Unable to load delegations.")}</p>}
         {delegations.data?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No active delegation is configured.</p>}
         <div className="grid gap-4 md:grid-cols-2">
           {delegations.data?.map((delegation) => (
@@ -82,7 +82,7 @@ export function DelegationsPage() {
                   <h3 className="mt-1 font-semibold text-slate-950 dark:text-white">{delegation.delegate_name ?? "Eligible approver"}</h3>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{displayDate(delegation.start_date)} – {displayDate(delegation.end_date)}</p>
                 </div>
-                <span className="w-fit rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Active</span>
+                <span className="w-fit rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800 dark:bg-orange-950 dark:text-orange-200">Active</span>
               </div>
               <p className="mt-4 text-sm text-slate-700 dark:text-slate-200">Scope: {delegation.scope === "all" ? "All configured work" : "Approval tasks"}</p>
               {delegation.remarks && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{delegation.remarks}</p>}
@@ -110,7 +110,7 @@ export function DelegationsPage() {
                 {candidates.data?.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.full_name}</option>)}
               </Select>
               {candidates.isLoading && <p className="text-xs text-slate-500 dark:text-slate-400">Loading eligible approvers…</p>}
-              {candidates.isError && <p className="text-xs text-rose-600">Unable to load eligible approvers.</p>}
+              {candidates.isError && <p className="text-xs text-orange-600">Unable to load eligible approvers.</p>}
             </FormField>
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField>
@@ -133,7 +133,7 @@ export function DelegationsPage() {
               <Label htmlFor="delegation-remarks">Reason (optional)</Label>
               <Textarea id="delegation-remarks" maxLength={2000} onChange={(event) => setRemarks(event.target.value)} placeholder="e.g. Annual leave" value={remarks} />
             </FormField>
-            {create.isError && <p className="text-sm text-rose-600">{getApiErrorMessage(create.error, "Unable to save this delegation.")}</p>}
+            {create.isError && <p className="text-sm text-orange-600">{getApiErrorMessage(create.error, "Unable to save this delegation.")}</p>}
             <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
               <Button onClick={() => setDialogOpen(false)} variant="outline">Cancel</Button>
               <Button disabled={!canSave || create.isPending} type="submit">{create.isPending ? "Saving…" : "Save delegation"}</Button>

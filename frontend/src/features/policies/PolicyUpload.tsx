@@ -39,9 +39,9 @@ export function PolicyUpload({ policyId, currentDocumentUrl, onUploaded }: Polic
         </Button>
       </div>
       {currentDocumentUrl && (
-        <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-indigo-600 underline underline-offset-2 hover:bg-transparent dark:text-indigo-300" url={currentDocumentUrl}>View current document</AuthenticatedAttachmentLink>
+        <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-orange-600 underline underline-offset-2 hover:bg-transparent dark:text-orange-300" url={currentDocumentUrl}>View current document</AuthenticatedAttachmentLink>
       )}
-      {upload.isError && <p className="text-sm text-rose-600">Unable to upload the document. Please try again.</p>}
+      {upload.isError && <p className="text-sm text-orange-600">Unable to upload the document. Please try again.</p>}
     </div>
   );
 }

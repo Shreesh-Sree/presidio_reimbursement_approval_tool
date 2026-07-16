@@ -18,7 +18,7 @@ import {
 } from "../../lib/api";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 const periods = [3, 6, 12, 24];
-const colors = ["#ea2804", "#202020", "#b45d00", "#2b9a66"];
+const colors = ["#ea2804", "#c01f00", "#e56a2b", "#ffad86"];
 const money = ({ amount, currency }: CurrencyAmount) => {
   try {
     return new Intl.NumberFormat("en-US", {

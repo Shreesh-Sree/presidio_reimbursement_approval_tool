@@ -158,7 +158,7 @@ export function LineItemRow({
       </div>
 
       {violationReason && (
-        <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-950/40 dark:text-rose-100">
+        <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-800 dark:bg-orange-950/40 dark:text-orange-100">
           <span className="font-semibold">Policy violation:</span> {violationReason}
         </p>
       )}
@@ -176,7 +176,7 @@ export function LineItemRow({
             }}
           />
           {receiptUrl && (
-            <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-indigo-600 underline underline-offset-2 hover:bg-transparent dark:text-indigo-300" url={receiptUrl}>
+            <AuthenticatedAttachmentLink className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-orange-600 underline underline-offset-2 hover:bg-transparent dark:text-orange-300" url={receiptUrl}>
               View receipt{item.receipt?.file_name ? ` (${item.receipt.file_name})` : ""}
             </AuthenticatedAttachmentLink>
           )}

@@ -121,7 +121,7 @@ export function CategoriesPage() {
     <main className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6">
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
         <div>
-          <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Policy management</p>
+          <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Policy management</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Expense categories</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Organize categories into a hierarchy for policy rules and report line items.</p>
         </div>
@@ -129,7 +129,7 @@ export function CategoriesPage() {
       </header>
 
       {categories.isLoading && <LoadingState label="Loading categories" />}
-      {categories.isError && <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">Unable to load categories.</p>}
+      {categories.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load categories.</p>}
       {categories.data?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No categories have been created.</p>}
       <ul className="space-y-2" role="tree">
         {categoryTree(activeCategories).map((category) => (
@@ -191,7 +191,7 @@ export function CategoriesPage() {
               <Label htmlFor="category-description">Description</Label>
               <Input id="category-description" onChange={(event) => setValues((current) => ({ ...current, description: event.target.value }))} value={values.description} />
             </FormField>
-            {saveCategory.isError && <p className="text-sm text-rose-600">Unable to save this category.</p>}
+            {saveCategory.isError && <p className="text-sm text-orange-600">Unable to save this category.</p>}
             <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
               <Button onClick={() => setDialogOpen(false)} variant="outline">Cancel</Button>
               <Button disabled={saveCategory.isPending} type="submit">{saveCategory.isPending ? "Saving…" : "Save category"}</Button>

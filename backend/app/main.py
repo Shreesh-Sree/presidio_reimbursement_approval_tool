@@ -9,6 +9,7 @@ from app.core.observability import (
     SecurityHeadersMiddleware,
     configure_structured_logging,
 )
+from app.core.rate_limit import RateLimitMiddleware
 from app.api.routes import (
     analytics,
     approvals,
@@ -34,6 +35,7 @@ settings = get_settings()
 configure_structured_logging()
 app.add_middleware(RequestCorrelationMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware, enabled=settings.rate_limit_enabled)
 
 app.add_middleware(
     CORSMiddleware,

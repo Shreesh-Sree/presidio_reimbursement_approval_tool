@@ -43,13 +43,13 @@ az role assignment create \
   --assignee-object-id $SP_OBJECT_ID \
   --assignee-principal-type ServicePrincipal
 
-# Add federated credential for main branch
+# Add federated credential for azure-production environment
 az ad app federated-credential create \
   --id $APP_ID \
   --parameters "{
-    \"name\": \"github-main\",
+    \"name\": \"github-azure-production\",
     \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"repo:${GITHUB_ORG}/${GITHUB_REPO}:ref:refs/heads/main\",
+    \"subject\": \"repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:azure-production\",
     \"audiences\": [\"api://AzureADTokenExchange\"]
   }"
 

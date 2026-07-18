@@ -74,18 +74,17 @@ else
     echo "✓ Contributor role already assigned"
 fi
 
-# Add federated credential
-CRED_EXISTS=$(az ad app federated-credential list --id $APP_ID --query "[?name=='github-main'].name" -o tsv)
+CRED_EXISTS=$(az ad app federated-credential list --id $APP_ID --query "[?name=='github-azure-production'].name" -o tsv)
 if [ -z "$CRED_EXISTS" ]; then
     az ad app federated-credential create --id $APP_ID --parameters @- <<EOF
 {
-    "name": "github-main",
+    "name": "github-azure-production",
     "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:${GITHUB_ORG}/${GITHUB_REPO}:ref:refs/heads/main",
+    "subject": "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:azure-production",
     "audiences": ["api://AzureADTokenExchange"]
 }
 EOF
-    echo "✓ Federated credential created"
+    echo "✓ Federated credential created for environment:azure-production"
 else
     echo "✓ Federated credential already exists"
 fi

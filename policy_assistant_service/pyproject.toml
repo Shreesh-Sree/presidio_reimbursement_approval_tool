@@ -11,6 +11,8 @@ requires-python = ">=3.11"
 dependencies = [
     "appwrite>=22.0.0",
     "fastapi>=0.115",
+    "psycopg[binary]>=3.1",
+    "psycopg-pool>=3.1",
     "pydantic>=2.7",
     "pydantic-settings>=2.0",
     "uvicorn>=0.30",

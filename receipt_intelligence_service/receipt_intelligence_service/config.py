@@ -16,6 +16,7 @@ class ReceiptIntelligenceSettings(BaseSettings):
     )
 
     database_path: str = "var/receipt-intelligence.sqlite3"
+    database_url: str | None = Field(default=None, repr=False)
     service_token: str | None = Field(default=None, repr=False)
     max_file_bytes: int = Field(default=10 * 1024 * 1024, ge=1, le=100 * 1024 * 1024)
     max_text_chars: int = Field(default=24_000, ge=256, le=100_000)

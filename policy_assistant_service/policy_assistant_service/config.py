@@ -15,8 +15,9 @@ class PolicyAssistantSettings(BaseSettings):
         env_prefix="POLICY_ASSISTANT_", env_file=".env", extra="ignore"
     )
 
-    persistence_backend: Literal["sqlite", "appwrite"] = "sqlite"
+    persistence_backend: Literal["sqlite", "appwrite", "postgresql"] = "sqlite"
     database_path: str = "var/policy-assistant.sqlite3"
+    database_url: str | None = Field(default=None, repr=False)
     appwrite_endpoint: str | None = None
     appwrite_project_id: str | None = None
     appwrite_api_key: SecretStr | None = Field(default=None, repr=False)
@@ -60,6 +61,11 @@ class PolicyAssistantSettings(BaseSettings):
             )
             if not raw or lowered.startswith(forbidden_schemes) or ("://" in raw and not lowered.startswith("sqlite:///")):
                 raise ValueError("POLICY_ASSISTANT_DATABASE_PATH must be a local SQLite path")
+        elif self.persistence_backend == "postgresql":
+            if not self.database_url:
+                raise ValueError(
+                    "POLICY_ASSISTANT_DATABASE_URL is required when persistence_backend is 'postgresql'"
+                )
         else:
             missing = [
                 name for name, value in {

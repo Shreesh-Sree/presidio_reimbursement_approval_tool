@@ -2,7 +2,7 @@
 
 React, TypeScript, Tailwind, Radix UI primitives, and Phosphor icons power the employee, approver, finance, and administrator experience.
 
-Vercel hosts this application. Set `VITE_API_BASE_URL` to the HTTPS AWS API URL, plus Clerk's publishable key and JWT template. Do not put server secrets in frontend environment variables.
+Azure Static Web Apps hosts this application. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for authentication, and `VITE_API_BASE_URL` for the backend API. Do not put server secrets in frontend environment variables.
 
 ```bash
 npm install

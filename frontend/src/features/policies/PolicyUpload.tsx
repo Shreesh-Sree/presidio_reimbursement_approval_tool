@@ -26,7 +26,16 @@ export function PolicyUpload({ policyId, currentDocumentUrl, onUploaded }: Polic
 
   return (
     <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-4 dark:border-slate-700">
-      <Label htmlFor={`policy-document-${policyId}`}>Supporting policy document</Label>
+      <div className="flex items-center justify-between">
+        <Label htmlFor={`policy-document-${policyId}`}>Supporting policy document</Label>
+        <a
+          href="/templates/policy-template.md"
+          download="policy-template.md"
+          className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+        >
+          Download Template
+        </a>
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
           accept="application/pdf,.doc,.docx,.xls,.xlsx"

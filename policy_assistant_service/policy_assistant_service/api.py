@@ -135,7 +135,7 @@ def create_app(
     @protected.post("/ask", response_model=PolicyAskResponse)
     async def ask_policy(request: PolicyAskRequest) -> PolicyAskResponse:
         try:
-            return assistant.ask(request)
+            return await assistant.ask(request)
         except (UnsafeQuestionError, ValueError) as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
 

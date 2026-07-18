@@ -152,7 +152,7 @@ def create_app(
     async def analyze_receipt(request: ReceiptAnalysisRequest) -> ReceiptAnalysisResponse:
         """Analyze ephemeral caller metadata/text; suitable for a queue consumer callback."""
 
-        return intelligence_service.analyze(request)
+        return await intelligence_service.analyze(request)
 
     @app.post("/v1/ocr", response_model=OcrResponse, dependencies=[Depends(token_guard)])
     async def ocr_receipt(request: OcrRequest) -> OcrResponse:

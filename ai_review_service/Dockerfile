@@ -32,4 +32,4 @@ EXPOSE 8011
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8011/health')"]
 
-CMD ["sh", "-c", "uvicorn ai_review_service.api:create_app --factory --host 0.0.0.0 --port ${PORT:-8011}"]
+CMD ["python", "-m", "uvicorn", "ai_review_service.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8011"]

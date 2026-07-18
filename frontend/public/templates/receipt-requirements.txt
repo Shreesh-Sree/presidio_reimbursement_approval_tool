@@ -1,0 +1,45 @@
+RECEIPT REQUIREMENTS GUIDE
+=========================
+
+A valid receipt must include the following information:
+
+REQUIRED INFORMATION:
+---------------------
+✓ Merchant/Vendor Name
+✓ Date of Transaction
+✓ Itemized List of Purchases
+✓ Total Amount Paid
+✓ Payment Method (Cash, Credit Card, etc.)
+
+BEST PRACTICES:
+--------------
+• Use clear, legible images or scans
+• Ensure all text is readable
+• Include the entire receipt (don't crop important details)
+• For digital receipts, save as PDF when possible
+• File size should be under 10 MB
+• Supported formats: JPEG, PNG, PDF
+
+EXAMPLES OF VALID RECEIPTS:
+---------------------------
+- Restaurant bills with itemized food/drinks
+- Hotel folios showing room charges
+- Taxi/ride-share receipts with route details
+- Fuel receipts showing gallons and price per gallon
+- Office supply receipts with item descriptions
+- Conference/training registration confirmations
+
+INVALID RECEIPTS:
+----------------
+✗ Credit card slips without itemization
+✗ Handwritten notes without merchant info
+✗ Blurry or unreadable images
+✗ Partial receipts (cut off or cropped)
+✗ Receipts older than company policy allows
+
+If your receipt is missing required information, you may need to:
+1. Contact the merchant for a duplicate receipt
+2. Provide additional documentation (invoice, confirmation email)
+3. Submit an expense report explanation form
+
+For questions, contact your expense administrator.

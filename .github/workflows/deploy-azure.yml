@@ -195,6 +195,14 @@ jobs:
                   --resource-group "${{ env.RESOURCE_GROUP }}" \
                   --image "${{ env.ACR_LOGIN_SERVER }}/$image:${{ env.IMAGE_TAG }}" \
                   --output none; then
+                  # In multiple-revision mode, updating an image does not
+                  # necessarily move public traffic off the previous revision.
+                  # Route every deployment to the revision just created.
+                  az containerapp ingress traffic set \
+                    --name "$app" \
+                    --resource-group "${{ env.RESOURCE_GROUP }}" \
+                    --revision-weight latest=100 \
+                    --output none
                   echo "✓ $app deployed successfully"
                   break
                 else

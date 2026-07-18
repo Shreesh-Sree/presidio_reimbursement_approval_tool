@@ -11,6 +11,7 @@ from app.core.observability import (
 )
 from app.core.rate_limit import RateLimitMiddleware
 from app.api.routes import (
+    access_requests,
     analytics,
     approvals,
     attachments,
@@ -47,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(access_requests.router, prefix="/api")
 app.include_router(users.router)
 app.include_router(roles.router)
 app.include_router(org_chart.router)

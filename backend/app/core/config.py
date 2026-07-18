@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     email_delivery_enabled: bool = False
     smtp_use_tls: bool = False
     smtp_timeout_seconds: float = 10.0
+    azure_communication_connection_string: str = ""
+    azure_communication_sender: str = ""
     # Approval tasks are human work, so the default is deliberately measured
     # in days. A deployment can shorten this with APPROVAL_SLA_HOURS.
     approval_sla_hours: int = Field(default=72, ge=1, le=24 * 30)

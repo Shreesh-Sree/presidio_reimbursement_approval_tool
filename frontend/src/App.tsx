@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { RequirePermission } from "./auth/RequirePermission";
@@ -9,8 +9,12 @@ import { OAuthConfigurationPage } from "./features/auth/OAuthConfigurationPage";
 import { SignInPage } from "./features/auth/SignInPage";
 import { LumaSpin } from "./components/ui/luma-spin";
 
+// Prefetch critical chunks during auth resolution
+const appShellImport = () => import("./components/layout/AppShell");
+const reportsImport = () => import("./features/reports/ReportsListPage");
+
 const AppShell = lazy(async () => {
-  const module = await import("./components/layout/AppShell");
+  const module = await appShellImport();
   return { default: module.AppShell };
 });
 
@@ -40,7 +44,7 @@ const WorkflowRulesPage = lazy(async () => {
 });
 
 const ReportsListPage = lazy(async () => {
-  const module = await import("./features/reports/ReportsListPage");
+  const module = await reportsImport();
   return { default: module.ReportsListPage };
 });
 
@@ -80,6 +84,7 @@ const VendorsPage = lazy(async () => {
 });
 
 function RouteLoading() {
+  useEffect(() => { appShellImport(); reportsImport(); }, []);
   return <main className="route-loading"><LumaSpin label="Loading workspace" /><p>Preparing your workspace…</p></main>;
 }
 

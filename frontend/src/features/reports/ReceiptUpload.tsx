@@ -38,7 +38,16 @@ export function ReceiptUpload({ itemId, disabled = false, onUploadComplete }: Re
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={`receipt-${itemId}`}>Upload receipt</Label>
+      <div className="flex items-center justify-between">
+        <Label htmlFor={`receipt-${itemId}`}>Upload receipt</Label>
+        <a
+          href="/templates/receipt-requirements.txt"
+          download="receipt-requirements.txt"
+          className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+        >
+          Requirements Guide
+        </a>
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
           accept="image/*,application/pdf"

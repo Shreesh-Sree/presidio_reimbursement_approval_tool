@@ -406,8 +406,8 @@ const apiClient = axios.create({
 
 /**
  * The provider is supplied by the auth session hook, never persisted by
- * this application. Resolving it for every request lets the provider rotate its
- * short-lived JWT before we send it to the API.
+ * this application. Supabase auth events replace it when a short-lived JWT is
+ * rotated, so the interceptor never needs to block an API request on storage.
  */
 export type ApiTokenProvider = (options?: { forceRefresh?: boolean }) => Promise<string | null>;
 

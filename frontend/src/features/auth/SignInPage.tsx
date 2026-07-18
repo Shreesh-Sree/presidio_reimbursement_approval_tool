@@ -1,7 +1,7 @@
 import { supabase } from "../../auth/supabase";
 
 export function SignInPage() {
-  const redirectTo = `${window.location.origin}/sign-in`;
+  const redirectTo = `${window.location.origin}/reports`;
 
   const handleGoogle = async () => {
     await supabase.auth.signInWithOAuth({

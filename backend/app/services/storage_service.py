@@ -186,6 +186,45 @@ class S3Storage:
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
 
+
+
+class AzureBlobStorage:
+    """Azure Blob Storage backend for production file uploads."""
+
+    scheme = "azure://"
+
+    def __init__(self):
+        settings = get_settings()
+        conn_str = settings.azure_storage_connection_string
+        container = settings.azure_storage_container
+        if not conn_str or not container:
+            raise StorageError("Azure Blob Storage is not configured: set AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER")
+        try:
+            from azure.storage.blob import BlobServiceClient
+        except ImportError as exc:
+            raise StorageError("azure-storage-blob is required when STORAGE_BACKEND=azure") from exc
+        self.container_name = container
+        self.client = BlobServiceClient.from_connection_string(conn_str)
+        self.container_client = self.client.get_container_client(container)
+
+    def put(self, key: str, content: bytes) -> str:
+        self.container_client.upload_blob(name=key, data=content, overwrite=True)
+        return f"{self.scheme}{key}"
+
+    def read(self, storage_path: str) -> bytes:
+        key = storage_path.removeprefix(self.scheme)
+        try:
+            return self.container_client.download_blob(key).readall()
+        except Exception as exc:
+            raise StorageError("Uploaded file was not found in Azure Blob Storage") from exc
+
+    def delete(self, storage_path: str) -> None:
+        key = storage_path.removeprefix(self.scheme)
+        try:
+            self.container_client.delete_blob(key)
+        except Exception:
+            pass
+
 class AppwriteStorage:
     """Private Appwrite Storage adapter for production uploads."""
 
@@ -255,6 +294,8 @@ class AppwriteStorage:
 def _storage_for_path(storage_path: str):
     if storage_path.startswith("s3://"):
         return S3Storage()
+    if storage_path.startswith(AzureBlobStorage.scheme):
+        return AzureBlobStorage()
     if storage_path.startswith(AppwriteStorage.scheme):
         return AppwriteStorage()
     return LocalStorage()
@@ -266,9 +307,11 @@ def _active_storage():
         return LocalStorage()
     if backend == "s3":
         return S3Storage()
+    if backend == "azure":
+        return AzureBlobStorage()
     if backend == "appwrite":
         return AppwriteStorage()
-    raise StorageError("STORAGE_BACKEND must be one of 'local', 'appwrite', or 's3'")
+    raise StorageError("STORAGE_BACKEND must be one of 'local', 'azure', 'appwrite', or 's3'")
 
 
 def _storage_key(entity_type: str, entity_id: uuid.UUID, file_name: str) -> str:

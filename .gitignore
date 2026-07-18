@@ -28,6 +28,11 @@ CLAUDE.md
 .neon
 .local-storage/
 deployment/terraform/backend.hcl
+deployment/terraform-azure/.terraform/
+deployment/terraform-azure/terraform.tfstate
+deployment/terraform-azure/terraform.tfstate.backup
+deployment/terraform-azure/terraform.tfvars
+deployment/terraform-azure/.terraform.lock.hcl
 receipt_intelligence_service/.env
 .vercel
 secrets.txt

@@ -358,6 +358,17 @@ jobs:
           echo "::error::API health check failed after 5 attempts"
           exit 1
 
+      - name: Check access-requests route registration
+        run: |
+          # The listing endpoint requires authentication, so a healthy anonymous
+          # request must be rejected with 401/403 rather than returning 404.
+          status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/api/access-requests" || echo "000")
+          if [ "$status" != "401" ] && [ "$status" != "403" ]; then
+            echo "::error::Access-requests route is unavailable (status=$status)"
+            exit 1
+          fi
+          echo "Access-requests route is registered (status=$status)"
+
       - name: Check API readiness
         run: |
           status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/api/ready" || echo "000")

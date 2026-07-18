@@ -14,6 +14,7 @@ import {
   Storefront,
   Users,
   UserSwitch,
+  CheckSquare,
   X,
 } from "@phosphor-icons/react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -43,6 +44,7 @@ const navigation: readonly NavigationItem[] = [
   { to: "/vendors", label: "Vendors", permission: "vendor:manage", Icon: Storefront },
   { to: "/users", label: "Users", permission: "user:read", Icon: Users },
   { to: "/org-chart", label: "Org chart", permission: "user:read", Icon: GitBranch },
+  { to: "/admin/access-requests", label: "Access Requests", permission: "user:manage", Icon: CheckSquare },
 ];
 
 const sidebarStorageKey = "presidio.sidebar.collapsed";

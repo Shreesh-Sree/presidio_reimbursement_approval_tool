@@ -22,6 +22,7 @@ from app.models.payment_batch import PaymentBatch
 from app.models.payment_event import PaymentEvent
 from app.models.session import Session
 from app.models.workflow_rule import WorkflowRule
+from app.models.user_access_request import UserAccessRequest
 
 __all__ = [
     "Organization",
@@ -49,4 +50,5 @@ __all__ = [
     "PaymentEvent",
     "Session",
     "WorkflowRule",
+    "UserAccessRequest",
 ]

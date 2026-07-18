@@ -11,6 +11,7 @@ import {
   ListChecks,
   SidebarSimple,
   SignOut,
+  Storefront,
   Users,
   UserSwitch,
   X,
@@ -39,6 +40,7 @@ const navigation: readonly NavigationItem[] = [
   { to: "/policies", label: "Policies", permission: "policy:manage", Icon: Files, tag: "AI" },
   { to: "/categories", label: "Categories", permission: "category:manage", Icon: ListChecks },
   { to: "/workflows", label: "Workflows", permission: "workflow:manage", Icon: GitBranch },
+  { to: "/vendors", label: "Vendors", permission: "vendor:manage", Icon: Storefront },
   { to: "/users", label: "Users", permission: "user:read", Icon: Users },
   { to: "/org-chart", label: "Org chart", permission: "user:read", Icon: GitBranch },
 ];

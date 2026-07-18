@@ -7,7 +7,7 @@ resource "azurerm_key_vault" "main" {
   sku_name            = "standard"
 
   rbac_authorization_enabled = true
-  purge_protection_enabled  = false
+  purge_protection_enabled   = false
 
   tags = var.tags
 }

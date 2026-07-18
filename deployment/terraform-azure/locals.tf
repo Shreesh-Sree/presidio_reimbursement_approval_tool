@@ -9,9 +9,9 @@ locals {
 
   # Container image names (without registry prefix)
   container_images = {
-    backend                    = "backend"
-    ai_review_service          = "ai-review-service"
+    backend                      = "backend"
+    ai_review_service            = "ai-review-service"
     receipt_intelligence_service = "receipt-intelligence-service"
-    policy_assistant_service    = "policy-assistant-service"
+    policy_assistant_service     = "policy-assistant-service"
   }
 }

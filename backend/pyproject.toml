@@ -1,8 +1,7 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "Presidio reimbursement approval API"
 requires-python = ">=3.14"
 dependencies = [
     "aiosmtplib>=5.1.2",

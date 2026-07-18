@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "presidio-policy-assistant"
 version = "0.1.0"
 description = "Isolated, policy-grounded retrieval assistant for Presidio"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "appwrite>=22.0.0",

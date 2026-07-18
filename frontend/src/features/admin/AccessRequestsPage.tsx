@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
-import { getApiErrorMessage, apiClient } from "../../lib/api";
+import { apiClient } from "../../lib/api";
 
 interface AccessRequest {
   id: string;

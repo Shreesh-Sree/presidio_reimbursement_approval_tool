@@ -53,12 +53,12 @@ def upgrade() -> None:
         sa.UniqueConstraint('email', name='uq_user_access_request_email')
     )
     op.create_index('ix_user_access_requests_status', 'user_access_requests', ['status'])
-    op.create_index('ix_user_access_requests_org', 'user_access_requests', ['organization_id'])
+    op.create_index('ix_user_access_requests_organization_id', 'user_access_requests', ['organization_id'])
 
 
 def downgrade() -> None:
     """Remove pending_approval status and user_access_requests table."""
-    op.drop_index('ix_user_access_requests_org')
+    op.drop_index('ix_user_access_requests_organization_id')
     op.drop_index('ix_user_access_requests_status')
     op.drop_table('user_access_requests')
 

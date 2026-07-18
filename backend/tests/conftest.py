@@ -23,6 +23,7 @@ os.environ.setdefault("JWT_SECRET", "a-very-long-secret-key-for-testing-at-least
 os.environ.setdefault("AUTH_PROVIDER", "local")
 os.environ.setdefault("AI_REVIEW_REFERENCE_HMAC_KEY", "test-ai-review-reference-key")
 os.environ.setdefault("S3_BUCKET", "test-bucket")
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 import app.models  # noqa: E402,F401 - registers every mapped table with Base
 from app.core.database import Base, get_db  # noqa: E402

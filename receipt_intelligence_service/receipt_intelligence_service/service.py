@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from .analysis import extract_evidence, strip_suspicious_instructions
+from .analysis import strip_suspicious_instructions
 from .config import ReceiptIntelligenceSettings
 from .contracts import (
     DeduplicationResult,
@@ -20,6 +20,7 @@ from .contracts import (
 )
 from .observability import LOGGER_NAME, get_correlation_id
 from .persistence import DigestRepository, SqliteDigestRepository
+from .providers import ResilientReceiptProvider, build_provider
 
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -28,11 +29,17 @@ logger = logging.getLogger(LOGGER_NAME)
 class ReceiptIntelligenceService:
     """Analyze ephemeral metadata/text while persisting only digest observations."""
 
-    def __init__(self, repository: DigestRepository, settings: ReceiptIntelligenceSettings) -> None:
+    def __init__(
+        self,
+        repository: DigestRepository,
+        settings: ReceiptIntelligenceSettings,
+        provider: ResilientReceiptProvider,
+    ) -> None:
         self._repository = repository
         self._settings = settings
+        self._provider = provider
 
-    def analyze(self, request: ReceiptAnalysisRequest) -> ReceiptAnalysisResponse:
+    async def analyze(self, request: ReceiptAnalysisRequest) -> ReceiptAnalysisResponse:
         findings: list[ReceiptFinding] = []
         receipt = request.receipt
         evidence = ReceiptEvidence()
@@ -41,6 +48,7 @@ class ReceiptIntelligenceService:
         media_type_allowed: bool | None = None
         size_within_limit: bool | None = None
         text_source = TextSource.NOT_PROVIDED
+        provider_name = "none"
 
         if receipt is not None:
             media_type_allowed = receipt.media_type in self._settings.allowed_media_types
@@ -100,7 +108,7 @@ class ReceiptIntelligenceService:
                             details={"ignored_line_count": suspicious_line_count},
                         )
                     )
-                evidence = extract_evidence(safe_text)
+                evidence, provider_name = await self._provider.extract(safe_text)
 
         policy = request.policy
         if (
@@ -153,6 +161,7 @@ class ReceiptIntelligenceService:
             extra={
                 "finding_count": len(findings),
                 "duplicate": bool(deduplication and deduplication.duplicate_within_organization),
+                "evidence_provider": provider_name,
             },
         )
         return response
@@ -170,4 +179,5 @@ def build_service(settings: ReceiptIntelligenceSettings) -> ReceiptIntelligenceS
     return ReceiptIntelligenceService(
         repository=SqliteDigestRepository(settings.database_path),
         settings=settings,
+        provider=build_provider(settings),
     )

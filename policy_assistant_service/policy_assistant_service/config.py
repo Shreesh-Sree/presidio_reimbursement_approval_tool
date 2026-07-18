@@ -32,13 +32,12 @@ class PolicyAssistantSettings(BaseSettings):
     minimum_similarity: float = Field(default=0.08, ge=0, le=1)
     embedding_dimensions: int = Field(default=192, ge=64, le=1_024)
 
-    # External LLM providers are deliberately opt-in and are never contacted by
-    # this initial local implementation. Keeping the switch explicit prevents a
-    # future configuration change from silently exporting policy documents.
-    provider_mode: Literal["deterministic", "openrouter", "huggingface"] = "deterministic"
-    enable_external_provider: bool = False
-    openrouter_api_key: SecretStr | None = Field(default=None, repr=False)
-    huggingface_api_key: SecretStr | None = Field(default=None, repr=False)
+    # Groq LLM for intelligent grounded answers (primary). Falls back to raw
+    # citation display when key is absent or calls fail.
+    groq_api_key: str | None = Field(default=None, repr=False)
+    groq_model: str = "llama-3.1-8b-instant"
+    groq_timeout_seconds: float = Field(default=8.0, ge=1.0, le=30.0)
+    groq_max_attempts: int = Field(default=2, ge=1, le=5)
 
     @field_validator("service_token", mode="before")
     @classmethod

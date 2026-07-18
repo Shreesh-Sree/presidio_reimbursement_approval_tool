@@ -30,6 +30,12 @@ class ReceiptIntelligenceSettings(BaseSettings):
     ocr_languages: str = "eng"
     max_ocr_bytes: int = Field(default=10 * 1024 * 1024, ge=1, le=100 * 1024 * 1024)
 
+    # Groq LLM — primary receipt extraction when configured; rule-based is fallback.
+    groq_api_key: str | None = Field(default=None, repr=False)
+    groq_model: str = "llama-3.1-8b-instant"
+    groq_timeout_seconds: float = Field(default=8.0, ge=1.0, le=30.0)
+    groq_max_attempts: int = Field(default=2, ge=1, le=5)
+
     @field_validator("service_token", mode="before")
     @classmethod
     def normalise_service_token(cls, value: object) -> str | None:

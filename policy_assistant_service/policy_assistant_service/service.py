@@ -16,6 +16,7 @@ from .contracts import (
 )
 from .sanitization import chunk_text, safe_excerpt, sanitize_policy_document, validate_question
 from .vector_store import AppwritePolicyStore, IndexedChunk, SQLitePolicyStore, hashed_embedding
+from .providers import ResilientAnswerProvider, build_answer_provider
 
 
 class UnsafeQuestionError(ValueError):
@@ -37,6 +38,7 @@ class PolicyAssistantService:
     def __init__(self, settings: PolicyAssistantSettings, store: SQLitePolicyStore | AppwritePolicyStore | None = None) -> None:
         self.settings = settings
         self.store = store or self._build_store(settings)
+        self._answer_provider = build_answer_provider(settings)
         self.logger = logging.getLogger("policy_assistant")
 
     @staticmethod
@@ -110,7 +112,7 @@ class PolicyAssistantService:
             injection_flags=sanitized.flags,
         )
 
-    def ask(self, request: PolicyAskRequest) -> PolicyAskResponse:
+    async def ask(self, request: PolicyAskRequest) -> PolicyAskResponse:
         if len(request.question) > self.settings.max_question_chars:
             raise ValueError(
                 f"question exceeds the configured {self.settings.max_question_chars}-character limit"
@@ -161,7 +163,7 @@ class PolicyAssistantService:
             )
             for match in matches
         )
-        answer = self._grounded_answer(question=validated_question.text, citations=citations)
+        answer, provider_name = await self._answer_provider.generate(validated_question.text, citations)
         self.logger.info(
             "policy evidence retrieved",
             extra={
@@ -169,6 +171,7 @@ class PolicyAssistantService:
                 "tenant_ref": request.tenant_ref,
                 "policy_version_ref": request.policy_version_ref,
                 "chunk_count": len(citations),
+                "answer_provider": provider_name,
             },
         )
         return PolicyAskResponse(answer=answer, evidence_found=True, citations=citations)

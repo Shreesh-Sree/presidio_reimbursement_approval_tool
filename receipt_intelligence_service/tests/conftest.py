@@ -7,6 +7,7 @@ from receipt_intelligence_service.api import create_app
 from receipt_intelligence_service.config import ReceiptIntelligenceSettings
 from receipt_intelligence_service.persistence import InMemoryDigestRepository
 from receipt_intelligence_service.service import ReceiptIntelligenceService
+from receipt_intelligence_service.providers import ResilientReceiptProvider
 
 
 @pytest.fixture
@@ -21,7 +22,8 @@ def client(service_token: str):
         max_file_bytes=1_024,
         max_text_chars=2_000,
     )
-    service = ReceiptIntelligenceService(InMemoryDigestRepository(), settings)
+    provider = ResilientReceiptProvider(None)
+    service = ReceiptIntelligenceService(InMemoryDigestRepository(), settings, provider)
     with TestClient(create_app(service, settings=settings)) as test_client:
         yield test_client
 

@@ -1,10 +1,8 @@
 # Reimbursement Tool — Intern Capstone Project
 
-Reimbursement Tool is an **intern capstone project** that I built during my internship at Presidio. It helps manage employee expense reimbursements through report submission, approvals, payment exports, audit logging, OCR, and policy-aware AI assistance.
+Reimbursement Tool is an **intern capstone project** built during my internship at Presidio. It manages employee expense reimbursements through report submission, multi-level approvals, payment exports, audit logging, OCR, and policy-aware AI assistance.
 
-This repository documents the project, its architecture, and the workflows it demonstrates.
-
-One core design principle guides the project: automation can advise, extract, classify, and explain; only the core workflow is designed to approve, reject, pay, or change financial records.
+One core design principle guides the project: automation can advise, extract, classify, and explain; only the core workflow may approve, reject, pay, or change financial records.
 
 ## Contents
 
@@ -14,11 +12,11 @@ One core design principle guides the project: automation can advise, extract, cl
 - [Roles and reporting hierarchy](#roles-and-reporting-hierarchy)
 - [End-to-end workflow](#end-to-end-workflow)
 - [AI and OCR boundaries](#ai-and-ocr-boundaries)
-- [Authentication and invitations](#authentication-and-invitations)
+- [Authentication and access control](#authentication-and-access-control)
 - [Local development](#local-development)
 - [Configuration and secrets](#configuration-and-secrets)
 - [Testing and quality gates](#testing-and-quality-gates)
-- [Demonstration deployment flow](#demonstration-deployment-flow)
+- [Production deployment](#production-deployment)
 - [Operations and troubleshooting](#operations-and-troubleshooting)
 - [Security model](#security-model)
 
@@ -26,12 +24,12 @@ One core design principle guides the project: automation can advise, extract, cl
 
 ### Core workflow
 
-1. An administrator invites a user and assigns their organisation access, department, role(s), and reporting manager.
-2. The user accepts the Clerk invitation and signs in through the approved identity provider.
+1. An administrator creates a user, assigns their organisation, department, role(s), and reporting manager; Supabase sends the invitation email.
+2. The user accepts the invitation and signs in through Supabase Auth (Google OAuth or magic link).
 3. An employee creates a reimbursement report in INR, adds expense lines, and attaches receipts.
 4. Receipt Intelligence extracts advisory OCR data; policy rules and the AI Review service identify potential concerns.
 5. The report follows the configured multi-level approval chain. A manager can approve, reject, or send it back.
-6. Finance creates payment batches and exports approved reimbursements as CSV, Excel, or PDF for the finance team’s external payment process.
+6. Finance creates payment batches and exports approved reimbursements as CSV, Excel, or PDF.
 7. Notifications, comments, audit events, and export history make the complete process traceable.
 
 ### Product capabilities
@@ -49,19 +47,19 @@ One core design principle guides the project: automation can advise, extract, cl
 flowchart LR
     User[Employee / Manager / Finance / Admin]
     Web[Vercel\nReact + TypeScript]
-    Clerk[Clerk\nAuthentication and invitations]
-    API[AWS App Runner\nCore FastAPI API]
-    Neon[(Neon PostgreSQL\nTransactional records)]
-    Files[Appwrite\nPrivate document storage]
-    OCR[AWS App Runner\nReceipt Intelligence + Tesseract]
-    Review[AWS App Runner\nAI Review]
-    RAG[AWS App Runner\nPolicy Assistant RAG]
-    Mail[Amazon SES\nTransactional email]
+    Auth[Supabase Auth\nOAuth + magic link]
+    API[Azure Container Apps\nCore FastAPI API]
+    DB[(Supabase PostgreSQL\nTransactional records)]
+    Files[Azure Blob Storage\nPrivate documents]
+    OCR[Azure Container Apps\nReceipt Intelligence + Tesseract]
+    Review[Azure Container Apps\nAI Review]
+    RAG[Azure Container Apps\nPolicy Assistant RAG]
+    Mail[SMTP\nTransactional email]
 
     User --> Web
-    Web <--> Clerk
-    Web -->|Clerk JWT| API
-    API <--> Neon
+    Web <--> Auth
+    Web -->|Supabase JWT| API
+    API <--> DB
     API <--> Files
     API --> OCR
     API --> Review
@@ -73,37 +71,37 @@ flowchart LR
 
 | Component | Owns | Must not do |
 | --- | --- | --- |
-| Frontend | Presentation, client-side interaction, Clerk session acquisition | Store server secrets or make authorization decisions |
+| Frontend | Presentation, client-side interaction, Supabase session | Store server secrets or make authorization decisions |
 | Core API | RBAC, reports, approvals, exports, audit records, tenant scope | Delegate final approval/payment decisions to AI |
 | Receipt Intelligence | OCR and receipt data extraction | Mutate a report or access the transactional database |
 | AI Review | Advisory risk and policy signals | Approve, reject, or pay a reimbursement |
-| Policy Assistant | Citation-grounded answers from approved policy documents | Read another organisation’s evidence or mutate policy/workflow state |
-| Neon | Transactional system of record | Store document blobs |
-| Appwrite | Private document storage and supporting platform services | Hold Neon credentials or approve payments |
-| Clerk | Sign-in, session lifecycle, invitation acceptance | Own application roles, reporting lines, or approval permissions |
+| Policy Assistant | Citation-grounded answers from approved policy documents | Read another organisation's evidence or mutate policy/workflow state |
+| Supabase | Authentication, invitation emails, session lifecycle | Own application roles, reporting lines, or approval permissions |
+| Azure Blob Storage | Private document storage | Hold database credentials or approve payments |
 
 ## Repository map
 
 ```text
 .
 ├── frontend/                     React application (Vercel deployment target)
-│   ├── src/auth/                 Clerk session and permission adapter
+│   ├── src/auth/                 Supabase session and access control adapter
 │   ├── src/components/           Shared design-system and application shell
 │   ├── src/features/             Feature-local pages, APIs, and tests
 │   └── e2e/                      Playwright browser coverage
-├── backend/                      Core FastAPI application (AWS deployment target)
+├── backend/                      Core FastAPI application (Azure Container Apps)
 │   ├── app/api/                  HTTP routes and request schemas
-│   ├── app/services/             Workflow, export, storage, audit, and Clerk logic
+│   ├── app/services/             Workflow, export, storage, audit logic
 │   ├── app/models/               SQLAlchemy domain models
+│   ├── app/core/                 Auth, config, observability, rate limiting
 │   ├── alembic/                  Database migration environment and revisions
 │   └── tests/                    API, RBAC, workflow, and service coverage
 ├── ai_review_service/            Isolated advisory risk-analysis microservice
 ├── receipt_intelligence_service/ Isolated Tesseract OCR microservice
 ├── policy_assistant_service/     Isolated policy RAG microservice
 ├── database/schema.dbml          Current database design in DBML
-├── deployment/                   Docker, Terraform, and deployment scripts
-├── scripts/                      Safe local developer entry points
-├── .github/workflows/            CI, CodeQL, secret scanning, production CD
+├── deployment/                   Terraform (Azure), IAM policies, build scripts
+├── scripts/                      Local developer entry points
+├── .github/workflows/            CI, secret scanning, Azure CD
 └── appwrite.config.json          Appwrite schema/storage definition; no credentials
 ```
 
@@ -130,7 +128,7 @@ flowchart TD
     Approval --> Finance
 ```
 
-To add a reporting manager, create or update that person with the **Manager / Approver** role first. They then appear in the reporting-manager selector for their direct reports. Every person record shows its organisation, department, role set, and manager.
+To add a reporting manager, create or update that person with the **Manager / Approver** role first. They then appear in the reporting-manager selector for their direct reports.
 
 ## End-to-end workflow
 
@@ -145,7 +143,7 @@ sequenceDiagram
     participant Finance as Finance
 
     Employee->>UI: Create report and upload receipt
-    UI->>API: Submit report with Clerk JWT
+    UI->>API: Submit report with Supabase JWT
     API->>OCR: Extract receipt fields (advisory)
     OCR-->>API: Merchant, amount, date, confidence
     API->>AI: Evaluate minimal policy context (advisory)
@@ -163,7 +161,7 @@ The sidebar labels AI-backed capabilities so operators can distinguish advisory 
 
 ### Receipt Intelligence
 
-- Uses Tesseract in its AWS image.
+- Uses Tesseract in its container image.
 - Extracts receipt evidence and supplies confidence values.
 - Returns an explicit unavailable or low-confidence state rather than inventing data.
 - Does not make a reimbursement decision.
@@ -171,7 +169,7 @@ The sidebar labels AI-backed capabilities so operators can distinguish advisory 
 ### AI Review
 
 - Receives a minimized snapshot, not direct database access.
-- Uses Groq where configured.
+- Uses Groq or Gemini where configured (multi-provider resilience).
 - Produces explainable advisory signals for reviewer attention.
 - Never changes report status or payment state.
 
@@ -182,21 +180,23 @@ The sidebar labels AI-backed capabilities so operators can distinguish advisory 
 - Does not use policy documents from another organisation or version.
 - Does not make workflow or payment decisions.
 
-## Authentication and invitations
+## Authentication and access control
 
 Public sign-up is disabled. Administrators create access through the Users page.
 
 ```mermaid
 flowchart LR
     A[Administrator creates user] --> B[Core API validates organisation, role and manager]
-    B --> C[Clerk invitation API]
+    B --> C[Supabase invitation API]
     C --> D[Invitation email]
-    D --> E[User accepts and signs in]
-    E --> F[Clerk JWT]
-    F --> G[Core API binds approved identity]
+    D --> E[User accepts and signs in via OAuth]
+    E --> F[Supabase JWT]
+    F --> G[Core API resolves allowlisted identity]
 ```
 
-The core API stores application access data before the invitation is accepted. Clerk owns the identity lifecycle; the API owns roles, tenant scope, department, and reporting hierarchy. If Clerk invitation provisioning is not configured, user creation fails safely instead of creating a local account that cannot sign in.
+The core API stores application access data before the invitation is accepted. Supabase Auth owns the identity lifecycle; the API owns roles, tenant scope, department, and reporting hierarchy. Only emails on the application allowlist can access the platform — a verified Supabase identity alone is insufficient.
+
+The first administrator is bootstrapped from the `SUPER_ADMIN_EMAIL` environment variable on first OAuth sign-in to an empty database.
 
 ## Local development
 
@@ -204,56 +204,62 @@ The core API stores application access data before the invitation is accepted. C
 
 - Node.js 22+
 - Python 3.14 and `uv`
-- Docker (for container parity and local services)
-- A Neon development database or a local PostgreSQL instance
-- Clerk development credentials for browser sign-in testing
+- Docker (for Postgres, Azurite, and MailHog)
+- A Supabase project (free tier works) for browser sign-in testing
 
 ### Start services
 
 ```bash
-# Configure environment files from the provided examples first.
+# Start infrastructure (Postgres, Azurite, MailHog)
+cd backend && docker compose up -d
+
+# Run database migrations
+uv sync && uv run alembic upgrade head
+
+# Start advisory microservices
 ./scripts/run-local-services.sh
 
-# In another terminal.
-cd frontend
-npm install
-npm run dev
+# Start the backend API (separate terminal)
+cd backend && uv run uvicorn app.main:app --reload
+
+# Start the frontend (separate terminal)
+cd frontend && npm install && npm run dev
 ```
 
-The frontend defaults to `http://localhost:5173`. The backend exposes health at `/api/health`.
+The frontend defaults to `http://localhost:5173`. The backend exposes health at `/api/health` and readiness at `/api/ready`.
 
-### Run an individual component
+### Environment setup
 
-```bash
-cd backend
-uv sync
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
-
-cd ../frontend
-npm run dev
-```
+Copy `.env.example` files in `backend/` and `frontend/` and fill in your Supabase credentials. See `docs/VERCEL_SETUP.md` for production frontend configuration.
 
 ## Configuration and secrets
 
-Never commit `.env` files, key material, service-account files, Neon URLs, SMTP passwords, Clerk secret keys, Groq keys, or AWS credentials.
+Never commit `.env` files, key material, service-account files, database URLs, SMTP passwords, Supabase service-role keys, or AI provider keys.
 
 | Location | Contains | Safe for source control? |
 | --- | --- | --- |
 | `backend/.env.example` and service `.env.example` files | Variable names and non-secret examples | Yes |
 | GitHub Actions secrets | CI/CD tokens and deployment inputs | Yes, managed outside Git |
-| AWS Secrets Manager | Runtime configuration for App Runner services | Yes, managed outside Git |
-| Vercel environment variables | Frontend public configuration only | Yes, managed outside Git |
-| Local `.env`, `.env.local`, `.vercel`, `.claude`, `.kilo` | Machine-specific values/tool state | No |
+| Azure Key Vault | Runtime configuration for Container Apps | Yes, managed outside Git |
+| Vercel environment variables | Frontend public Supabase URL/anon-key only | Yes, managed outside Git |
+| Local `.env`, `.env.local` | Machine-specific values | No |
 
-For invitation provisioning, the core API needs these server-side environment values:
+### Key environment variables
 
 ```text
-CLERK_SECRET_KEY=<Clerk backend secret>
-CLERK_INVITATION_REDIRECT_URL=https://presidio.algoqx.tech/sign-in
-```
+# Backend
+DATABASE_URL=postgresql://...
+AUTH_PROVIDER=supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+SUPER_ADMIN_EMAIL=admin@yourcompany.com
+AZURE_STORAGE_CONNECTION_STRING=...
+AZURE_STORAGE_CONTAINER=uploads
 
-The Clerk secret belongs only in AWS Secrets Manager. It must never be added to Vercel or frontend variables.
+# Frontend
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
 
 ## Testing and quality gates
 
@@ -268,43 +274,57 @@ cd frontend && npm run lint && npm run test && npm run build
 cd ai_review_service && uv run pytest -q
 cd receipt_intelligence_service && uv run pytest -q
 cd policy_assistant_service && uv run pytest -q
+
+# E2E browser tests
+cd frontend && npm run test:e2e
 ```
 
-CI runs the backend, frontend, all three microservices, Terraform formatting/validation, CodeQL, and gitleaks. Pull requests cannot merge until required checks pass. Playwright contains browser smoke coverage; authenticated demonstration journeys should be run with an invitation-only test identity.
+CI runs the backend, frontend, all three microservices, Terraform formatting/validation, and gitleaks secret scanning. Pull requests cannot merge until required checks pass.
 
-## Demonstration deployment flow
+## Production deployment
 
 ```mermaid
 flowchart LR
     Commit[Push to main] --> CI[GitHub CI]
-    CI --> Appwrite[Apply Appwrite schema]
-    Appwrite --> Neon[Run Neon Alembic migrations]
-    Neon --> ECR[Build and push immutable images]
-    ECR --> Runner[Roll AWS App Runner services]
-    Runner --> Vercel[Build and deploy Vercel frontend]
-    Vercel --> Verify[Health checks and Playwright smoke]
+    CI --> Migrate[Run Alembic migrations]
+    Migrate --> Build[Build and push container images]
+    Build --> Deploy[Deploy Azure Container Apps]
+    Deploy --> Frontend[Deploy Vercel frontend]
+    Frontend --> Verify[Health checks]
 ```
 
-`main` is the integration branch for this capstone. The demonstration workflow uses GitHub OIDC for AWS, so it does not need persistent AWS access keys. It deliberately runs Alembic from `DATABASE_URL` alone; database migrations do not depend on JWT or browser-auth settings.
+### Production topology
 
-### Demonstration topology
+- **Frontend**: Vercel (Azure Static Web Apps alternative available)
+- **Core API and advisory services**: Azure Container Apps
+- **Transactional data**: Supabase PostgreSQL
+- **File storage**: Azure Blob Storage
+- **Authentication**: Supabase Auth (Google OAuth)
+- **Outbound email**: SMTP provider
+- **Infrastructure as code**: Terraform (Azure)
+- **CI/CD**: GitHub Actions with Azure OIDC federation
 
-- Frontend: Vercel (`presidio.algoqx.tech`)
-- Core API and advisory services: AWS App Runner in `ap-south-1`
-- Transactional data: Neon PostgreSQL
-- File storage: Appwrite Singapore endpoint
-- Authentication: Clerk custom domain
-- Outbound email: Amazon SES
-- DNS and TLS: Cloudflare and AWS-managed certificate validation
+### Container images
+
+All services use multi-stage Docker builds with:
+- Non-root `app` user (uid 1000)
+- Built-in HEALTHCHECK instructions
+- Layer-cached dependency installation
+- `PORT` environment variable for flexibility
 
 ## Operations and troubleshooting
 
-### A user cannot be added
+### A user cannot sign in
 
-1. Confirm the administrator has `user:create`.
-2. Confirm `CLERK_SECRET_KEY` is present on the core API runtime.
-3. Confirm the email is not already an active Reimbursement Tool user or pending Clerk invitation.
-4. If rate limited, wait for Clerk’s `Retry-After` period; invitation APIs have instance limits.
+1. Confirm the user's email is on the application allowlist (created via admin Users page).
+2. Confirm `SUPABASE_URL` and `SUPABASE_JWT_SECRET` are correct on the API.
+3. Check that the Supabase project has the correct OAuth provider configured.
+
+### The first admin cannot bootstrap
+
+1. Confirm `SUPER_ADMIN_EMAIL` matches the exact email used for OAuth sign-in.
+2. Confirm the database is empty (no existing active users).
+3. Check API logs for `OAuthBootstrapConfigurationError` details.
 
 ### A user does not appear as a reporting-manager option
 
@@ -312,32 +332,32 @@ Create or update that person with the **Manager / Approver** role, ensure their 
 
 ### OCR is unavailable or low confidence
 
-The UI should show an advisory state, not block data integrity. Check the Receipt Intelligence App Runner health endpoint and Tesseract image deployment. Users can correct extracted data before submission.
+The UI shows an advisory state, not a blocking error. Check the Receipt Intelligence container health endpoint. Users can correct extracted data before submission.
 
 ### A deployment fails during migrations
 
-Confirm `NEON_DATABASE_URL` is configured in GitHub Actions. Alembic intentionally reads only `DATABASE_URL`; missing Clerk, JWT, SMTP, or AI configuration must not block a schema migration.
-
-### A browser still shows the old UI
-
-Wait for the Vercel deployment tied to the merged `main` commit, then perform a hard refresh. Preview deployments do not replace the configured alias until the workflow completes.
+Confirm `DATABASE_URL` is configured in GitHub Actions. Alembic intentionally reads only `DATABASE_URL`; missing auth, SMTP, or AI configuration must not block a schema migration.
 
 ## Security model
 
-- Invitation-only Clerk authentication; no public self-sign-up.
-- JWT verification occurs in the core API with issuer, audience, and authorized-party validation.
-- Application RBAC is database-controlled and tenant-scoped; it is not trusted from browser role claims.
-- Documents are private, and advisory microservices receive narrow, purpose-specific requests.
+- OAuth-only authentication via Supabase Auth; no public self-sign-up.
+- Email allowlist controls platform access — a valid Supabase session alone is insufficient.
+- JWT verification with algorithm, subject, and expiry validation.
+- Application RBAC is database-controlled and tenant-scoped; not trusted from browser claims.
+- Security headers (CSP, X-Frame-Options, HSTS-ready, Permissions-Policy) on all responses.
+- Rate limiting on authentication endpoints (10 requests/minute per IP).
+- Request correlation IDs for tracing across services.
+- Structured JSON logging without PII or request bodies.
+- Documents are private; advisory microservices receive narrow, purpose-specific requests.
 - Audit events record administration, approval, and payment-export activity.
-- CI scans committed history for secrets and validates infrastructure configuration.
-- Demonstration/deployment credentials are stored in managed secret systems, never in Git or frontend bundles.
+- CI scans committed history for secrets (gitleaks) and validates infrastructure configuration.
+- All credentials stored in managed secret systems, never in Git or frontend bundles.
+- Container images run as non-root with minimal attack surface.
 
 ## Contributing
 
-1. Start from current `main` using an `agent/<focused-change>` branch.
+1. Start from current `main` using a feature branch.
 2. Keep changes inside the owning component whenever possible.
 3. Add or update tests with behaviour changes.
 4. Run the relevant local checks before opening a PR.
 5. Keep commits focused and use rebase merges to preserve linear history.
-
-For capstone deployment changes, verify both the GitHub Actions deployment and the Vercel deployment before treating the demonstration build as complete.

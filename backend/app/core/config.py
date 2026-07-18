@@ -10,18 +10,14 @@ class Settings(BaseSettings):
 
     database_url: str
     jwt_secret: str
-    # Browser users authenticate through Clerk in normal deployments.  ``local``
-    # remains an explicit migration/test-only mode so existing password hashes
-    # can be retired without opening a second browser sign-in path.
-    auth_provider: Literal["clerk", "local"] = "clerk"
-    clerk_jwks_url: str = ""
-    clerk_issuer: str = ""
-    clerk_audience: str = ""
-    clerk_authorized_parties: str = ""
-    # Server-only Clerk credential used to send administrator-created
-    # invitations. It must never be exposed to the browser.
-    clerk_secret_key: str = ""
-    clerk_invitation_redirect_url: str = ""
+    # Browser users authenticate through Supabase in normal deployments.
+    # ``local`` remains an explicit migration/test-only mode so existing
+    # password hashes can be retired without opening a second browser sign-in path.
+    auth_provider: Literal["supabase", "local"] = "supabase"
+    supabase_url: str = ""
+    supabase_jwt_secret: str = ""
+    supabase_service_role_key: str = ""
+    supabase_jwks: str = ""
     # This is intentionally configuration, not source code: it is the one
     # verified OAuth email allowed to create the first application admin.
     super_admin_email: str = ""
@@ -51,6 +47,8 @@ class Settings(BaseSettings):
     appwrite_api_key: str = ""
     appwrite_bucket_id: str = "presidio-private-files"
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    azure_storage_connection_string: str = ""
+    azure_storage_container: str = "uploads"
     # Each advisory service is independently deployed and persisted. The core
     # application only owns these narrow HTTP-boundary settings.
     ai_review_service_url: str = ""
@@ -64,6 +62,7 @@ class Settings(BaseSettings):
     policy_assistant_service_token: str = ""
     policy_assistant_reference_hmac_key: str = ""
     policy_assistant_timeout_seconds: float = Field(default=4.0, ge=0.1, le=30.0)
+    rate_limit_enabled: bool = True
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -71,11 +70,7 @@ class Settings(BaseSettings):
 
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
-    @property
-    def clerk_authorized_parties_list(self) -> list[str]:
-        """Return configured first-party origins for Clerk's ``azp`` claim."""
 
-        return [party.strip().rstrip("/") for party in self.clerk_authorized_parties.split(",") if party.strip()]
 
 
 @functools.lru_cache

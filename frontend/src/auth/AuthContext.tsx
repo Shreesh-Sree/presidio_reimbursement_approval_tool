@@ -1,9 +1,10 @@
 /* oxlint-disable react/only-export-components */
-import { useAuth as useClerkAuth, useUser } from "@clerk/react";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { clerkJwtTemplate, isClerkConfigured } from "./clerk";
-import { authApi, getApiErrorCode, getApiErrorMessage, setApiTokenProvider, type SessionUser } from "../lib/api";
+import type { Session } from "@supabase/supabase-js";
+import { isSupabaseConfigured, supabase } from "./supabase";
+import { authApi, getApiErrorCode, setApiTokenProvider, type SessionUser } from "../lib/api";
+import { useSessionKeepAlive } from "./useSessionKeepAlive";
 
 export type User = SessionUser;
 export type AuthStatus = "configuration_missing" | "loading" | "signed_out" | "authorized" | "access_denied" | "error";
@@ -33,9 +34,7 @@ const missingConfigurationValue: AuthContextType = {
   logout: async () => undefined,
 };
 
-function ClerkSessionProvider({ children }: { children: ReactNode }) {
-  const { getToken, isLoaded, isSignedIn, sessionId, signOut } = useClerkAuth();
-  const { user: clerkUser } = useUser();
+function SupabaseSessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
@@ -43,13 +42,8 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
   const [deniedEmail, setDeniedEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status !== "access_denied") return;
-    const email = clerkUser?.primaryEmailAddress?.emailAddress?.trim();
-    if (email) setDeniedEmail(email);
-  }, [clerkUser, status]);
-
-  useEffect(() => {
     let cancelled = false;
+    let gotSession = false;
 
     const clearApplicationSession = () => {
       if (cancelled) return;
@@ -58,13 +52,8 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
       setUser(null);
     };
 
-    const synchronizeApplicationSession = async () => {
-      if (!isLoaded) {
-        if (!cancelled) setStatus("loading");
-        return;
-      }
-
-      if (!isSignedIn) {
+    const synchronizeApplicationSession = async (session: Session | null) => {
+      if (!session || !session.access_token) {
         clearApplicationSession();
         if (!cancelled) {
           setDeniedEmail(null);
@@ -74,27 +63,25 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      gotSession = true;
       if (!cancelled) {
         setDeniedEmail(null);
         setError(null);
         setStatus("loading");
       }
 
+      const getSupabaseToken = async () => {
+        const { data } = await supabase.auth.getSession();
+        return data.session?.access_token ?? null;
+      };
+
+      setApiTokenProvider(getSupabaseToken);
+
       try {
-        const getClerkApiToken = ({ forceRefresh = false }: { forceRefresh?: boolean } = {}) =>
-          getToken({ template: clerkJwtTemplate, skipCache: forceRefresh });
-
-        setApiTokenProvider(getClerkApiToken);
-        // A session can change while `isSignedIn` remains true after sign-out
-        // and a new sign-in. Always ask Clerk for a token from this session.
-        const clerkToken = await getClerkApiToken({ forceRefresh: true });
-        if (!clerkToken) throw new Error("A Clerk API token could not be created for this session.");
-        if (cancelled) return;
-
         const sessionUser = await authApi.me();
         if (cancelled) return;
 
-        setToken(clerkToken);
+        setToken(session.access_token);
         setUser(sessionUser);
         setStatus("authorized");
       } catch (sessionError) {
@@ -102,28 +89,57 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         if (getApiErrorCode(sessionError) === "access_not_granted") {
+          setDeniedEmail(session.user?.email ?? null);
           setError(null);
           setStatus("access_denied");
           return;
         }
 
-        setError(getApiErrorMessage(sessionError, "We could not verify access to the reimbursement platform."));
-        setStatus("error");
+        setError(null);
+        setStatus("signed_out");
       }
     };
 
-    void synchronizeApplicationSession();
+    const hasAuthCallback = window.location.hash.includes("access_token") || new URLSearchParams(window.location.search).has("code");
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+      if (event === "SIGNED_OUT") {
+        clearApplicationSession();
+        setDeniedEmail(null);
+        setError(null);
+        setStatus("signed_out");
+      } else if (event === "INITIAL_SESSION") {
+        if (session) {
+          synchronizeApplicationSession(session);
+        } else if (!hasAuthCallback) {
+          setStatus("signed_out");
+        }
+      } else if (session) {
+        synchronizeApplicationSession(session);
+      }
+    });
+
+    if (hasAuthCallback) {
+      setTimeout(() => {
+        if (!cancelled && !gotSession) {
+          setStatus("signed_out");
+        }
+      }, 10000);
+    }
+
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
-  }, [getToken, isLoaded, isSignedIn, sessionId]);
+  }, []);
 
   const value = useMemo<AuthContextType>(() => ({
     user,
     token,
     status,
     isLoading: status === "loading",
-    isSignedIn: Boolean(isSignedIn),
+    isSignedIn: Boolean(user),
     accessDenied: status === "access_denied",
     deniedEmail,
     error,
@@ -134,19 +150,31 @@ function ClerkSessionProvider({ children }: { children: ReactNode }) {
       setDeniedEmail(null);
       setError(null);
       setStatus("signed_out");
-      await signOut();
+      await supabase.auth.signOut();
     },
-  }), [deniedEmail, error, isSignedIn, signOut, status, token, user]);
+  }), [deniedEmail, error, status, token, user]);
+
+  const handleIdle = useCallback(async () => {
+    setApiTokenProvider(null);
+    setToken(null);
+    setUser(null);
+    setDeniedEmail(null);
+    setError(null);
+    setStatus("signed_out");
+    await supabase.auth.signOut();
+  }, []);
+
+  useSessionKeepAlive(handleIdle);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  if (!isClerkConfigured) {
+  if (!isSupabaseConfigured) {
     return <AuthContext.Provider value={missingConfigurationValue}>{children}</AuthContext.Provider>;
   }
 
-  return <ClerkSessionProvider>{children}</ClerkSessionProvider>;
+  return <SupabaseSessionProvider>{children}</SupabaseSessionProvider>;
 }
 
 export function useAuth() {

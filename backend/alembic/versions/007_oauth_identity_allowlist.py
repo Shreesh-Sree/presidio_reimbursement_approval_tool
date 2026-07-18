@@ -6,7 +6,7 @@ Create Date: 2026-07-15
 
 The application retains historical password hashes during an explicit local
 migration/testing mode, but an OAuth-created allowlist entry has no password
-at all.  Clerk's immutable external subject is linked once on first login so a
+at all.  The provider's immutable external subject is linked once on first login so a
 reused email address cannot silently take over an existing account.
 """
 

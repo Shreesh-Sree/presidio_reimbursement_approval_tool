@@ -72,14 +72,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className={collapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
       <aside className={`${mobileOpen ? "open " : ""}sidebar${collapsed ? " collapsed" : ""}`}>
         <div className="sidebar-brand">
-          <Link aria-label="Reimbursement Tool reports" className="wordmark" to="/reports">Reimbursement<span> Tool</span></Link>
+          <Link aria-label="AlgoQX Reimbursement Tool" className="wordmark" to="/reports">AlgoQX<span> Reimbursement</span></Link>
           <button aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="sidebar-toggle icon-button" onClick={() => setCollapsed((value) => !value)} type="button">
             {collapsed ? <CaretRight aria-hidden size={17} weight="bold" /> : <CaretLeft aria-hidden size={17} weight="bold" />}
           </button>
           <button aria-label="Close navigation" className="sidebar-close icon-button" onClick={() => setMobileOpen(false)} type="button"><X aria-hidden size={18} weight="bold" /></button>
         </div>
         {nav}
-        <div className="sidebar-foot"><SidebarSimple aria-hidden size={16} weight="bold" /><span>Expense operations<br />made human.</span></div>
+        <div className="sidebar-foot"><SidebarSimple aria-hidden size={16} weight="bold" /><span>Expense operations<br />powered by AlgoQX.</span></div>
       </aside>
       {mobileOpen && <button aria-label="Close navigation" className="nav-scrim" onClick={() => setMobileOpen(false)} type="button" />}
       <section className="workspace">

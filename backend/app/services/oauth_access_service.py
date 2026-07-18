@@ -1,6 +1,6 @@
 """Email-allowlist authorization for verified OAuth identities.
 
-Clerk authenticates the person.  This service decides whether that verified
+Supabase Auth authenticates the person.  This service decides whether that verified
 email has an active application account and resolves the application's own
 database-backed roles/permissions.  It intentionally never accepts role
 claims from an identity provider.
@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.clerk import ClerkIdentity
+from app.core.supabase_auth import SupabaseIdentity
 from app.core.config import Settings
 from app.models.department import Department
 from app.models.organization import Organization
@@ -116,7 +116,7 @@ def _bootstrap_organization_and_department(db: Session, settings: Settings) -> t
 
 
 def _bootstrap_super_administrator(
-    db: Session, *, identity: ClerkIdentity, settings: Settings
+    db: Session, *, identity: SupabaseIdentity, settings: Settings
 ) -> User:
     organization, department = _bootstrap_organization_and_department(db, settings)
     created = user_service.create_user(
@@ -138,7 +138,7 @@ def _bootstrap_super_administrator(
     return user
 
 
-def resolve_oauth_user(db: Session, *, identity: ClerkIdentity, settings: Settings) -> User:
+def resolve_oauth_user(db: Session, *, identity: SupabaseIdentity, settings: Settings) -> User:
     """Return an allowlisted account or safely bootstrap the configured admin."""
 
     users = _active_users_for_email(db, identity.email)

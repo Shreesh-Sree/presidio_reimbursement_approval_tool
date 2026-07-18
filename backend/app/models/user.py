@@ -24,7 +24,7 @@ class User(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Base):
     username: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     # Passwords are intentionally absent for OAuth-created accounts.  Existing
-    # hashes can remain during the local-auth migration window, but Clerk mode
+    # hashes can remain during the local-auth migration window, but Supabase mode
     # never reads or creates them.
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     external_auth_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)

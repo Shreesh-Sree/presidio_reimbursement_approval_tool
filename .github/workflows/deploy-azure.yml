@@ -175,9 +175,17 @@ jobs:
         uses: azure/cli@v2
         with:
           inlineScript: |
-            apps=(presidio-reimburse-prod-api presidio-reimburse-prod-ai presidio-reimburse-prod-pol presidio-reimburse-prod-rcpt)
-            for app in "${apps[@]}"; do
-              echo "Deploying $app..."
+            # Map: "container_app_name:image_name"
+            services=(
+              "presidio-reimburse-prod-api:presidio-api"
+              "presidio-reimburse-prod-ai:presidio-ai-review"
+              "presidio-reimburse-prod-rcpt:presidio-receipt-intelligence"
+              "presidio-reimburse-prod-pol:presidio-policy-assistant"
+            )
+            for entry in "${services[@]}"; do
+              app="${entry%%:*}"
+              image="${entry##*:}"
+              echo "Deploying $app (image: $image)..."
               if ! az containerapp show --name "$app" --resource-group "${{ env.RESOURCE_GROUP }}" &>/dev/null; then
                 echo "::warning::Container app $app does not exist. Skipping."
                 continue
@@ -186,7 +194,7 @@ jobs:
                 if az containerapp update \
                   --name "$app" \
                   --resource-group "${{ env.RESOURCE_GROUP }}" \
-                  --image "${{ env.ACR_LOGIN_SERVER }}/$app:${{ env.IMAGE_TAG }}" \
+                  --image "${{ env.ACR_LOGIN_SERVER }}/$image:${{ env.IMAGE_TAG }}" \
                   --output none; then
                   echo "✓ $app deployed successfully"
                   break

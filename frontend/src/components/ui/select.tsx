@@ -22,7 +22,7 @@ export function Select({ className, children, disabled, id, name, onChange, valu
     <SelectPrimitive.Root disabled={disabled} name={name} onValueChange={change} value={selectedValue}>
       <SelectPrimitive.Trigger
         className={cn(
-          "flex min-h-11 w-full items-center justify-between gap-3 rounded-full border border-[#202020]/20 bg-white px-5 py-2.5 text-left text-sm text-[#202020] outline-none transition focus:border-[#202020] focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-[#202020] dark:text-[#fcfcfc]",
+          "flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#d2d2d7] bg-white px-4 py-2.5 text-left text-sm text-[#1d1d1f] outline-none transition-all duration-200 focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/12 dark:bg-[#1d1d1f] dark:text-[#f5f5f7] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20",
           className,
         )}
         id={id}
@@ -31,11 +31,11 @@ export function Select({ className, children, disabled, id, name, onChange, valu
         <SelectPrimitive.Icon aria-hidden><CaretDown size={16} weight="bold" /></SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content className="z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-2xl border border-[#202020]/15 bg-white p-1.5 shadow-2xl dark:border-white/15 dark:bg-[#202020]" position="popper" sideOffset={8}>
+        <SelectPrimitive.Content className="z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-2xl border border-[#d2d2d7] bg-white p-1.5 shadow-lg dark:border-white/12 dark:bg-[#1d1d1f]" position="popper" sideOffset={8}>
           <SelectPrimitive.Viewport>
             {options.map((option) => (
               <SelectPrimitive.Item
-                className="relative flex min-h-10 cursor-pointer select-none items-center rounded-xl py-2 pl-9 pr-4 text-sm font-medium text-[#202020] outline-none data-[highlighted]:bg-[#f3f0e8] data-[state=checked]:bg-[#ea2804] data-[state=checked]:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-40 dark:text-[#fcfcfc] dark:data-[highlighted]:bg-white/10"
+                className="relative flex min-h-10 cursor-pointer select-none items-center rounded-xl py-2 pl-9 pr-4 text-sm font-medium text-[#1d1d1f] outline-none data-[highlighted]:bg-[#f5f5f7] data-[state=checked]:bg-[#0071e3] data-[state=checked]:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-40 dark:text-[#f5f5f7] dark:data-[highlighted]:bg-white/6"
                 disabled={option.disabled}
                 key={option.value}
                 value={option.value}

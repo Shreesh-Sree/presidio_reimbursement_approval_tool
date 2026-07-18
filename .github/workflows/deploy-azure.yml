@@ -175,7 +175,7 @@ jobs:
         uses: azure/cli@v2
         with:
           inlineScript: |
-            apps=(presidio-api presidio-ai-review presidio-receipt-intelligence presidio-policy-assistant)
+            apps=(presidio-reimburse-prod-api presidio-reimburse-prod-ai presidio-reimburse-prod-pol presidio-reimburse-prod-rcpt)
             for app in "${apps[@]}"; do
               echo "Deploying $app..."
               if ! az containerapp show --name "$app" --resource-group "${{ env.RESOURCE_GROUP }}" &>/dev/null; then

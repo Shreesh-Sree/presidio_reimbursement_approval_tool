@@ -8,10 +8,10 @@ echo ""
 # Configuration
 SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID:-$(az account show --query id -o tsv)}"
 RESOURCE_GROUP="presidio-reimbursement-rg"
-LOCATION="eastus"
+LOCATION=$(az group show -n $RESOURCE_GROUP --query location -o tsv 2>/dev/null || echo "eastus")
 GITHUB_ORG="Shreesh-Sree"
 GITHUB_REPO="presidio_reimbursement_approval_tool"
-ACR_NAME="presidioregistry"  # Must be globally unique - change if needed
+ACR_NAME="presidiosree2026"  # Must be globally unique
 SWA_NAME="presidio-frontend"
 ENVIRONMENT_NAME="presidio-environment"
 
@@ -27,9 +27,13 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
-echo "=== 1. Creating Resource Group ==="
-az group create --name $RESOURCE_GROUP --location $LOCATION
-echo "✓ Resource group created"
+echo "=== 1. Checking Resource Group ==="
+if az group show --name $RESOURCE_GROUP &>/dev/null; then
+    echo "✓ Resource group already exists in $LOCATION"
+else
+    az group create --name $RESOURCE_GROUP --location $LOCATION
+    echo "✓ Resource group created"
+fi
 
 echo ""
 echo "=== 2. Creating Service Principal with OIDC ==="
@@ -57,13 +61,14 @@ fi
 SP_OBJECT_ID=$(az ad sp list --filter "appId eq '$APP_ID'" --query "[0].id" -o tsv)
 
 # Assign Contributor role
-ROLE_EXISTS=$(az role assignment list --assignee $APP_ID --role Contributor --scope "/subscriptions/$SUBSCRIPTION_ID" --query "[0].id" -o tsv)
+SUBSCRIPTION_SCOPE="/subscriptions/$SUBSCRIPTION_ID"
+ROLE_EXISTS=$(az role assignment list --assignee $APP_ID --role Contributor --scope "$SUBSCRIPTION_SCOPE" --query "[0].id" -o tsv)
 if [ -z "$ROLE_EXISTS" ]; then
     az role assignment create \
         --role Contributor \
-        --subscription $SUBSCRIPTION_ID \
         --assignee-object-id $SP_OBJECT_ID \
-        --assignee-principal-type ServicePrincipal
+        --assignee-principal-type ServicePrincipal \
+        --scope "$SUBSCRIPTION_SCOPE"
     echo "✓ Contributor role assigned"
 else
     echo "✓ Contributor role already assigned"

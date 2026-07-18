@@ -3,11 +3,6 @@ import type { ReactNode } from "react";
 import { authApi, setApiTokenProvider, type SessionUser } from "../lib/api";
 import { AuthContext, type AuthContextType } from "./AuthContext";
 
-// This is intentionally impossible to enable in a production Vite build.
-// It exists solely so Playwright can exercise the complete local workflow
-// without using a Supabase account or production data.
-export const isLocalE2eAuth = import.meta.env.DEV && import.meta.env.VITE_E2E_LOCAL_AUTH === "true";
-
 const email = import.meta.env.VITE_E2E_EMAIL ?? "employee@example.com";
 const password = import.meta.env.VITE_E2E_PASSWORD ?? "correct-horse-battery-staple";
 

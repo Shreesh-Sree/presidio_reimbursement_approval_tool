@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -26,15 +26,13 @@ class AccessRequestApprove(BaseModel):
 
 
 class AccessRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     email: str
     full_name: str
     requested_at: str
     status: str
-
-    class Config:
-        from_attributes = True
-
 
 @router.post("", response_model=AccessRequestResponse)
 def create_access_request(

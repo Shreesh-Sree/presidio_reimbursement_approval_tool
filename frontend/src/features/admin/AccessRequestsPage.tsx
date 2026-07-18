@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
-import { Select } from "../../components/ui/select";
 import { getApiErrorMessage, apiClient } from "../../lib/api";
 
 interface AccessRequest {
@@ -25,7 +24,6 @@ export function AccessRequestsPage() {
     queryKey: ["access-requests"],
     queryFn: async () => {
       const response = await apiClient.get<AccessRequest[]>("/access-requests");
-      if (!response.ok) throw new Error("Failed to fetch requests");
       return response.data;
     },
   });
@@ -34,7 +32,6 @@ export function AccessRequestsPage() {
     queryKey: ["departments"],
     queryFn: async () => {
       const response = await apiClient.get<Department[]>("/departments");
-      if (!response.ok) throw new Error("Failed to fetch departments");
       return response.data;
     },
   });
@@ -44,7 +41,6 @@ export function AccessRequestsPage() {
       const response = await apiClient.post(`/access-requests/${requestId}/approve`, {
         department_id: departmentId,
       });
-      if (!response.ok) throw new Error(getApiErrorMessage(response, "Failed to approve request"));
       return response.data;
     },
     onSuccess: () => {
@@ -55,7 +51,6 @@ export function AccessRequestsPage() {
   const rejectMutation = useMutation({
     mutationFn: async (requestId: string) => {
       const response = await apiClient.post(`/access-requests/${requestId}/reject`, {});
-      if (!response.ok) throw new Error(getApiErrorMessage(response, "Failed to reject request"));
       return response.data;
     },
     onSuccess: () => {
@@ -121,7 +116,6 @@ export function AccessRequestsPage() {
                     })
                   }
                   disabled={!selectedDepartments[request.id] || approveMutation.isPending}
-                  size="sm"
                   variant="default"
                 >
                   Approve
@@ -130,7 +124,6 @@ export function AccessRequestsPage() {
                 <Button
                   onClick={() => rejectMutation.mutate(request.id)}
                   disabled={rejectMutation.isPending}
-                  size="sm"
                   variant="outline"
                 >
                   Reject

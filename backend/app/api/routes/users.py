@@ -13,7 +13,7 @@ from app.api.schemas import UserCreateRequest, UserUpdateRequest
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import require_permission
-from app.services import clerk_provisioning_service, user_service
+from app.services import supabase_provisioning_service, user_service
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -30,14 +30,14 @@ def _raise_service_error(exc: user_service.UserServiceError) -> None:
     raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
-def _create_user_with_clerk_invitation(
+def _create_user_with_invitation(
     *,
     db: Session,
     organization_id: UUID,
     department_id: UUID,
     request: UserCreateRequest,
 ) -> dict[str, object]:
-    """Keep Clerk and the app allowlist in lockstep for admin-created users."""
+    """Keep Supabase Auth and the app allowlist in lockstep for admin-created users."""
 
     user_service.validate_user_creation(
         db,
@@ -48,15 +48,15 @@ def _create_user_with_clerk_invitation(
     )
     settings = get_settings()
     invitation = None
-    if settings.auth_provider == "clerk":
+    if settings.auth_provider == "supabase":
         try:
-            invitation = clerk_provisioning_service.invite_user(
+            invitation = supabase_provisioning_service.invite_user(
                 settings=settings,
                 email=str(request.email),
                 full_name=request.full_name,
                 organization_id=str(organization_id),
             )
-        except clerk_provisioning_service.ClerkProvisioningError as exc:
+        except supabase_provisioning_service.SupabaseProvisioningError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     try:
         return user_service.create_user(
@@ -71,7 +71,7 @@ def _create_user_with_clerk_invitation(
         )
     except Exception:
         if invitation is not None:
-            clerk_provisioning_service.revoke_invitation(settings=settings, invitation_id=invitation.id)
+            supabase_provisioning_service.revoke_invitation(settings=settings, invitation_id=invitation.id)
         raise
 
 
@@ -81,14 +81,14 @@ async def create_user(
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:create")),
 ):
-    if get_settings().auth_provider == "clerk" and request.password:
+    if get_settings().auth_provider == "supabase" and request.password:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Password fields are unavailable when OAuth-only authentication is enabled",
         )
     organization_id, department_id, _ = _scope(current_user)
     try:
-        return _create_user_with_clerk_invitation(
+        return _create_user_with_invitation(
             db=db, organization_id=organization_id, department_id=department_id, request=request
         )
     except user_service.UserServiceError as exc:
@@ -101,7 +101,7 @@ async def bulk_create_users(
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:create")),
 ):
-    """Invite up to 500 Clerk users from a CSV without creating passwords.
+    """Invite up to 500 users from a CSV without creating passwords.
 
     Required headers: ``email,full_name,roles``. Roles are semicolon-separated
     codes (for example ``employee;approver``). Rows are isolated so an invalid
@@ -133,7 +133,7 @@ async def bulk_create_users(
                 full_name=(row.get("full_name") or "").strip(),
                 roles=[role.strip() for role in (row.get("roles") or "").split(";")],
             )
-            created.append(_create_user_with_clerk_invitation(
+            created.append(_create_user_with_invitation(
                 db=db, organization_id=organization_id, department_id=department_id, request=request
             ))
         except Exception as exc:
@@ -171,7 +171,7 @@ async def update_user(
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:update")),
 ):
-    if get_settings().auth_provider == "clerk" and request.password:
+    if get_settings().auth_provider == "supabase" and request.password:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Password fields are unavailable when OAuth-only authentication is enabled",

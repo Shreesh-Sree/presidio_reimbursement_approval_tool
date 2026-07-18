@@ -29,7 +29,7 @@ def _token_hash(token: str) -> str:
 
 
 def _require_local_auth() -> None:
-    """Disable password bootstrap/login whenever Clerk is the configured IdP."""
+    """Disable password bootstrap/login whenever Supabase is the configured IdP."""
 
     if get_settings().auth_provider != "local":
         raise HTTPException(
@@ -167,7 +167,7 @@ async def logout(
         if auth_session is not None:
             auth_session.revoked_at = datetime.now(UTC)
             db.commit()
-    # Clerk session revocation is owned by the Clerk client.  The local mode
+    # Supabase session revocation is owned by the Supabase client.  The local mode
     # retains explicit session revocation for migration/test environments.
     return {"message": "Logged out" if session_id else "OAuth sign-out is managed by the identity provider"}
 
@@ -177,7 +177,7 @@ async def get_me(
     current_user: dict[str, object] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if get_settings().auth_provider == "clerk":
+    if get_settings().auth_provider == "supabase":
         user = current_user.get("model")
         if isinstance(user, User):
             user_service.record_oauth_login(db, user)

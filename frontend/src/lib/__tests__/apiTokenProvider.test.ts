@@ -19,8 +19,8 @@ afterEach(() => {
   apiClient.defaults.adapter = originalAdapter;
 });
 
-describe("API Clerk token provider", () => {
-  it("obtains the current in-memory Clerk token for every API request", async () => {
+describe("API token provider", () => {
+  it("obtains the current in-memory token for every API request", async () => {
     const getToken = vi.fn()
       .mockResolvedValueOnce("short-lived-token-one")
       .mockResolvedValueOnce("short-lived-token-two");
@@ -39,36 +39,4 @@ describe("API Clerk token provider", () => {
     expect(authorizationHeaders).toEqual(["Bearer short-lived-token-one", "Bearer short-lived-token-two"]);
   });
 
-  it("force-refreshes once after an expired-token response", async () => {
-    const getToken = vi.fn(({ forceRefresh }: { forceRefresh?: boolean } = {}) =>
-      Promise.resolve(forceRefresh ? "replacement-token" : "initial-token"),
-    );
-    const authorizationHeaders: string[] = [];
-    let attempts = 0;
-
-    setApiTokenProvider(getToken);
-    apiClient.defaults.adapter = async (config) => {
-      authorizationHeaders.push(String(config.headers.Authorization));
-      attempts += 1;
-
-      if (attempts === 1) {
-        throw new axios.AxiosError(
-          "Unauthorized",
-          "ERR_BAD_REQUEST",
-          config,
-          undefined,
-          { data: {}, status: 401, statusText: "Unauthorized", headers: {}, config },
-        );
-      }
-
-      return successfulResponse(config);
-    };
-
-    await expect(authApi.me()).resolves.toMatchObject({ email: "employee@example.com" });
-
-    expect(getToken).toHaveBeenNthCalledWith(1, undefined);
-    expect(getToken).toHaveBeenNthCalledWith(2, { forceRefresh: true });
-    expect(getToken).toHaveBeenCalledTimes(2);
-    expect(authorizationHeaders).toEqual(["Bearer initial-token", "Bearer replacement-token"]);
-  });
 });

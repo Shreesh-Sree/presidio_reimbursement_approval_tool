@@ -395,7 +395,7 @@ def user_response(db: Session, user: User) -> dict[str, object]:
         "full_name": user.full_name,
         "status": user.status,
         "roles": role_codes_for_user(db, user.id),
-        # Never expose Clerk's subject.  Administrators only need to know
+        # Never expose the OAuth subject.  Administrators only need to know
         # whether their email allowlist entry has completed first sign-in.
         "oauth_status": "linked" if user.external_auth_subject else "invited",
         "organization_id": str(user.organization_id),
@@ -416,7 +416,7 @@ def validate_user_creation(
     role_codes: Iterable[str],
     manager_id: uuid.UUID | None,
 ) -> None:
-    """Validate all local prerequisites before sending a Clerk invitation."""
+    """Validate all local prerequisites before sending an OAuth invitation."""
 
     ensure_system_roles_and_permissions(db)
     normalized_email = email.lower()
@@ -501,10 +501,10 @@ def ensure_administrator_role(db: Session, user: User) -> User:
 
 
 def link_external_identity(db: Session, user: User, *, subject: str) -> User:
-    """Bind a verified Clerk subject once without storing provider credentials.
+    """Bind a verified OAuth subject once without storing provider credentials.
 
     Email remains the allowlist key.  Binding the stable external subject on
-    first OAuth login prevents a different Clerk account with a later-reused
+    first OAuth login prevents a different OAuth account with a later-reused
     email address from silently taking over that application account.
     """
 

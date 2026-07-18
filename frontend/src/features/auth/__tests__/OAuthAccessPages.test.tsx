@@ -7,10 +7,9 @@ import { AuthContext, type AuthContextType } from "../../../auth/AuthContext";
 import { AccessDeniedPage } from "../AccessDeniedPage";
 import { OAuthConfigurationPage } from "../OAuthConfigurationPage";
 
-vi.mock("../../../auth/clerk", () => ({
-  clerkJwtTemplate: "presidio-api",
-  clerkPublishableKey: "",
-  isClerkConfigured: false,
+vi.mock("../../../auth/supabase", () => ({
+  isSupabaseConfigured: false,
+  supabase: { auth: { signOut: vi.fn() } },
 }));
 
 const deniedContext: AuthContextType = {
@@ -33,12 +32,12 @@ describe("OAuth access states", () => {
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
   });
 
-  it("explains the required public Clerk configuration without exposing a secret", () => {
+  it("explains the required public Supabase configuration without exposing a secret", () => {
     render(<OAuthConfigurationPage />);
 
     expect(screen.getByRole("heading", { name: /oauth sign-in is not configured/i })).toBeInTheDocument();
-    expect(screen.getByText("VITE_CLERK_PUBLISHABLE_KEY")).toBeInTheDocument();
-    expect(screen.getByText(/do not place clerk secret keys/i)).toBeInTheDocument();
+    expect(screen.getByText("VITE_SUPABASE_URL")).toBeInTheDocument();
+    expect(screen.getByText(/do not place supabase service-role keys/i)).toBeInTheDocument();
   });
 
   it("gives an allowlist-rejected OAuth user a clear message and a sign-out action", async () => {

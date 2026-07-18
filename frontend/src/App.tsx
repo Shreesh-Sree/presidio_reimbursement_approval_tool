@@ -119,9 +119,6 @@ function AppContent() {
 
   return (
     <Routes>
-      {/* Clerk completes OAuth on a nested callback path such as
-          /sign-in/sso-callback. Keep that route inside the sign-in surface so
-          React Router does not send it through the catch-all redirect first. */}
       <Route path="/sign-in/*" element={<SignInRoute />} />
       <Route path="/login" element={<Navigate replace to="/sign-in" />} />
       <Route path="/bootstrap" element={<Navigate replace to="/sign-in" />} />

@@ -99,13 +99,12 @@ flowchart LR
 ├── receipt_intelligence_service/ Isolated Tesseract OCR microservice
 ├── policy_assistant_service/     Isolated policy RAG microservice
 ├── database/schema.dbml          Current database design in DBML
-├── deployment/                   Terraform (Azure), IAM policies, build scripts
-├── scripts/                      Local developer entry points
+├── deployment/                   Terraform and Azure deployment configuration
 ├── .github/workflows/            CI, secret scanning, Azure CD
 └── appwrite.config.json          Appwrite schema/storage definition; no credentials
 ```
 
-Each service owns its own `pyproject.toml`, lockfile, Dockerfile, environment example, tests, and concise service README. Cross-service policies live at the repository root so that deployment boundaries remain obvious.
+Each service owns its own `pyproject.toml`, lockfile, Dockerfile, environment example, and tests. Cross-service policies live at the repository root so that deployment boundaries remain obvious.
 
 ## Roles and reporting hierarchy
 
@@ -216,8 +215,10 @@ cd backend && docker compose up -d
 # Run database migrations
 uv sync && uv run alembic upgrade head
 
-# Start advisory microservices
-./scripts/run-local-services.sh
+# Start advisory microservices (separate terminals)
+cd ai_review_service && uv run python -m uvicorn ai_review_service.api:create_app --factory --port 8011
+cd receipt_intelligence_service && uv run python -m uvicorn receipt_intelligence_service.api:create_app --factory --port 8012
+cd policy_assistant_service && uv run python -m uvicorn policy_assistant_service.api:create_app --factory --port 8013
 
 # Start the backend API (separate terminal)
 cd backend && uv run uvicorn app.main:app --reload

@@ -4,7 +4,7 @@ import { ThemeModeProvider } from './theme/ThemeModeProvider.tsx'
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
+    queries: { retry: 1, refetchOnWindowFocus: false, refetchOnMount: false, staleTime: 5 * 60 * 1000 },
   },
 })
 

@@ -32,11 +32,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
       DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/reimbursement_test
-      JWT_SECRET: ci-test-signing-key-only-for-ci
-      S3_BUCKET: ci-test-bucket
+      JWT_SECRET: ci-test-secret-not-production
       STORAGE_BACKEND: local
     steps:
       - uses: actions/checkout@v6
@@ -148,15 +145,11 @@ jobs:
         with:
           terraform_version: "1.12.2"
       - name: Check Terraform formatting
-        run: terraform fmt -check -recursive deployment/terraform
-      - name: Validate main Terraform configuration
+        run: terraform fmt -check -recursive deployment/terraform-azure
+      - name: Validate Azure Terraform configuration
         run: |
-          terraform -chdir=deployment/terraform init -backend=false -input=false
-          terraform -chdir=deployment/terraform validate
-      - name: Validate Terraform state bootstrap configuration
-        run: |
-          terraform -chdir=deployment/terraform/bootstrap init -backend=false -input=false
-          terraform -chdir=deployment/terraform/bootstrap validate
+          terraform -chdir=deployment/terraform-azure init -backend=false -input=false
+          terraform -chdir=deployment/terraform-azure validate
 
   secrets:
     name: secrets

@@ -6,7 +6,16 @@ export type PermissionUser = {
 const permissionsByRole: Record<string, string[]> = {
   admin: ["*"],
   administrator: ["*"],
-  manager: ["report:approve", "report:read"],
+  manager: [
+    "report:approve",
+    "report:read",
+    "policy:manage",
+    "category:manage",
+    "workflow:manage",
+    "vendor:manage",
+    "user:read",
+    "payment:manage",
+  ],
   approver: ["report:approve", "report:read"],
   employee: ["report:create", "report:read"],
 };

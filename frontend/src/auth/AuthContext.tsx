@@ -44,12 +44,16 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     let gotSession = false;
+    let authorizedSubject: string | null = null;
+    let authorizingSubject: string | null = null;
 
     const clearApplicationSession = () => {
       if (cancelled) return;
       setApiTokenProvider(null);
       setToken(null);
       setUser(null);
+      authorizedSubject = null;
+      authorizingSubject = null;
     };
 
     const synchronizeApplicationSession = async (session: Session | null) => {
@@ -64,24 +68,32 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       }
 
       gotSession = true;
+      // Supabase serializes auth-state callbacks. Using getSession() from the
+      // API interceptor while this callback is executing can wait on that
+      // callback's lock and leave the dashboard in its loading state. The
+      // callback already provides the current token, so use it directly.
+      setApiTokenProvider(async () => session.access_token);
+      setToken(session.access_token);
+
+      // SIGNED_IN and INITIAL_SESSION can describe the same browser session.
+      // One authorization request is enough; token refreshes only update the
+      // request token and do not hold navigation behind another /auth/me call.
+      if (authorizedSubject === session.user.id || authorizingSubject === session.user.id) {
+        return;
+      }
+
       if (!cancelled) {
         setDeniedEmail(null);
         setError(null);
         setStatus("loading");
       }
-
-      const getSupabaseToken = async () => {
-        const { data } = await supabase.auth.getSession();
-        return data.session?.access_token ?? null;
-      };
-
-      setApiTokenProvider(getSupabaseToken);
+      authorizingSubject = session.user.id;
 
       try {
         const sessionUser = await authApi.me();
         if (cancelled) return;
 
-        setToken(session.access_token);
+        authorizedSubject = session.user.id;
         setUser(sessionUser);
         setStatus("authorized");
       } catch (sessionError) {
@@ -97,6 +109,10 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
 
         setError(null);
         setStatus("signed_out");
+      } finally {
+        if (authorizingSubject === session.user.id) {
+          authorizingSubject = null;
+        }
       }
     };
 
@@ -111,12 +127,14 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
         setStatus("signed_out");
       } else if (event === "INITIAL_SESSION") {
         if (session) {
-          synchronizeApplicationSession(session);
+          gotSession = true;
+          window.setTimeout(() => { void synchronizeApplicationSession(session); }, 0);
         } else if (!hasAuthCallback) {
           setStatus("signed_out");
         }
       } else if (session) {
-        synchronizeApplicationSession(session);
+        gotSession = true;
+        window.setTimeout(() => { void synchronizeApplicationSession(session); }, 0);
       }
     });
 

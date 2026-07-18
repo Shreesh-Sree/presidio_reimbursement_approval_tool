@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "presidio-ai-expense-review"
 version = "0.1.0"
 description = "Isolated, human-in-the-loop AI expense review service"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

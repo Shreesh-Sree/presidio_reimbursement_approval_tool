@@ -74,6 +74,11 @@ const PaymentsPage = lazy(async () => {
   return { default: module.PaymentsPage };
 });
 
+const VendorsPage = lazy(async () => {
+  const module = await import("./features/vendors/VendorsPage");
+  return { default: module.VendorsPage };
+});
+
 function RouteLoading() {
   return <main className="route-loading"><LumaSpin label="Loading workspace" /><p>Preparing your workspace…</p></main>;
 }
@@ -129,6 +134,7 @@ function AppContent() {
       <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/workflows" element={<ProtectedRoute><RequirePermission permission="workflow:manage"><WorkflowRulesPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/vendors" element={<ProtectedRoute><RequirePermission permission="vendor:manage"><VendorsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportsListPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><RequirePermission permission="report:read"><AnalyticsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute><RequirePermission permission="payment:manage"><PaymentsPage /></RequirePermission></ProtectedRoute>} />

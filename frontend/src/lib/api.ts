@@ -506,6 +506,11 @@ export const categoriesApi = {
 
 export const vendorsApi = {
   list: () => unwrap(apiClient.get<Vendor[]>("/vendors")),
+  create: (input: { name: string; normalized_name?: string | null; description?: string | null }) =>
+    unwrap(apiClient.post<Vendor>("/vendors", input)),
+  update: (vendorId: string, input: { name?: string; normalized_name?: string | null; description?: string | null }) =>
+    unwrap(apiClient.patch<Vendor>(`/vendors/${vendorId}`, input)),
+  remove: (vendorId: string) => unwrap(apiClient.delete<void>(`/vendors/${vendorId}`)),
 };
 
 export const workflowsApi = {

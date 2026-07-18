@@ -46,7 +46,7 @@ One core design principle guides the project: automation can advise, extract, cl
 ```mermaid
 flowchart LR
     User[Employee / Manager / Finance / Admin]
-    Web[Vercel\nReact + TypeScript]
+    Web[Azure Static Web Apps\nReact + TypeScript]
     Auth[Supabase Auth\nOAuth + magic link]
     API[Azure Container Apps\nCore FastAPI API]
     DB[(Supabase PostgreSQL\nTransactional records)]
@@ -83,7 +83,7 @@ flowchart LR
 
 ```text
 .
-├── frontend/                     React application (Vercel deployment target)
+├── frontend/                     React application (Azure Static Web Apps)
 │   ├── src/auth/                 Supabase session and access control adapter
 │   ├── src/components/           Shared design-system and application shell
 │   ├── src/features/             Feature-local pages, APIs, and tests
@@ -135,7 +135,7 @@ To add a reporting manager, create or update that person with the **Manager / Ap
 ```mermaid
 sequenceDiagram
     actor Employee
-    participant UI as Vercel frontend
+    participant UI as Azure SWA frontend
     participant API as Core API
     participant OCR as Receipt Intelligence
     participant AI as AI Review
@@ -230,7 +230,7 @@ The frontend defaults to `http://localhost:5173`. The backend exposes health at 
 
 ### Environment setup
 
-Copy `.env.example` files in `backend/` and `frontend/` and fill in your Supabase credentials. See `docs/VERCEL_SETUP.md` for production frontend configuration.
+Copy `.env.example` files in `backend/` and `frontend/` and fill in your Supabase credentials. Azure Static Web Apps environment variables are configured in the Azure Portal.
 
 ## Configuration and secrets
 
@@ -241,7 +241,7 @@ Never commit `.env` files, key material, service-account files, database URLs, S
 | `backend/.env.example` and service `.env.example` files | Variable names and non-secret examples | Yes |
 | GitHub Actions secrets | CI/CD tokens and deployment inputs | Yes, managed outside Git |
 | Azure Key Vault | Runtime configuration for Container Apps | Yes, managed outside Git |
-| Vercel environment variables | Frontend public Supabase URL/anon-key only | Yes, managed outside Git |
+| Azure Static Web Apps environment | Frontend public Supabase URL/anon-key only | Yes, managed outside Git |
 | Local `.env`, `.env.local` | Machine-specific values | No |
 
 ### Key environment variables
@@ -289,17 +289,18 @@ flowchart LR
     CI --> Migrate[Run Alembic migrations]
     Migrate --> Build[Build and push container images]
     Build --> Deploy[Deploy Azure Container Apps]
-    Deploy --> Frontend[Deploy Vercel frontend]
+    Deploy --> Frontend[Deploy Azure Static Web Apps]
     Frontend --> Verify[Health checks]
 ```
 
 ### Production topology
 
-- **Frontend**: Vercel (Azure Static Web Apps alternative available)
+- **Frontend**: Azure Static Web Apps
 - **Core API and advisory services**: Azure Container Apps
-- **Transactional data**: Supabase PostgreSQL
+- **Transactional data**: Supabase PostgreSQL (core API + all microservices)
 - **File storage**: Azure Blob Storage
 - **Authentication**: Supabase Auth (Google OAuth)
+- **AI provider**: Groq (llama-3.1-8b-instant) — primary for all advisory services
 - **Outbound email**: SMTP provider
 - **Infrastructure as code**: Terraform (Azure)
 - **CI/CD**: GitHub Actions with Azure OIDC federation

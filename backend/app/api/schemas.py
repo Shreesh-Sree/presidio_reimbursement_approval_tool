@@ -37,7 +37,7 @@ class BootstrapRequest(LoginRequest):
 class UserCreateRequest(ApiModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
-    # Kept optional solely for explicit local-auth migration/test mode.  Clerk
+    # Kept optional solely for explicit local-auth migration/test mode.  Supabase
     # deployments treat email creation as an allowlist invitation and reject it.
     password: str | None = Field(default=None, min_length=8, max_length=256)
     roles: list[str] = Field(min_length=1)

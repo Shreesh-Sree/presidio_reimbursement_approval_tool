@@ -2,6 +2,17 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool, text
 from alembic import context
 import os
+from pathlib import Path
+
+for env_file in (".env.local", ".env"):
+    env_path = Path(__file__).resolve().parents[1] / env_file
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, val = line.partition("=")
+                os.environ.setdefault(key.strip(), val.strip())
+
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

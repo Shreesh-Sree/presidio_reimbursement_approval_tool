@@ -104,7 +104,7 @@ export function UserForm({
         <DialogDescription>
           {isEditing
             ? "Update roles and reporting ownership for this user."
-            : "This creates a pending Clerk invitation and the application access record together. The recipient completes access by accepting the email invitation."}
+            : "This creates a pending invitation and the application access record together. The recipient completes access by accepting the email invitation."}
         </DialogDescription>
         <Form
           className="mt-5"
@@ -185,7 +185,7 @@ export function UserForm({
           <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
             <Button disabled={isPending} onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>
             <Button disabled={isPending || roles.length === 0} type="submit">
-              {isPending ? "Saving…" : isEditing ? "Save changes" : "Send Clerk invitation"}
+              {isPending ? "Saving…" : isEditing ? "Save changes" : "Send invitation"}
             </Button>
           </div>
         </Form>

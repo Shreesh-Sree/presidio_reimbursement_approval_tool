@@ -1,4 +1,4 @@
-"""OAuth-only auth: signed Clerk identity, email allowlist, and first admin."""
+"""OAuth-only auth: signed Supabase identity, email allowlist, and first admin."""
 
 from __future__ import annotations
 
@@ -7,28 +7,26 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.core.clerk import (
-    ClerkConfigurationError,
-    ClerkIdentity,
-    ClerkTokenError,
+from app.core.supabase_auth import (
+    SupabaseConfigurationError,
+    SupabaseIdentity,
+    SupabaseTokenError,
     _verified_email,
-    verify_clerk_token,
+    verify_supabase_token,
 )
 from app.core.config import Settings
 from app.models.user import User
-from app.services.clerk_provisioning_service import ClerkInvitation
+from app.services.supabase_provisioning_service import SupabaseInvitation
 
 
-def _clerk_settings(*, super_admin_email: str = "owner@example.com") -> Settings:
+def _supabase_settings(*, super_admin_email: str = "owner@example.com") -> Settings:
     return Settings(
         database_url="sqlite+pysqlite:///:memory:",
         jwt_secret="test-secret",
         s3_bucket="test-bucket",
-        auth_provider="clerk",
-        clerk_jwks_url="https://clerk.example.test/.well-known/jwks.json",
-        clerk_issuer="https://clerk.example.test",
-        clerk_audience="presidio-api",
-        clerk_authorized_parties="http://localhost:5173",
+        auth_provider="supabase",
+        supabase_url="https://test.supabase.co",
+        supabase_jwt_secret="test-supabase-jwt-secret",
         super_admin_email=super_admin_email,
     )
 
@@ -37,28 +35,28 @@ def _oauth_headers() -> dict[str, str]:
     return {"Authorization": "Bearer signed-clerk-session-token"}
 
 
-def _mock_clerk_identity(monkeypatch, identity: ClerkIdentity, settings: Settings) -> None:
+def _mock_supabase_identity(monkeypatch, identity: SupabaseIdentity, settings: Settings) -> None:
     import app.api.routes.auth as auth_routes
     import app.core.deps as deps
 
     monkeypatch.setattr(deps, "get_settings", lambda: settings)
-    monkeypatch.setattr(deps, "verify_clerk_token", lambda _token, _settings: identity)
+    monkeypatch.setattr(deps, "verify_supabase_token", lambda _token, _settings: identity)
     monkeypatch.setattr(auth_routes, "get_settings", lambda: settings)
 
 
 def test_configured_super_admin_is_provisioned_on_first_verified_oauth_login(client, db, monkeypatch):
     import app.api.routes.users as users_routes
 
-    settings = _clerk_settings()
-    _mock_clerk_identity(
+    settings = _supabase_settings()
+    _mock_supabase_identity(
         monkeypatch,
-        ClerkIdentity(subject="user_owner", email="owner@example.com"),
+        SupabaseIdentity(subject="user_owner", email="owner@example.com"),
         settings,
     )
     monkeypatch.setattr(
-        users_routes.clerk_provisioning_service,
+        users_routes.supabase_provisioning_service,
         "invite_user",
-        lambda **kwargs: ClerkInvitation(id="inv_test", email=kwargs["email"]),
+        lambda **kwargs: SupabaseInvitation(id="inv_test", email=kwargs["email"]),
     )
 
     response = client.get("/api/auth/me", headers=_oauth_headers())
@@ -94,10 +92,10 @@ def test_configured_super_admin_is_provisioned_on_first_verified_oauth_login(cli
 
 
 def test_verified_email_not_on_allowlist_receives_explicit_access_denied_page_signal(client, monkeypatch):
-    _mock_clerk_identity(
+    _mock_supabase_identity(
         monkeypatch,
-        ClerkIdentity(subject="user_unlisted", email="unlisted@example.com"),
-        _clerk_settings(),
+        SupabaseIdentity(subject="user_unlisted", email="unlisted@example.com"),
+        _supabase_settings(),
     )
 
     response = client.get("/api/auth/me", headers=_oauth_headers())
@@ -109,14 +107,14 @@ def test_verified_email_not_on_allowlist_receives_explicit_access_denied_page_si
     }
 
 
-def test_allowlisted_user_binds_first_clerk_subject_and_rejects_a_later_mismatch(
+def test_allowlisted_user_binds_first_subject_and_rejects_later_mismatch(
     client, seeded_user, db, monkeypatch
 ):
     db.commit()
-    settings = _clerk_settings()
-    _mock_clerk_identity(
+    settings = _supabase_settings()
+    _mock_supabase_identity(
         monkeypatch,
-        ClerkIdentity(subject="user_employee", email="employee@example.com"),
+        SupabaseIdentity(subject="user_employee", email="employee@example.com"),
         settings,
     )
 
@@ -125,9 +123,9 @@ def test_allowlisted_user_binds_first_clerk_subject_and_rejects_a_later_mismatch
     db.refresh(seeded_user)
     assert seeded_user.external_auth_subject == "user_employee"
 
-    _mock_clerk_identity(
+    _mock_supabase_identity(
         monkeypatch,
-        ClerkIdentity(subject="user_someone_else", email="employee@example.com"),
+        SupabaseIdentity(subject="user_someone_else", email="employee@example.com"),
         settings,
     )
     denied = client.get("/api/auth/me", headers=_oauth_headers())
@@ -140,10 +138,10 @@ def test_existing_allowlisted_user_records_each_completed_oauth_session(client, 
     seeded_user.external_auth_subject = "user_employee"
     seeded_user.last_login_at = previous_login
     db.commit()
-    _mock_clerk_identity(
+    _mock_supabase_identity(
         monkeypatch,
-        ClerkIdentity(subject="user_employee", email="employee@example.com"),
-        _clerk_settings(),
+        SupabaseIdentity(subject="user_employee", email="employee@example.com"),
+        _supabase_settings(),
     )
 
     response = client.get("/api/auth/me", headers=_oauth_headers())
@@ -171,10 +169,10 @@ def test_soft_deleted_identity_binding_returns_controlled_access_denied(client, 
     )
     db.add(replacement)
     db.commit()
-    _mock_clerk_identity(
+    _mock_supabase_identity(
         monkeypatch,
-        ClerkIdentity(subject="user_retired", email="replacement@example.com"),
-        _clerk_settings(),
+        SupabaseIdentity(subject="user_retired", email="replacement@example.com"),
+        _supabase_settings(),
     )
 
     response = client.get("/api/auth/me", headers=_oauth_headers())
@@ -190,8 +188,8 @@ def test_first_admin_bootstrap_race_reuses_the_allowlist_row(db, seeded_user, mo
 
     seeded_user.email = "owner@example.com"
     db.commit()
-    settings = _clerk_settings()
-    identity = ClerkIdentity(subject="user_owner", email="owner@example.com")
+    settings = _supabase_settings()
+    identity = SupabaseIdentity(subject="user_owner", email="owner@example.com")
     calls = iter(([], [seeded_user]))
     monkeypatch.setattr(oauth_access_service, "_active_users_for_email", lambda *_args: next(calls))
 
@@ -206,71 +204,59 @@ def test_first_admin_bootstrap_race_reuses_the_allowlist_row(db, seeded_user, mo
     assert user.external_auth_subject == "user_owner"
 
 
-def test_clerk_token_requires_the_custom_verified_email_claims():
-    assert _verified_email({"email": "person@example.com", "email_verified": True}) == "person@example.com"
-    with pytest.raises(ClerkTokenError):
-        _verified_email({"email": "person@example.com", "email_verified": False})
-    with pytest.raises(ClerkTokenError):
-        _verified_email({"email": "person@example.com"})
+def test_supabase_token_requires_verified_email_claims():
+    assert _verified_email({"email": "person@example.com", "role": "authenticated"}) == "person@example.com"
+    with pytest.raises(SupabaseTokenError):
+        _verified_email({"email": "person@example.com", "role": "anon"})
+    with pytest.raises(SupabaseTokenError):
+        _verified_email({"email": "person@example.com", "role": ""})
 
 
-def test_clerk_verifier_requires_rs256_and_checks_authorized_party(monkeypatch):
-    import app.core.clerk as clerk
+def test_supabase_verifier_validates_token(monkeypatch):
+    import app.core.supabase_auth as supabase_auth
 
-    settings = _clerk_settings()
-    monkeypatch.setattr(clerk.jwt, "get_unverified_header", lambda _token: {"alg": "RS256"})
+    settings = _supabase_settings()
     monkeypatch.setattr(
-        clerk,
-        "_jwks_client",
-        lambda _url: type("Client", (), {"get_signing_key_from_jwt": lambda self, _token: type("Key", (), {"key": "public-key"})()})(),
+        supabase_auth.jwt,
+        "get_unverified_header",
+        lambda _token: {"alg": "HS256", "typ": "JWT"},
     )
     monkeypatch.setattr(
-        clerk.jwt,
+        supabase_auth.jwt,
         "decode",
         lambda *_args, **_kwargs: {
             "sub": "user_123",
             "email": "person@example.com",
-            "email_verified": True,
-            "azp": "http://localhost:5173/",
+            "role": "authenticated",
         },
     )
 
-    identity = verify_clerk_token("signed-token", settings)
-    assert identity == ClerkIdentity(subject="user_123", email="person@example.com")
+    identity = verify_supabase_token("signed-token", settings)
+    assert identity == SupabaseIdentity(subject="user_123", email="person@example.com")
 
     monkeypatch.setattr(
-        clerk.jwt,
+        supabase_auth.jwt,
         "decode",
         lambda *_args, **_kwargs: {
             "sub": "user_123",
             "email": "person@example.com",
-            "email_verified": True,
         },
     )
-    with pytest.raises(ClerkTokenError):
-        verify_clerk_token("missing-azp", settings)
-
-    monkeypatch.setattr(clerk.jwt, "get_unverified_header", lambda _token: {"alg": "HS256"})
-    with pytest.raises(ClerkTokenError):
-        verify_clerk_token("wrong-algorithm", settings)
+    with pytest.raises(SupabaseTokenError):
+        verify_supabase_token("unconfirmed-email", settings)
 
 
-def test_clerk_verifier_rejects_incomplete_configuration():
-    settings = _clerk_settings()
-    settings.clerk_jwks_url = ""
-    with pytest.raises(ClerkConfigurationError):
-        verify_clerk_token("signed-token", settings)
-
-    settings = _clerk_settings()
-    settings.clerk_authorized_parties = ""
-    with pytest.raises(ClerkConfigurationError):
-        verify_clerk_token("signed-token", settings)
+def test_supabase_verifier_rejects_incomplete_configuration():
+    settings = _supabase_settings()
+    settings.supabase_url = ""
+    with pytest.raises(SupabaseConfigurationError):
+        verify_supabase_token("signed-token", settings)
 
 
-def test_password_endpoints_are_gone_in_clerk_mode(client, monkeypatch):
+def test_password_endpoints_are_gone_in_supabase_mode(client, monkeypatch):
     import app.api.routes.auth as auth_routes
 
-    monkeypatch.setattr(auth_routes, "get_settings", lambda: _clerk_settings())
+    monkeypatch.setattr(auth_routes, "get_settings", lambda: _supabase_settings())
     response = client.post(
         "/api/auth/login",
         json={"email": "owner@example.com", "password": "correct-horse-battery-staple"},

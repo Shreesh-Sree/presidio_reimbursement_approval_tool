@@ -61,7 +61,7 @@ describe("UsersPage", () => {
     await user.click(screen.getByRole("checkbox", { name: "Manager / Approver" }));
     await user.click(screen.getByLabelText(/reporting manager/i));
     await user.click(screen.getByRole("option", { name: /Morgan Manager/i }));
-    await user.click(screen.getByRole("button", { name: /send clerk invitation/i }));
+    await user.click(screen.getByRole("button", { name: /send invitation/i }));
 
     await waitFor(() => {
       expect(create).toHaveBeenCalledWith({

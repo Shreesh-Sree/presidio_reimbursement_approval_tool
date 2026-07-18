@@ -9,7 +9,7 @@ function mediaQuery() { return typeof window.matchMedia === "function" ? window.
 function systemMode() { return mediaQuery()?.matches ? "dark" : "light"; }
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemePreference>(() => (localStorage.getItem("presidio-theme") as ThemePreference) || "light");
+  const [mode, setMode] = useState<ThemePreference>(() => (localStorage.getItem("presidio-theme") as ThemePreference) || "dark");
   const [resolvedMode, setResolvedMode] = useState<"light" | "dark">(() => mode === "system" ? systemMode() : mode);
   useEffect(() => {
     const apply = () => setResolvedMode(mode === "system" ? systemMode() : mode);
@@ -18,8 +18,10 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
     return () => media?.removeEventListener("change", apply);
   }, [mode]);
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", resolvedMode === "dark");
-    document.documentElement.dataset.theme = resolvedMode;
+    const el = document.documentElement;
+    el.classList.toggle("dark", resolvedMode === "dark");
+    el.classList.toggle("light", resolvedMode === "light");
+    el.dataset.theme = resolvedMode;
     localStorage.setItem("presidio-color-scheme", resolvedMode);
   }, [resolvedMode]);
   const value = useMemo(() => ({ mode, resolvedMode, setMode }), [mode, resolvedMode]);

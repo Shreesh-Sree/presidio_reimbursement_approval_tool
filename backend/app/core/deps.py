@@ -11,7 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.clerk import ClerkConfigurationError, ClerkTokenError, verify_clerk_token
+from app.core.supabase_auth import SupabaseConfigurationError, SupabaseTokenError, verify_supabase_token
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import decode_token
@@ -46,15 +46,15 @@ async def get_current_user(
         )
     settings = get_settings()
     session_id = None
-    if settings.auth_provider == "clerk":
+    if settings.auth_provider == "supabase":
         try:
-            identity = verify_clerk_token(creds.credentials, settings)
-        except ClerkConfigurationError as exc:
+            identity = verify_supabase_token(creds.credentials, settings)
+        except SupabaseConfigurationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="OAuth authentication is not configured",
             ) from exc
-        except ClerkTokenError as exc:
+        except SupabaseTokenError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired OAuth token",

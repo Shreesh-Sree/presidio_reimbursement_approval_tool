@@ -125,11 +125,10 @@ jobs:
               exit 1
             fi
             echo "✓ Credentials verified"
-      - name: Login to Azure Container Registry
-        uses: azure/docker-login@v2
-        with:
-          login-server: ${{ env.ACR_LOGIN_SERVER }}
-          use-oidc: true
+      - name: Login to ACR via Azure CLI
+        run: |
+          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+          echo "✓ Logged into ACR"
 
       - name: Build and push all images
         continue-on-error: false

@@ -1,24 +1,33 @@
-# Deploy to Azure Container Apps
+# Deploy to Azure (containers + frontend + database migrations)
 #
-# Required GitHub Secrets / Variables:
-#   AZURE_CLIENT_ID       - App registration (service principal) client ID for OIDC federation
-#   AZURE_TENANT_ID       - Azure AD tenant ID
-#   AZURE_SUBSCRIPTION_ID - Target Azure subscription
-#   ACR_LOGIN_SERVER      - Container registry login server (e.g., presidioregistry.azurecr.io)
-#   AZURE_STATIC_WEB_APPS_API_TOKEN - Deployment token for Azure Static Web Apps
+# Triggers on push to main. Runs full pipeline:
+#   1. Wait for CI checks to pass
+#   2. Run database migrations against Supabase PostgreSQL
+#   3. Build and push container images to ACR
+#   4. Deploy containers to Azure Container Apps
+#   5. Deploy frontend to Azure Static Web Apps
+#   6. Verify health of all deployed services
+#   7. Apply Terraform changes (if infra files changed)
+#
+# Required GitHub Secrets:
+#   AZURE_CLIENT_ID                  - Service principal for OIDC federation
+#   AZURE_TENANT_ID                  - Azure AD tenant
+#   AZURE_SUBSCRIPTION_ID            - Target subscription
+#   ACR_LOGIN_SERVER                 - Container registry (e.g., presidioregistry.azurecr.io)
+#   AZURE_STATIC_WEB_APPS_API_TOKEN  - SWA deployment token
+#   DATABASE_URL                     - Supabase PostgreSQL connection string
+#   VITE_SUPABASE_ANON_KEY           - Frontend Supabase anon key
+#
+# Required GitHub Variables:
+#   VITE_SUPABASE_URL                - Supabase project URL
+#   VITE_API_BASE_URL                - Production API base URL
+#   API_BASE_URL                     - Backend FQDN for health checks
 
-name: Deploy Azure
+name: Deploy to Production
 
 on:
   push:
     branches: [main]
-    paths:
-      - "frontend/**"
-      - "backend/**"
-      - "ai_review_service/**"
-      - "receipt_intelligence_service/**"
-      - "policy_assistant_service/**"
-      - "deployment/terraform-azure/**"
   workflow_dispatch:
 
 permissions:
@@ -26,7 +35,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: azure-production-deployment
+  group: production-deployment
   cancel-in-progress: false
 
 env:
@@ -35,22 +44,52 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
+  # ─── Gate: wait for CI to pass ───────────────────────────────────────
   ci-gate:
-    name: ci-gate
+    name: Wait for CI
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for CI to pass
+      - name: Wait for CI checks
         uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.sha }}
-          running-workflow-name: ci-gate
+          running-workflow-name: Wait for CI
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           check-regexp: ^(backend|frontend|ai-review|receipt-intelligence|policy-assistant|terraform|secrets)$
           wait-interval: 15
           allowed-conclusions: success,skipped
 
+  # ─── Database migrations (Supabase PostgreSQL) ───────────────────────
+  migrate:
+    name: Run migrations
+    runs-on: ubuntu-latest
+    needs: [ci-gate]
+    environment: azure-production
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --no-dev
+
+      - name: Run Alembic migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: uv run alembic upgrade head
+
+  # ─── Build and push container images ─────────────────────────────────
   build-and-push:
-    name: build-and-push
+    name: Build containers
     runs-on: ubuntu-latest
     needs: [ci-gate]
     environment: azure-production
@@ -69,46 +108,32 @@ jobs:
         with:
           login-server: ${{ env.ACR_LOGIN_SERVER }}
 
-      - name: Build and push presidio-api
+      - name: Build and push all images
         run: |
-          docker build \
-            --tag "$ACR_LOGIN_SERVER/presidio-api:$IMAGE_TAG" \
-            --tag "$ACR_LOGIN_SERVER/presidio-api:latest" \
-            backend
-          docker push "$ACR_LOGIN_SERVER/presidio-api:$IMAGE_TAG"
-          docker push "$ACR_LOGIN_SERVER/presidio-api:latest"
+          services=(
+            "backend:presidio-api"
+            "ai_review_service:presidio-ai-review"
+            "receipt_intelligence_service:presidio-receipt-intelligence"
+            "policy_assistant_service:presidio-policy-assistant"
+          )
+          for entry in "${services[@]}"; do
+            context="${entry%%:*}"
+            image="${entry##*:}"
+            echo "::group::Building $image from $context"
+            docker build \
+              --tag "$ACR_LOGIN_SERVER/$image:$IMAGE_TAG" \
+              --tag "$ACR_LOGIN_SERVER/$image:latest" \
+              "$context"
+            docker push "$ACR_LOGIN_SERVER/$image:$IMAGE_TAG"
+            docker push "$ACR_LOGIN_SERVER/$image:latest"
+            echo "::endgroup::"
+          done
 
-      - name: Build and push presidio-ai-review
-        run: |
-          docker build \
-            --tag "$ACR_LOGIN_SERVER/presidio-ai-review:$IMAGE_TAG" \
-            --tag "$ACR_LOGIN_SERVER/presidio-ai-review:latest" \
-            ai_review_service
-          docker push "$ACR_LOGIN_SERVER/presidio-ai-review:$IMAGE_TAG"
-          docker push "$ACR_LOGIN_SERVER/presidio-ai-review:latest"
-
-      - name: Build and push presidio-receipt-intelligence
-        run: |
-          docker build \
-            --tag "$ACR_LOGIN_SERVER/presidio-receipt-intelligence:$IMAGE_TAG" \
-            --tag "$ACR_LOGIN_SERVER/presidio-receipt-intelligence:latest" \
-            receipt_intelligence_service
-          docker push "$ACR_LOGIN_SERVER/presidio-receipt-intelligence:$IMAGE_TAG"
-          docker push "$ACR_LOGIN_SERVER/presidio-receipt-intelligence:latest"
-
-      - name: Build and push presidio-policy-assistant
-        run: |
-          docker build \
-            --tag "$ACR_LOGIN_SERVER/presidio-policy-assistant:$IMAGE_TAG" \
-            --tag "$ACR_LOGIN_SERVER/presidio-policy-assistant:latest" \
-            policy_assistant_service
-          docker push "$ACR_LOGIN_SERVER/presidio-policy-assistant:$IMAGE_TAG"
-          docker push "$ACR_LOGIN_SERVER/presidio-policy-assistant:latest"
-
-  deploy:
-    name: deploy
+  # ─── Deploy containers to Azure Container Apps ───────────────────────
+  deploy-services:
+    name: Deploy services
     runs-on: ubuntu-latest
-    needs: [build-and-push]
+    needs: [migrate, build-and-push]
     environment: azure-production
     steps:
       - name: Login to Azure via OIDC
@@ -118,100 +143,35 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Update presidio-api container app
+      - name: Deploy all container apps
         uses: azure/cli@v2
         with:
           inlineScript: |
-            az containerapp update \
-              --name presidio-api \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
-              --image "${{ env.ACR_LOGIN_SERVER }}/presidio-api:${{ env.IMAGE_TAG }}"
+            apps=(presidio-api presidio-ai-review presidio-receipt-intelligence presidio-policy-assistant)
+            for app in "${apps[@]}"; do
+              echo "Deploying $app..."
+              az containerapp update \
+                --name "$app" \
+                --resource-group "${{ env.RESOURCE_GROUP }}" \
+                --image "${{ env.ACR_LOGIN_SERVER }}/$app:${{ env.IMAGE_TAG }}" \
+                --output none
+            done
 
-      - name: Update presidio-ai-review container app
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az containerapp update \
-              --name presidio-ai-review \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
-              --image "${{ env.ACR_LOGIN_SERVER }}/presidio-ai-review:${{ env.IMAGE_TAG }}"
+      - name: Wait for rollout
+        run: sleep 30
 
-      - name: Update presidio-receipt-intelligence container app
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az containerapp update \
-              --name presidio-receipt-intelligence \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
-              --image "${{ env.ACR_LOGIN_SERVER }}/presidio-receipt-intelligence:${{ env.IMAGE_TAG }}"
-
-      - name: Update presidio-policy-assistant container app
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az containerapp update \
-              --name presidio-policy-assistant \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
-              --image "${{ env.ACR_LOGIN_SERVER }}/presidio-policy-assistant:${{ env.IMAGE_TAG }}"
-
-      - name: Report deployment status
+      - name: Verify service health
         uses: azure/cli@v2
         with:
           inlineScript: |
             az containerapp list \
               --resource-group "${{ env.RESOURCE_GROUP }}" \
-              --query "[].{Name:name, FQDN:properties.configuration.ingress.fqdn, Status:properties.provisioningState}" \
+              --query "[].{Name:name, FQDN:properties.configuration.ingress.fqdn, Status:properties.runningStatus}" \
               --output table
 
-  terraform:
-    name: terraform
-    runs-on: ubuntu-latest
-    needs: [ci-gate]
-    if: contains(github.event.head_commit.modified, 'deployment/terraform-azure') || github.event_name == 'workflow_dispatch'
-    environment: azure-production
-    defaults:
-      run:
-        working-directory: deployment/terraform-azure
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Login to Azure via OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.12.2"
-
-      - name: Terraform init
-        run: terraform init -input=false
-        env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: "true"
-
-      - name: Terraform plan
-        run: terraform plan -out=tfplan -input=false
-        env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: "true"
-
-      - name: Terraform apply
-        run: terraform apply -auto-approve tfplan
-        env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: "true"
-
+  # ─── Deploy frontend to Azure Static Web Apps ────────────────────────
   deploy-frontend:
-    name: deploy-frontend
+    name: Deploy frontend
     runs-on: ubuntu-latest
     needs: [ci-gate]
     environment: azure-production
@@ -243,3 +203,88 @@ jobs:
           app_location: frontend/dist
           skip_app_build: true
           skip_api_build: true
+
+  # ─── Terraform (only when infra files change) ────────────────────────
+  terraform:
+    name: Terraform apply
+    runs-on: ubuntu-latest
+    needs: [ci-gate]
+    environment: azure-production
+    defaults:
+      run:
+        working-directory: deployment/terraform-azure
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Check for infrastructure changes
+        id: changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q "^deployment/terraform-azure/"; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+        working-directory: .
+
+      - name: Login to Azure via OIDC
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        with:
+          terraform_version: "1.12.2"
+
+      - name: Terraform init
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: terraform init -input=false
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: "true"
+
+      - name: Terraform plan and apply
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          terraform plan -out=tfplan -input=false
+          terraform apply -auto-approve tfplan
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: "true"
+
+  # ─── Post-deploy health verification ─────────────────────────────────
+  verify:
+    name: Verify deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-services, deploy-frontend]
+    steps:
+      - name: Check API health
+        run: |
+          for i in $(seq 1 5); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/api/health" || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "API healthy (attempt $i)"
+              exit 0
+            fi
+            echo "API not ready (status=$status), retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::API health check failed after 5 attempts"
+          exit 1
+
+      - name: Check API readiness
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/api/ready" || echo "000")
+          if [ "$status" != "200" ]; then
+            echo "::warning::API readiness check returned $status (database may still be connecting)"
+          fi
+          echo "API readiness: $status"

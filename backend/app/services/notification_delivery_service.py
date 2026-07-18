@@ -165,12 +165,15 @@ def _mark_delivery(db: Session, notification_id: uuid.UUID, *, sent: bool, error
     db.commit()
 
 
-def deliver_pending_email_notifications(db: Session | None = None, *, limit: int = 100) -> int:
-    """Attempt a bounded batch of queued emails and return the sent count.
+def _use_azure_email(settings: Any) -> bool:
+    """Azure Communication Services is preferred when configured."""
+    return bool(getattr(settings, "azure_communication_connection_string", ""))
 
-    The function works as a standalone worker (no ``db`` argument) and as a
-    testable/reusable service (an existing session).  Disabled delivery is a
-    safe no-op; it neither opens SMTP nor changes queued rows.
+
+def deliver_pending_email_notifications(db: Session | None = None, *, limit: int = 100) -> int:
+    """Attempt a bounded batch of queued emails via Azure or SMTP fallback.
+
+    Production uses Azure Communication Services. Local dev uses SMTP/MailHog.
     """
 
     if limit < 1:
@@ -181,21 +184,77 @@ def deliver_pending_email_notifications(db: Session | None = None, *, limit: int
 
     owns_session = db is None
     session = db or get_session_local()()
-    smtp: smtplib.SMTP | None = None
     claimed: list[tuple[uuid.UUID, uuid.UUID]] = []
     sent = 0
     try:
         claimed = _claim_pending_email_notifications(session, limit)
         if not claimed:
             return 0
-        try:
-            smtp = _open_smtp(settings)
-        except (OSError, smtplib.SMTPException, ValueError) as exc:
-            error = _safe_delivery_error(exc)
-            for notification_id, _ in claimed:
-                _mark_delivery(session, notification_id, sent=False, error=error)
-            return 0
 
+        if _use_azure_email(settings):
+            sent = _deliver_via_azure(session, claimed, settings)
+        else:
+            sent = _deliver_via_smtp(session, claimed, settings)
+        return sent
+    finally:
+        if owns_session:
+            session.close()
+
+
+def _deliver_via_azure(
+    session: Session,
+    claimed: list[tuple[uuid.UUID, uuid.UUID]],
+    settings: Any,
+) -> int:
+    """Send emails through Azure Communication Services."""
+    from app.services.azure_email_service import AzureEmailSender
+
+    sender_address = getattr(settings, "azure_communication_sender", "") or getattr(settings, "smtp_from", "no-reply@presidio.com")
+    try:
+        azure_sender = AzureEmailSender(
+            connection_string=settings.azure_communication_connection_string,
+            sender_address=sender_address,
+        )
+    except Exception as exc:
+        error = _safe_delivery_error(exc)
+        for notification_id, _ in claimed:
+            _mark_delivery(session, notification_id, sent=False, error=error)
+        return 0
+
+    sent = 0
+    for notification_id, recipient_id in claimed:
+        notification = session.get(Notification, notification_id)
+        recipient = session.get(User, recipient_id)
+        if notification is None or recipient is None:
+            continue
+        try:
+            message = _message_for(notification, recipient, settings)
+            azure_sender.send(message)
+        except Exception as exc:
+            _mark_delivery(session, notification_id, sent=False, error=_safe_delivery_error(exc))
+        else:
+            _mark_delivery(session, notification_id, sent=True)
+            sent += 1
+    return sent
+
+
+def _deliver_via_smtp(
+    session: Session,
+    claimed: list[tuple[uuid.UUID, uuid.UUID]],
+    settings: Any,
+) -> int:
+    """Send emails through SMTP (local development / MailHog fallback)."""
+    smtp: smtplib.SMTP | None = None
+    sent = 0
+    try:
+        smtp = _open_smtp(settings)
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
+        error = _safe_delivery_error(exc)
+        for notification_id, _ in claimed:
+            _mark_delivery(session, notification_id, sent=False, error=error)
+        return 0
+
+    try:
         for notification_id, recipient_id in claimed:
             notification = session.get(Notification, notification_id)
             recipient = session.get(User, recipient_id)
@@ -208,12 +267,9 @@ def deliver_pending_email_notifications(db: Session | None = None, *, limit: int
             else:
                 _mark_delivery(session, notification_id, sent=True)
                 sent += 1
-        return sent
     finally:
-        if smtp is not None:
-            try:
-                smtp.quit()
-            except (OSError, smtplib.SMTPException):
-                pass
-        if owns_session:
-            session.close()
+        try:
+            smtp.quit()
+        except (OSError, smtplib.SMTPException):
+            pass
+    return sent

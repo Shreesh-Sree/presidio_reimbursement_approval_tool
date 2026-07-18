@@ -114,7 +114,9 @@ resource "azurerm_container_app" "backend" {
   }
 
   template {
-    min_replicas = 0
+    # Keep the interactive API warm: it authenticates the browser before the
+    # dashboard can render, so a scale-from-zero cold start is user-visible.
+    min_replicas = 1
     max_replicas = 1
 
     container {

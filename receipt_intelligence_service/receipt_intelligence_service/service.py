@@ -174,10 +174,15 @@ class ReceiptIntelligenceService:
 
 
 def build_service(settings: ReceiptIntelligenceSettings) -> ReceiptIntelligenceService:
-    """Build a service backed by an independently owned SQLite datastore."""
+    """Build a service backed by PostgreSQL (production) or SQLite (local dev)."""
 
+    if settings.database_url:
+        from .postgres_persistence import PostgresDigestRepository
+        repository = PostgresDigestRepository(settings.database_url)
+    else:
+        repository = SqliteDigestRepository(settings.database_path)
     return ReceiptIntelligenceService(
-        repository=SqliteDigestRepository(settings.database_path),
+        repository=repository,
         settings=settings,
         provider=build_provider(settings),
     )

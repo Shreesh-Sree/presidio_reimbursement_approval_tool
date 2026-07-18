@@ -14,6 +14,7 @@ class AIReviewSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AI_REVIEW_", env_file=".env", extra="ignore")
 
     database_path: str = "var/ai-review.sqlite3"
+    database_url: str | None = Field(default=None, repr=False)
     provider: Literal["rule_based", "gemini", "groq"] = "groq"
     gemini_api_key: str | None = Field(default=None, repr=False)
     gemini_model: str = "gemini-2.5-flash"

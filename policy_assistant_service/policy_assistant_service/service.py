@@ -16,6 +16,7 @@ from .contracts import (
 )
 from .sanitization import chunk_text, safe_excerpt, sanitize_policy_document, validate_question
 from .vector_store import AppwritePolicyStore, IndexedChunk, SQLitePolicyStore, hashed_embedding
+from .postgres_store import PostgresPolicyStore
 from .providers import ResilientAnswerProvider, build_answer_provider
 
 
@@ -35,16 +36,18 @@ _DECISION_LANGUAGE = re.compile(
 class PolicyAssistantService:
     """Local deterministic RAG implementation; it cannot call or mutate core systems."""
 
-    def __init__(self, settings: PolicyAssistantSettings, store: SQLitePolicyStore | AppwritePolicyStore | None = None) -> None:
+    def __init__(self, settings: PolicyAssistantSettings, store: SQLitePolicyStore | AppwritePolicyStore | PostgresPolicyStore | None = None) -> None:
         self.settings = settings
         self.store = store or self._build_store(settings)
         self._answer_provider = build_answer_provider(settings)
         self.logger = logging.getLogger("policy_assistant")
 
     @staticmethod
-    def _build_store(settings: PolicyAssistantSettings) -> SQLitePolicyStore | AppwritePolicyStore:
+    def _build_store(settings: PolicyAssistantSettings) -> SQLitePolicyStore | AppwritePolicyStore | PostgresPolicyStore:
         if settings.persistence_backend == "sqlite":
             return SQLitePolicyStore(settings.database_path)
+        if settings.persistence_backend == "postgresql":
+            return PostgresPolicyStore(settings.database_url or "")
         return AppwritePolicyStore(
             endpoint=settings.appwrite_endpoint or "",
             project_id=settings.appwrite_project_id or "",

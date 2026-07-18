@@ -1,4 +1,4 @@
-import axios, { type InternalAxiosRequestConfig } from "axios";
+import { type InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiClient, authApi, setApiTokenProvider } from "../api";
 

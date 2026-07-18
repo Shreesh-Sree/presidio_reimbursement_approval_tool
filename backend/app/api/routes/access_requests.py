@@ -18,7 +18,6 @@ router = APIRouter(prefix="/access-requests", tags=["access-requests"])
 class AccessRequestCreate(BaseModel):
     email: EmailStr
     full_name: str
-    organization_code: str = "DEMO"
 
 
 class AccessRequestApprove(BaseModel):
@@ -45,7 +44,6 @@ def create_access_request(
             db,
             email=payload.email,
             full_name=payload.full_name,
-            organization_code=payload.organization_code
         )
         return AccessRequestResponse(
             id=request.id,
@@ -91,7 +89,8 @@ def approve_request(
         created_user = access_request_service.approve_request(
             db,
             request_id,
-            user["id"],
+            uuid.UUID(str(user["user_id"])),
+            uuid.UUID(str(user["organization_id"])),
             payload.department_id
         )
         return {"message": "Access approved", "user_id": str(created_user.id)}
@@ -108,7 +107,10 @@ def reject_request(
     """Admin endpoint to reject access request."""
     try:
         request = access_request_service.reject_request(
-            db, request_id, user["id"]
+            db,
+            request_id,
+            uuid.UUID(str(user["user_id"])),
+            uuid.UUID(str(user["organization_id"])),
         )
         return {"message": "Access rejected", "request_id": str(request.id)}
     except ValueError as e:

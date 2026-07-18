@@ -3,7 +3,7 @@ import { supabase } from "../../auth/supabase";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { getApiErrorMessage } from "../../lib/api";
+import { apiClient, getApiErrorMessage } from "../../lib/api";
 
 export function EmailSignUpForm() {
   const [email, setEmail] = useState("");
@@ -31,23 +31,13 @@ export function EmailSignUpForm() {
       if (signUpError) throw signUpError;
 
       // Create access request in backend
-      const response = await fetch("/api/access-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          full_name: fullName,
-          organization_code: "DEMO",
-        }),
+      await apiClient.post("/access-requests", {
+        email,
+        full_name: fullName,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to submit access request");
-      }
-
       setSuccess(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Failed to sign up. Please try again."));
     } finally {
       setIsLoading(false);

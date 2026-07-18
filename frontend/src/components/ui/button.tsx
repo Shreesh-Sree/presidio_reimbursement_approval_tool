@@ -8,18 +8,18 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  default: "bg-[#ea2804] text-white hover:bg-[#c01f00] focus-visible:outline-[#ea2804]",
-  outline: "border border-[#202020] bg-white text-[#202020] hover:bg-[#f3f0e8] dark:border-[#fcfcfc] dark:bg-[#202020] dark:text-[#fcfcfc] dark:hover:bg-[#303030]",
-  ghost: "text-[#202020] hover:bg-[#f3f0e8] dark:text-[#fcfcfc] dark:hover:bg-[#303030]",
-  destructive: "bg-orange-600 text-white hover:bg-orange-500 focus-visible:outline-orange-600",
-  secondary: "bg-[#202020] text-[#fcfcfc] hover:bg-[#3a3a3a] dark:bg-[#f3f0e8] dark:text-[#202020] dark:hover:bg-white",
+  default: "bg-[#0071e3] text-white hover:bg-[#0077ED] focus-visible:outline-[#0071e3]",
+  outline: "border border-[#d2d2d7] bg-white text-[#1d1d1f] hover:bg-[#f5f5f7] dark:border-white/12 dark:bg-[#1d1d1f] dark:text-[#f5f5f7] dark:hover:bg-[#2d2d2d]",
+  ghost: "text-[#1d1d1f] hover:bg-[#f5f5f7] dark:text-[#f5f5f7] dark:hover:bg-[#2d2d2d]",
+  destructive: "bg-[#ff3b30] text-white hover:bg-[#ff453a] focus-visible:outline-[#ff3b30]",
+  secondary: "bg-[#1d1d1f] text-white hover:bg-[#424245] dark:bg-[#f5f5f7] dark:text-[#1d1d1f] dark:hover:bg-white",
 };
 
 export function Button({ className, variant = "default", type = "button", ...props }: ButtonProps) {
   return (
     <button
       className={cn(
-        "inline-flex min-h-11 items-center justify-center rounded-full px-5 py-2.5 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex min-h-11 items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
         variants[variant],
         className,
       )}

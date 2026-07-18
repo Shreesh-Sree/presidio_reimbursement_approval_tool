@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { notificationsApi, type Notification } from "../../lib/api";
 
 type NotificationFeedProps = {
@@ -12,6 +13,7 @@ function relativeTimestamp(value: string) {
 
 export function NotificationFeed({ notifications }: NotificationFeedProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const markRead = useMutation({
     mutationFn: (notificationId: string) => notificationsApi.markRead(notificationId),
     onSuccess: (updatedNotification) => {
@@ -36,6 +38,9 @@ export function NotificationFeed({ notifications }: NotificationFeedProps) {
               disabled={markRead.isPending}
               onClick={() => {
                 if (unread) markRead.mutate(notification.id);
+                if (notification.report_id) {
+                  navigate(`/reports/${notification.report_id}`);
+                }
               }}
               type="button"
             >

@@ -6,20 +6,28 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
+from app.models.department import Department
+from app.models.role import Role
 from app.models.user import User
 from app.models.user_access_request import UserAccessRequest
+from app.models.user_role import UserRole
 from app.models.organization import Organization
+from app.services import user_service
 
 
 def create_access_request(
     db: Session,
     email: str,
     full_name: str,
-    organization_code: str = "DEMO"
+    organization_code: str | None = None,
 ) -> UserAccessRequest:
     """Create new access request for email signup."""
 
-    # Get organization
+    # Public signup must always use the configured tenant. Allowing callers to
+    # select an organization would make it possible to inject requests into a
+    # different tenant.
+    organization_code = organization_code or get_settings().default_organization_code
     org = db.execute(
         select(Organization).where(Organization.code == organization_code)
     ).scalar_one()
@@ -64,6 +72,7 @@ def approve_request(
     db: Session,
     request_id: uuid.UUID,
     admin_user_id: uuid.UUID,
+    admin_organization_id: uuid.UUID,
     department_id: uuid.UUID
 ) -> User:
     """Approve access request and create user account."""
@@ -71,8 +80,26 @@ def approve_request(
     request = db.get(UserAccessRequest, request_id)
     if not request or request.status != "pending":
         raise ValueError("Request not found or already processed")
+    if request.organization_id != admin_organization_id:
+        raise ValueError("Request does not belong to your organization")
 
-    # Create user with pending_approval status
+    department = db.get(Department, department_id)
+    if not department or department.organization_id != request.organization_id:
+        raise ValueError("Select a department in the request organization")
+
+    user_service.ensure_system_roles_and_permissions(db)
+    employee_role = db.scalar(
+        select(Role).where(
+            Role.code == "employee",
+            Role.is_active.is_(True),
+            Role.is_deleted.is_(False),
+        )
+    )
+    if employee_role is None:
+        raise ValueError("Employee role is not configured")
+
+    # Approved requests become normal employees so the user can sign in and
+    # access the employee features immediately.
     user = User(
         id=uuid.uuid4(),
         email=request.email,
@@ -86,6 +113,8 @@ def approve_request(
     )
 
     db.add(user)
+    db.flush()
+    db.add(UserRole(user_id=user.id, role_id=employee_role.id))
 
     # Update request
     request.status = "approved"
@@ -101,13 +130,16 @@ def approve_request(
 def reject_request(
     db: Session,
     request_id: uuid.UUID,
-    admin_user_id: uuid.UUID
+    admin_user_id: uuid.UUID,
+    admin_organization_id: uuid.UUID,
 ) -> UserAccessRequest:
     """Reject access request."""
 
     request = db.get(UserAccessRequest, request_id)
     if not request or request.status != "pending":
         raise ValueError("Request not found or already processed")
+    if request.organization_id != admin_organization_id:
+        raise ValueError("Request does not belong to your organization")
 
     request.status = "rejected"
     request.rejected_at = datetime.now(timezone.utc)

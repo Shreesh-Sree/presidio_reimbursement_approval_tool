@@ -191,13 +191,15 @@ jobs:
             bridgecrew/checkov@sha256:c64ffb6d6fc8087c896341a2c697770a04a1cf558db04fa7b8129d8ca6bce336 \
             -d deployment/terraform-azure --framework terraform --quiet
       - name: Scan repository and Docker configuration
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-          ignore-unfixed: true
+        # Run the scanner image directly because the pinned action's binary
+        # installer exits before scanning on the hosted runner. The digest
+        # makes the scanner version reproducible, just like the Checkov step.
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace:ro" \
+            -w /workspace \
+            aquasec/trivy@sha256:16f1ee8462d0ba07dd69239150d60ba7b591c55e02dfc33a3fc19710b861d180 \
+            fs --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed --no-progress .
       - name: Generate source SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:

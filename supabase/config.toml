@@ -157,13 +157,13 @@ enabled = true
 # Local defaults only. Production values are promoted through the protected
 # Supabase release procedure in docs/supabase-production-promotion.md and must
 # contain exact HTTPS origins, never wildcard redirect patterns.
-site_url = "https://presidio.server.algoqx.tech"
+site_url = "https://presidio-server.algoqx.tech"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
-  "https://presidio.server.algoqx.tech/**",
-  "https://presidio.server.algoqx.tech/sign-in",
+  "https://presidio-server.algoqx.tech/**",
+  "https://presidio-server.algoqx.tech/sign-in",
   "http://115.247.189.246/**",
   "http://115.247.189.246:30173/**",
   "http://10.1.55.99:5173/**",

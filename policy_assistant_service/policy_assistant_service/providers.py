@@ -125,7 +125,8 @@ class ResilientAnswerProvider:
             except Exception as exc:
                 logger.warning(
                     "groq_answer_failed",
-                    extra={"attempt": attempt, "error": type(exc).__name__},
+                    exc_info=True,
+                    extra={"attempt": attempt, "error": type(exc).__name__, "message": str(exc)},
                 )
 
         return fallback_answer(question, citations), "rule_based_fallback"

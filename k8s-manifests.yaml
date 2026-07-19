@@ -200,6 +200,17 @@ spec:
         ports:
         - containerPort: 80
         - containerPort: 443
+        volumeMounts:
+        - name: ssl-certs
+          mountPath: /etc/ssl/certs/nginx-selfsigned.crt
+          subPath: tls.crt
+        - name: ssl-certs
+          mountPath: /etc/ssl/private/nginx-selfsigned.key
+          subPath: tls.key
+      volumes:
+      - name: ssl-certs
+        secret:
+          secretName: presidio-ssl-certs
 ---
 apiVersion: v1
 kind: Service

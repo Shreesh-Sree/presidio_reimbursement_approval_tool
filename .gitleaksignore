@@ -1,0 +1,5 @@
+# Exact fingerprints for known historical documentation findings. Keeping these
+# narrow preserves secret scanning for all current content and other history.
+c3b2a11c04ae0da799b6940dd2b4971448101539:FIX_ANON_KEY.md:curl-auth-header:61
+0b336d888c4885522d53238efafe2329b5f05216:policy_assistant_service/README.md:curl-auth-header:42
+0b336d888c4885522d53238efafe2329b5f05216:policy_assistant_service/README.md:curl-auth-header:51

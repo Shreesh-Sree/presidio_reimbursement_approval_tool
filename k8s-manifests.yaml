@@ -1,0 +1,215 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: presidio-secrets
+  namespace: presidio
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://postgres.gprhswxnzcipyqyrwcdr:Sree%402007sree@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+  JWT_SECRET: "presidio-local-session-secret-2026"
+  SUPABASE_JWT_SECRET: "tUWYUP9S+m4sCl9wRAerD2GktEbIBExQ37wGZNp+bMYT3extuXruwuzuLxpUe/k2Faj26rRllyhen2OaUq3yGA=="
+  SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdwcmhzd3huemNpcHlxeXJ3Y2RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDI4MzMyMCwiZXhwIjoyMDk5ODU5MzIwfQ.phmTfZj5WZqQkBc3dTpZm-uAVl3pyMjgfbn3aD9K-EY"
+  SUPER_ADMIN_EMAIL: "shreesh.exe22@gmail.com"
+  AI_REVIEW_SERVICE_TOKEN: "presidio-ai-review-token-2026"
+  AI_REVIEW_REFERENCE_HMAC_KEY: "presidio-ai-review-hmac-2026"
+  RECEIPT_INTELLIGENCE_SERVICE_TOKEN: "presidio-receipt-intel-token-2026"
+  POLICY_ASSISTANT_SERVICE_TOKEN: "presidio-policy-assist-token-2026"
+  POLICY_ASSISTANT_REFERENCE_HMAC_KEY: "presidio-policy-assist-hmac-2026"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: presidio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: presidio/backend:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: presidio-config
+        - secretRef:
+            name: presidio-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: presidio
+spec:
+  type: NodePort
+  clusterIP: 10.96.82.222
+  ports:
+  - port: 8000
+    targetPort: 8000
+    nodePort: 30000
+  selector:
+    app: backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-review-service
+  namespace: presidio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-review-service
+  template:
+    metadata:
+      labels:
+        app: ai-review-service
+    spec:
+      containers:
+      - name: ai-review-service
+        image: presidio/ai-review:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8011
+        envFrom:
+        - configMapRef:
+            name: presidio-config
+        - secretRef:
+            name: presidio-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-review-service
+  namespace: presidio
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8011
+    targetPort: 8011
+  selector:
+    app: ai-review-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: receipt-intelligence-service
+  namespace: presidio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: receipt-intelligence-service
+  template:
+    metadata:
+      labels:
+        app: receipt-intelligence-service
+    spec:
+      containers:
+      - name: receipt-intelligence-service
+        image: presidio/receipt-intelligence:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8012
+        envFrom:
+        - configMapRef:
+            name: presidio-config
+        - secretRef:
+            name: presidio-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: receipt-intelligence-service
+  namespace: presidio
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8012
+    targetPort: 8012
+  selector:
+    app: receipt-intelligence-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: policy-assistant-service
+  namespace: presidio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: policy-assistant-service
+  template:
+    metadata:
+      labels:
+        app: policy-assistant-service
+    spec:
+      containers:
+      - name: policy-assistant-service
+        image: presidio/policy-assistant:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8013
+        envFrom:
+        - configMapRef:
+            name: presidio-config
+        - secretRef:
+            name: presidio-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: policy-assistant-service
+  namespace: presidio
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8013
+    targetPort: 8013
+  selector:
+    app: policy-assistant-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: presidio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: presidio/frontend:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: presidio
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30173
+  selector:
+    app: frontend

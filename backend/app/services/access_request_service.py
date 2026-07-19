@@ -104,8 +104,13 @@ def approve_request(
         raise ValueError("Request does not belong to your organization")
 
     department = db.get(Department, department_id)
-    if not department or department.organization_id != request.organization_id:
-        raise ValueError("Select a department in the request organization")
+    if (
+        not department
+        or department.organization_id != request.organization_id
+        or department.is_deleted
+        or department.status != "active"
+    ):
+        raise ValueError("Select an active department in the request organization")
 
     user_service.ensure_system_roles_and_permissions(db)
     employee_role = db.scalar(

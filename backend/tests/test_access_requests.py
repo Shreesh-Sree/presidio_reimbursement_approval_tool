@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from types import SimpleNamespace
 
+import pytest
+
 from app.api.routes import access_requests
 from app.models.user_access_request import UserAccessRequest
 from app.services import access_request_service, user_service
@@ -103,6 +105,25 @@ def test_approved_request_becomes_an_employee(db, seeded_org, seeded_department,
     assert stored_request.status == "approved"
     assert stored_request.user_id == approved_user.id
     assert user_service.role_codes_for_user(db, approved_user.id) == ["employee"]
+
+
+def test_approve_request_rejects_inactive_department(db, seeded_org, seeded_department, seeded_user) -> None:
+    request = access_request_service.create_access_request(
+        db,
+        email="inactive.department@example.com",
+        full_name="Inactive Department",
+    )
+    seeded_department.status = "inactive"
+    db.flush()
+
+    with pytest.raises(ValueError, match="active department"):
+        access_request_service.approve_request(
+            db,
+            request.id,
+            seeded_user.id,
+            seeded_org.id,
+            seeded_department.id,
+        )
 
 
 def test_public_duplicate_request_returns_the_same_generic_acknowledgement(client, seeded_org) -> None:

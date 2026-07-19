@@ -42,12 +42,12 @@ export function RoleAwareAIChatbot() {
       }
       return policiesApi.askAssistant(activePolicyId, { question: questionText });
     },
-    onSuccess: (data: PolicyAssistantAskResponse, variables: string) => {
+    onSuccess: (data: PolicyAssistantAskResponse) => {
       const aiMsg: Message = {
         id: Math.random().toString(36).substring(2),
         sender: "ai",
-        text: data.answer,
-        citations: data.citations?.map((c) => ({ excerpt: c.excerpt, source_chunk_id: c.source_chunk_id })),
+        text: data.answer.answer,
+        citations: data.answer.citations?.map((c) => ({ excerpt: c.excerpt, source_chunk_id: c.source_chunk_id })),
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, aiMsg]);

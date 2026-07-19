@@ -44,7 +44,8 @@ code, pre, .font-mono { font-family: "JetBrains Mono", ui-monospace, monospace; 
 
 /* Collapsed sidebar */
 .sidebar.collapsed .wordmark { font-size: 0; padding: 0; }
-.sidebar.collapsed .wordmark span { font-size: 20px; }
+.sidebar.collapsed .wordmark span { display: none; }
+.sidebar.collapsed .sidebar-close { display: none !important; }
 .sidebar.collapsed .sidebar-nav p, .sidebar.collapsed .nav-label, .sidebar.collapsed .service-tag, .sidebar.collapsed .sidebar-foot span { display: none; }
 .sidebar.collapsed .sidebar-nav a { justify-content: center; padding: 0; }
 .sidebar.collapsed .sidebar-foot { justify-content: center; padding-inline: 0; }
@@ -53,6 +54,17 @@ code, pre, .font-mono { font-family: "JetBrains Mono", ui-monospace, monospace; 
 .workspace { grid-column: 2; min-width: 0; }
 .topbar { align-items: center; backdrop-filter: saturate(180%) blur(20px); background: rgba(255,255,255,.72); border-bottom: 1px solid #d2d2d7; display: flex; gap: 10px; height: 64px; padding: 0 32px; position: sticky; top: 0; z-index: 20; }
 .topbar-spacer { flex: 1; }
+.topbar-user-container { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
+.role-badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid transparent; line-height: 1; }
+.role-badge.role-admin, .role-badge.role-administrator { background: rgba(147, 51, 234, 0.12); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.3); }
+.role-badge.role-manager { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border-color: rgba(59, 130, 246, 0.3); }
+.role-badge.role-finance { background: rgba(16, 185, 129, 0.12); color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
+.role-badge.role-employee { background: rgba(245, 158, 11, 0.12); color: #d97706; border-color: rgba(245, 158, 11, 0.3); }
+.dark .role-badge.role-admin, .dark .role-badge.role-administrator { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+.dark .role-badge.role-manager { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
+.dark .role-badge.role-finance { background: rgba(52, 211, 153, 0.2); color: #34d399; }
+.dark .role-badge.role-employee { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+
 .user-email { color: var(--repl-muted-text); font-size: 13px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-button { align-items: center; background: transparent; border: 0; border-radius: 8px; color: inherit; cursor: pointer; display: inline-flex; height: 36px; justify-content: center; transition: background .2s ease; width: 36px; }
 .icon-button:hover { background: #f5f5f7; }

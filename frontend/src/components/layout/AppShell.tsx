@@ -20,7 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-import { hasPermission } from "../../auth/permissions";
+import { hasPermission, isAdministrator } from "../../auth/permissions";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -34,7 +34,7 @@ type NavigationItem = {
 };
 
 const navigation: readonly NavigationItem[] = [
-  { to: "/reports", label: "Reports", permission: "report:read", Icon: ClipboardText, tag: "OCR" },
+  { to: "/reports", label: "Reports", permission: "employee:access", Icon: ClipboardText, tag: "OCR" },
   { to: "/analytics", label: "Analytics", permission: "report:read", Icon: ChartBar },
   { to: "/payments", label: "Payments", permission: "payment:manage", Icon: Bank },
   { to: "/approvals", label: "Approvals", permission: "report:approve", Icon: ListChecks, tag: "AI" },
@@ -56,10 +56,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const location = useLocation();
-  const items = useMemo(() => navigation.filter((item) => hasPermission(user, item.permission)), [user]);
+
+  const isAdmin = isAdministrator(user);
+  const items = useMemo(() => {
+    return navigation.filter((item) => {
+      if (isAdmin && item.to === "/reports") return false;
+      return hasPermission(user, item.permission);
+    });
+  }, [user, isAdmin]);
 
   useEffect(() => setMobileOpen(false), [location.pathname]);
   useEffect(() => localStorage.setItem(sidebarStorageKey, String(collapsed)), [collapsed]);
+
+  const primaryRole = user?.roles?.[0] || "Employee";
 
   const nav = (
     <nav className="sidebar-nav" aria-label="Primary navigation">
@@ -78,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className={collapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
       <aside className={`${mobileOpen ? "open " : ""}sidebar${collapsed ? " collapsed" : ""}`}>
         <div className="sidebar-brand">
-          <Link aria-label="AlgoQX Expense Management" className="wordmark" to="/reports">AlgoQX<span> Expense</span></Link>
+          <Link aria-label="AlgoQX Expense Management" className="wordmark" to={isAdmin ? "/approvals" : "/reports"}>AlgoQX<span> Expense</span></Link>
           <button aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="sidebar-toggle icon-button" onClick={() => setCollapsed((value) => !value)} type="button">
             {collapsed ? <CaretRight aria-hidden size={17} weight="bold" /> : <CaretLeft aria-hidden size={17} weight="bold" />}
           </button>
@@ -92,7 +101,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <button aria-label="Open navigation" className="mobile-menu icon-button" onClick={() => setMobileOpen(true)} type="button"><List aria-hidden size={21} weight="bold" /></button>
           <div className="topbar-spacer" />
-          <span className="user-email">{user?.email}</span>
+          <div className="topbar-user-container">
+            <span className="user-email">{user?.email}</span>
+            <span className={`role-badge role-${primaryRole.toLowerCase()}`}>{primaryRole.toUpperCase()}</span>
+          </div>
           <ThemeToggle />
           <NotificationBell />
           <button className="signout" onClick={() => void logout()} type="button"><span>Sign out</span> <SignOut aria-hidden size={17} weight="bold" /></button>

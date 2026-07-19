@@ -55,6 +55,8 @@ async def get_current_user(
                 detail="OAuth authentication is not configured",
             ) from exc
         except SupabaseTokenError as exc:
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired OAuth token",

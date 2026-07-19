@@ -24,6 +24,12 @@ from app.services import user_service
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+@router.get("/health")
+def health_check():
+    return {"status": "ok", "service": "backend"}
+
+
+
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 

@@ -102,6 +102,39 @@ export function LineItemRow({
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </Select>
         </FormField>
+      </div>
+
+      {(() => {
+        const selectedCategory = categories.find((c) => c.id === item.category_id);
+        if (!selectedCategory) return null;
+
+        const maxLimit = selectedCategory.max_per_day ?? selectedCategory.max_amount;
+        const receiptThreshold = selectedCategory.receipt_required_above ?? (selectedCategory.receipt_required ? 0 : null);
+        const isExceedingLimit = maxLimit != null && item.amount > maxLimit;
+        const isReceiptRequired = receiptThreshold != null && item.amount > receiptThreshold && !item.receipt_url && !item.receipt;
+
+        return (
+          <div className="space-y-2">
+            <div className="rounded-md border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-950 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+              <span className="font-bold">📌 Policy Rule for {selectedCategory.name}:</span>{" "}
+              {maxLimit != null ? `Daily Limit: $${maxLimit}.` : "No daily cap."}{" "}
+              {selectedCategory.max_per_trip != null ? `Trip Limit: $${selectedCategory.max_per_trip}.` : ""}{" "}
+              {receiptThreshold != null ? `Receipt required above $${receiptThreshold}.` : "Receipt optional."}
+            </div>
+            {isExceedingLimit && (
+              <p className="rounded-md border border-red-200 bg-red-50 p-2.5 text-xs font-medium text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+                ⚠️ Amount (${item.amount}) exceeds the category daily limit of ${maxLimit}.
+              </p>
+            )}
+            {isReceiptRequired && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+                📄 Attachment required: Amount exceeds ${receiptThreshold} threshold for {selectedCategory.name}.
+              </p>
+            )}
+          </div>
+        );
+      })()}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <FormField>
           <Label htmlFor={`item-vendor-${index}`}>Saved vendor (optional)</Label>
           <Select

@@ -1,0 +1,7 @@
+name = "presidio-proxy"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+routes = [
+  { pattern = "presidio.server.algoqx.tech", custom_domain = true }
+]

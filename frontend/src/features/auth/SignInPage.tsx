@@ -4,7 +4,7 @@ import { EmailSignUpForm } from "./EmailSignUpForm";
 
 export function SignInPage() {
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const redirectTo = `${window.location.origin}/reports`;
+  const redirectTo = `${window.location.origin}/`;
 
   const handleGoogle = async () => {
     await supabase.auth.signInWithOAuth({

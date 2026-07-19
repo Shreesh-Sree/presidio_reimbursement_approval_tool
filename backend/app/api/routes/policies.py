@@ -12,11 +12,64 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_permission
-from app.services import policy_assistant_client, policy_document_text, policy_service, storage_service
+from app.services import policy_assistant_client, policy_document_text, policy_service, policy_template_service, storage_service
 from app.services.upload_guard import UploadTooLargeError, read_bounded_upload_sync
 
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
+
+
+@router.get("/templates/excel")
+def download_excel_template():
+    content = policy_template_service.generate_excel_template()
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="policy_rules_template.xlsx"'},
+    )
+
+
+@router.get("/templates/pdf")
+def download_pdf_template():
+    content = policy_template_service.generate_pdf_template()
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="policy_rules_template.pdf"'},
+    )
+
+
+@router.post("/extract")
+def extract_and_apply_policy(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: dict[str, str] = Depends(require_permission("policy:manage")),
+):
+    filename = file.filename or "policy_upload"
+    try:
+        file_bytes = read_bounded_upload_sync(file, max_bytes=10 * 1024 * 1024)
+    except UploadTooLargeError as exc:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc)) from exc
+
+    if filename.lower().endswith(".xlsx") or filename.lower().endswith(".csv"):
+        extracted_rules = policy_template_service.extract_rules_from_excel(file_bytes)
+    elif filename.lower().endswith(".pdf"):
+        extracted_rules = policy_template_service.extract_rules_from_pdf(file_bytes)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported file format. Please upload an Excel (.xlsx, .csv) or PDF (.pdf) file.",
+        )
+
+    if not extracted_rules:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not extract any valid policy rules from the uploaded document.",
+        )
+
+    result = policy_template_service.apply_extracted_rules(db, user["organization_id"], extracted_rules)
+    return result
+
 
 
 class PolicyRuleInput(BaseModel):

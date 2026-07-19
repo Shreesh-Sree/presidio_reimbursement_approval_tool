@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect } from "react";
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { RequirePermission } from "./auth/RequirePermission";
+import { getDefaultHomeRoute } from "./auth/permissions";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { AccessDeniedPage } from "./features/auth/AccessDeniedPage";
 import { OAuthConfigurationPage } from "./features/auth/OAuthConfigurationPage";
@@ -111,13 +112,23 @@ function AuthenticationErrorPage({ message }: { message: string }) {
 
 function SignInRoute() {
   const { accessDenied, error, isLoading, status, user } = useAuth();
+  const location = useLocation();
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
 
   if (status === "configuration_missing") return <Navigate replace to="/oauth-configuration" />;
   if (isLoading) return <RouteLoading />;
   if (accessDenied) return <Navigate replace to="/access-denied" />;
-  if (status === "authorized" && user) return <Navigate replace to="/reports" />;
+  if (status === "authorized" && user) {
+    const target = from && from !== "/sign-in" && from !== "/login" ? from : getDefaultHomeRoute(user);
+    return <Navigate replace to={target} />;
+  }
   if (error) return <AuthenticationErrorPage message={error} />;
   return <SignInPage />;
+}
+
+function DefaultRedirect() {
+  const { user } = useAuth();
+  return <Navigate replace to={getDefaultHomeRoute(user)} />;
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -151,16 +162,16 @@ function AppContent() {
       <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/workflows" element={<ProtectedRoute><RequirePermission permission="workflow:manage"><WorkflowRulesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/vendors" element={<ProtectedRoute><RequirePermission permission="vendor:manage"><VendorsPage /></RequirePermission></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportsListPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute><RequirePermission permission="employee:access"><ReportsListPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><RequirePermission permission="report:read"><AnalyticsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute><RequirePermission permission="payment:manage"><PaymentsPage /></RequirePermission></ProtectedRoute>} />
-      <Route path="/reports/:reportId" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportEditor /></RequirePermission></ProtectedRoute>} />
+      <Route path="/reports/:reportId" element={<ProtectedRoute><RequirePermission permission="employee:access"><ReportEditor /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals" element={<ProtectedRoute><RequirePermission permission="report:approve"><ApprovalQueuePage /></RequirePermission></ProtectedRoute>} />
       <Route path="/delegations" element={<ProtectedRoute><RequirePermission permission="report:approve"><DelegationsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/admin/access-requests" element={<ProtectedRoute><RequirePermission permission="access_request:manage"><AccessRequestsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals/:reportId" element={<ProtectedRoute><RequirePermission permission="report:approve"><ReportReview /></RequirePermission></ProtectedRoute>} />
-      <Route path="/" element={<Navigate to="/reports" />} />
-      <Route path="*" element={<Navigate replace to="/reports" />} />
+      <Route path="/" element={<ProtectedRoute><DefaultRedirect /></ProtectedRoute>} />
+      <Route path="*" element={<ProtectedRoute><DefaultRedirect /></ProtectedRoute>} />
     </Routes>
   );
 }

@@ -16,6 +16,7 @@ import {
   Users,
   UserSwitch,
   CheckSquare,
+  Plus,
   X,
 } from "@phosphor-icons/react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -101,6 +102,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <button aria-label="Open navigation" className="mobile-menu icon-button" onClick={() => setMobileOpen(true)} type="button"><List aria-hidden size={21} weight="bold" /></button>
           <div className="topbar-spacer" />
+          {hasPermission(user, "report:create") && (
+            <Link
+              to="/reports?action=new"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs mr-3"
+              title="Create New Expense Report"
+            >
+              <Plus size={15} weight="bold" />
+              <span className="hidden sm:inline">New Report</span>
+            </Link>
+          )}
           <div className="topbar-user-container">
             <span className="user-email">{user?.email}</span>
             <span className={`role-badge role-${primaryRole.toLowerCase()}`}>{primaryRole.toUpperCase()}</span>

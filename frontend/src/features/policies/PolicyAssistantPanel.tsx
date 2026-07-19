@@ -104,9 +104,31 @@ export function PolicyAssistantPanel({ policy }: Props) {
             id="policy-assistant-question"
             maxLength={1200}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="What is the airfare limit?"
+            placeholder="e.g. What is the maximum daily meal reimbursement?"
             value={question}
           />
+          <div className="flex flex-wrap gap-2 my-1">
+            <span className="text-xs text-slate-500 self-center">Try asking:</span>
+            {[
+              "What is the maximum daily meal limit?",
+              "What travel & flight expenses are covered?",
+              "What receipts are required for submission?",
+            ].map((q) => (
+              <button
+                key={q}
+                type="button"
+                className="text-xs px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                onClick={() => {
+                  setQuestion(q);
+                  if (canAsk && !ask.isPending) {
+                    ask.mutate({ question: q });
+                  }
+                }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
           <Button
             disabled={!canAsk || !question.trim() || ask.isPending}
             onClick={() => ask.mutate({ question: question.trim() })}

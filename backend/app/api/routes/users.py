@@ -40,9 +40,12 @@ def _create_user_with_invitation(
 ) -> dict[str, object]:
     """Keep Supabase Auth and the app allowlist in lockstep for admin-created users."""
 
+    assigned_department_id = request.department_id or department_id
+
     user_service.validate_user_creation(
         db,
         organization_id=organization_id,
+        department_id=assigned_department_id,
         email=str(request.email),
         role_codes=request.roles,
         manager_id=request.manager_id,
@@ -63,7 +66,7 @@ def _create_user_with_invitation(
         return user_service.create_user(
             db,
             organization_id=organization_id,
-            department_id=department_id,
+            department_id=assigned_department_id,
             email=str(request.email),
             password=request.password,
             full_name=request.full_name,

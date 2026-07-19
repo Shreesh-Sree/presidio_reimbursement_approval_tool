@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { userAdminApi, type ManagedUser, type RoleOption } from "../api";
+import { departmentsApi } from "../../departments/api";
 import { UsersPage } from "../UsersPage";
 
 const managedUsers: ManagedUser[] = [
@@ -14,6 +15,8 @@ const managedUsers: ManagedUser[] = [
     roles: ["employee"],
     manager_id: "manager-1",
     manager_name: "Morgan Manager",
+    department_id: "department-1",
+    department_name: "Engineering",
   },
   {
     id: "manager-1",
@@ -21,6 +24,8 @@ const managedUsers: ManagedUser[] = [
     full_name: "Morgan Manager",
     status: "active",
     roles: ["employee", "approver"],
+    department_id: "department-1",
+    department_name: "Engineering",
   },
 ];
 
@@ -30,6 +35,8 @@ const roles: RoleOption[] = [
   { code: "finance", name: "Finance" },
   { code: "administrator", name: "Administrator" },
 ];
+
+const departments = [{ id: "department-1", code: "ENG", name: "Engineering", status: "active" }];
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -48,6 +55,7 @@ describe("UsersPage", () => {
     vi.spyOn(userAdminApi, "create").mockResolvedValue(managedUsers[0]);
     vi.spyOn(userAdminApi, "update").mockResolvedValue(managedUsers[0]);
     vi.spyOn(userAdminApi, "deactivate").mockResolvedValue({ ...managedUsers[0], status: "inactive" });
+    vi.spyOn(departmentsApi, "list").mockResolvedValue(departments);
   });
 
   it("invites a user with multiple roles and a reporting manager", async () => {
@@ -69,6 +77,7 @@ describe("UsersPage", () => {
         full_name: "Priya Patel",
         roles: ["employee", "approver"],
         manager_id: "manager-1",
+        department_id: "department-1",
       });
     });
   });
@@ -80,6 +89,7 @@ describe("UsersPage", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: /edit ana employee/i }));
+    expect(screen.getByLabelText(/^email$/i)).toBeDisabled();
     await user.clear(screen.getByLabelText(/^full name$/i));
     await user.type(screen.getByLabelText(/^full name$/i), "Ana Updated");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
@@ -87,11 +97,13 @@ describe("UsersPage", () => {
     await waitFor(() => {
       expect(update).toHaveBeenCalledWith(
         "employee-1",
-        expect.objectContaining({
+        {
+          email: "ana@example.com",
           full_name: "Ana Updated",
           roles: ["employee"],
           manager_id: "manager-1",
-        }),
+          department_id: "department-1",
+        },
       );
     });
 

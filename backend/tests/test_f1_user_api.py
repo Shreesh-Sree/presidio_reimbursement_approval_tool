@@ -34,6 +34,14 @@ def test_bootstrap_user_lifecycle_and_org_chart(client):
     assert roles.status_code == 200
     assert {role["code"] for role in roles.json()} == {"administrator", "approver", "employee", "finance"}
 
+    operations = client.post(
+        "/api/departments",
+        headers=headers,
+        json={"code": "OPS", "name": "Operations"},
+    )
+    assert operations.status_code == 201, operations.text
+    operations_payload = operations.json()
+
     manager = client.post(
         "/api/users",
         headers=headers,
@@ -72,12 +80,15 @@ def test_bootstrap_user_lifecycle_and_org_chart(client):
             "password": "correct-horse-battery-staple",
             "roles": ["employee"],
             "manager_id": manager_payload["id"],
+            "department_id": operations_payload["id"],
         },
     )
     assert employee.status_code == 201, employee.text
     employee_payload = employee.json()
     assert employee_payload["manager_id"] == manager_payload["id"]
     assert employee_payload["manager_name"] == "Manny Manager"
+    assert employee_payload["department_id"] == operations_payload["id"]
+    assert employee_payload["department_name"] == "Operations"
 
     invalid_manager = client.post(
         "/api/users",
@@ -101,10 +112,12 @@ def test_bootstrap_user_lifecycle_and_org_chart(client):
             "email": "eli.employee@example.com",
             "roles": ["employee"],
             "manager_id": manager_payload["id"],
+            "department_id": bootstrap["user"]["department_id"],
         },
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["full_name"] == "Eli Updated"
+    assert updated.json()["department_name"] == "Finance"
 
     tree = client.get("/api/org-chart", headers=headers)
     assert tree.status_code == 200, tree.text

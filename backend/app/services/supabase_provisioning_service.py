@@ -82,7 +82,26 @@ def invite_user(
             detail = "Supabase could not create the invitation"
         if exc.code == 429:
             detail = "Supabase invitation rate limit reached. Try again later."
-        raise SupabaseProvisioningError(detail, 429 if exc.code == 429 else 502) from exc
+            status_code = 429
+        elif exc.code in {401, 403}:
+            # This is an API-service configuration failure, not a browser or
+            # user credential failure.  Do not expose Supabase's raw response
+            # because it can reveal key-validation details.
+            detail = (
+                "Supabase user provisioning credentials were rejected. "
+                "Rotate SUPABASE_SERVICE_ROLE_KEY on the API service."
+            )
+            status_code = 503
+        elif exc.code in {400, 422}:
+            # The admin is the authenticated caller of this endpoint, so an
+            # upstream invitation validation error is actionable input feedback.
+            status_code = 422
+        elif exc.code >= 500:
+            detail = "Supabase invitation service is temporarily unavailable"
+            status_code = 503
+        else:
+            status_code = 502
+        raise SupabaseProvisioningError(detail, status_code) from exc
     except (URLError, TimeoutError, OSError) as exc:
         raise SupabaseProvisioningError("Supabase invitation service is temporarily unavailable") from exc
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:

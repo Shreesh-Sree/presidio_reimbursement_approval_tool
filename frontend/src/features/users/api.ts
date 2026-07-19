@@ -26,6 +26,7 @@ export type UserInput = {
   full_name: string;
   roles: string[];
   manager_id?: string | null;
+  department_id?: string | null;
 };
 
 export type OrgChartNode = {
@@ -93,8 +94,15 @@ export const userAdminApi = {
   list: () => unwrap(apiClient.get<UserListResponse>("/users")).then(normalizeUsers),
   get: (userId: string) => unwrap(apiClient.get<ApiManagedUser>(`/users/${userId}`)).then(normalizeUser),
   create: (input: UserInput) => unwrap(apiClient.post<ApiManagedUser>("/users", input)).then(normalizeUser),
+  // Supabase owns verified email addresses.  Do not send the form's display
+  // value on an edit, otherwise the API correctly rejects every update.
   update: (userId: string, input: UserInput) =>
-    unwrap(apiClient.patch<ApiManagedUser>(`/users/${userId}`, input)).then(normalizeUser),
+    unwrap(apiClient.patch<ApiManagedUser>(`/users/${userId}`, {
+      full_name: input.full_name,
+      roles: input.roles,
+      manager_id: input.manager_id,
+      department_id: input.department_id,
+    })).then(normalizeUser),
   deactivate: (userId: string) =>
     unwrap(apiClient.post<ApiManagedUser>(`/users/${userId}/deactivate`)).then(normalizeUser),
   bulkCreate: (file: File) => {

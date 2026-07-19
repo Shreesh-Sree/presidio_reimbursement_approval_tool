@@ -46,3 +46,6 @@ frontend/playwright-report/
 # Local one-off diagnostics and generated database files.
 scratch_*.py
 *.db
+
+# Kubernetes deployment manifests with local secrets
+k8s-manifests.yaml

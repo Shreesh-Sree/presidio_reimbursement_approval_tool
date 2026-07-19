@@ -31,6 +31,10 @@ spec:
       labels:
         app: backend
     spec:
+      hostAliases:
+      - ip: "3.109.171.244"
+        hostnames:
+        - "aws-1-ap-south-1.pooler.supabase.com"
       containers:
       - name: backend
         image: presidio/backend:latest
@@ -73,6 +77,10 @@ spec:
       labels:
         app: ai-review-service
     spec:
+      hostAliases:
+      - ip: "3.109.171.244"
+        hostnames:
+        - "aws-1-ap-south-1.pooler.supabase.com"
       containers:
       - name: ai-review-service
         image: presidio/ai-review:latest
@@ -113,6 +121,10 @@ spec:
       labels:
         app: receipt-intelligence-service
     spec:
+      hostAliases:
+      - ip: "3.109.171.244"
+        hostnames:
+        - "aws-1-ap-south-1.pooler.supabase.com"
       containers:
       - name: receipt-intelligence-service
         image: presidio/receipt-intelligence:latest
@@ -153,6 +165,10 @@ spec:
       labels:
         app: policy-assistant-service
     spec:
+      hostAliases:
+      - ip: "3.109.171.244"
+        hostnames:
+        - "aws-1-ap-south-1.pooler.supabase.com"
       containers:
       - name: policy-assistant-service
         image: presidio/policy-assistant:latest

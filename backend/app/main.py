@@ -12,6 +12,7 @@ from app.core.observability import (
 from app.core.rate_limit import RateLimitMiddleware
 from app.api.routes import (
     access_requests,
+    ai_chat,
     analytics,
     approvals,
     attachments,
@@ -66,6 +67,7 @@ app.include_router(notifications.router)
 app.include_router(workflows.router)
 app.include_router(payments.router)
 app.include_router(analytics.router)
+app.include_router(ai_chat.router)
 
 
 @app.get("/api/health")

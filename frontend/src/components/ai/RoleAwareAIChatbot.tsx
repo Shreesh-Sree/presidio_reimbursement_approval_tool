@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkle, X, PaperPlaneRight, Robot, User, Quotes } from "@phosphor-icons/react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
-import { policiesApi, type PolicyAssistantAskResponse } from "../../lib/api";
+import { aiChatApi, type AIChatResponse } from "../../lib/api";
 
 type Message = {
   id: string;
@@ -20,56 +20,48 @@ export function RoleAwareAIChatbot() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const primaryRole = (user?.roles?.[0] || "Employee").toLowerCase();
-  const roleTitle = primaryRole === "admin" || primaryRole === "administrator" 
-    ? "Admin AI Advisor" 
-    : primaryRole === "manager" 
-    ? "Manager AI Compliance" 
-    : "Employee AI Assistant";
-
-  // Fetch active policies to obtain policy_id for RAG query
-  const policiesQuery = useQuery({
-    queryKey: ["policies"],
-    queryFn: policiesApi.list,
-    enabled: isOpen,
-  });
-
-  const activePolicyId = policiesQuery.data?.[0]?.id;
+  const roleTitle =
+    primaryRole === "admin" || primaryRole === "administrator"
+      ? "Admin AI Advisor"
+      : primaryRole === "manager"
+        ? "Manager AI Compliance"
+        : "Employee AI Assistant";
 
   const askMutation = useMutation({
-    mutationFn: async (questionText: string) => {
-      if (!activePolicyId) {
-        throw new Error("No active policy document found to query.");
-      }
-      return policiesApi.askAssistant(activePolicyId, { question: questionText });
-    },
-    onSuccess: (data: PolicyAssistantAskResponse) => {
+    mutationFn: (questionText: string) => aiChatApi.ask(questionText),
+    onSuccess: (data: AIChatResponse) => {
       const aiMsg: Message = {
-        id: Math.random().toString(36).substring(2),
+        id: crypto.randomUUID(),
         sender: "ai",
-        text: data.answer.answer,
-        citations: data.answer.citations?.map((c) => ({ excerpt: c.excerpt, source_chunk_id: c.source_chunk_id })),
+        text: data.answer,
+        citations: data.citations?.length ? data.citations : undefined,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, aiMsg]);
     },
     onError: (err: Error) => {
-      const errorMsg: Message = {
-        id: Math.random().toString(36).substring(2),
-        sender: "ai",
-        text: err.message || "I could not answer that question based on current policy evidence.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          sender: "ai",
+          text: err.message || "Something went wrong. Please try again.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
     },
   });
 
   useEffect(() => {
     if (messages.length === 0 && user) {
-      let welcomeText = "Hello! I am your AI Expense & Policy Assistant. Ask me anything about claiming expenses, travel caps, or receipt requirements.";
+      let welcomeText =
+        "Hello! I'm your AI Expense & Policy Assistant. Ask me anything about claiming expenses, travel caps, or receipt requirements.";
       if (primaryRole.includes("admin")) {
-        welcomeText = "Hello Admin! I am your System & Policy AI Advisor. Ask me about system workflow routing, access approvals, or policy document indexing.";
+        welcomeText =
+          "Hello Admin! I'm your System & Policy AI Advisor. Ask me about workflows, access approvals, or policy document management.";
       } else if (primaryRole.includes("manager")) {
-        welcomeText = "Hello Manager! I am your AI Compliance Advisor. Ask me about approval checks, policy violation flags, or delegation rules.";
+        welcomeText =
+          "Hello Manager! I'm your AI Compliance Advisor. Ask me about approval checks, policy flags, or delegation rules.";
       }
       setMessages([
         {
@@ -90,14 +82,15 @@ export function RoleAwareAIChatbot() {
     const text = (textToSend || input).trim();
     if (!text || askMutation.isPending) return;
 
-    const userMsg: Message = {
-      id: Math.random().toString(36).substring(2),
-      sender: "user",
-      text,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        sender: "user",
+        text,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
     if (!textToSend) setInput("");
     askMutation.mutate(text);
   };
@@ -112,15 +105,15 @@ export function RoleAwareAIChatbot() {
     }
     if (primaryRole.includes("manager")) {
       return [
-        "What should I check before approving a claim?",
+        "What should I check before approving?",
         "How do policy violation flags work?",
-        "What are the approval delegation guidelines?",
+        "What are the delegation guidelines?",
       ];
     }
     return [
       "What is the maximum daily meal limit?",
-      "What travel & flight expenses are covered?",
-      "What receipts are required for submission?",
+      "What travel expenses are covered?",
+      "What receipts are required?",
     ];
   };
 
@@ -139,7 +132,7 @@ export function RoleAwareAIChatbot() {
 
       {/* Chat Modal Window */}
       {isOpen && (
-        <div className="fixed bottom-20 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] h-[540px] max-h-[80vh] flex flex-col rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden transition-all animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-20 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] h-[540px] max-h-[80vh] flex flex-col rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden transition-all">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
             <div className="flex items-center gap-2.5">
@@ -149,7 +142,7 @@ export function RoleAwareAIChatbot() {
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{roleTitle}</h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-ping" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                   Powered by NVIDIA NIM &amp; RAG
                 </p>
               </div>
@@ -178,7 +171,11 @@ export function RoleAwareAIChatbot() {
                       : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
                   }`}
                 >
-                  {msg.sender === "user" ? <User className="w-4 h-4" /> : <Sparkle className="w-4 h-4" weight="fill" />}
+                  {msg.sender === "user" ? (
+                    <User className="w-4 h-4" />
+                  ) : (
+                    <Sparkle className="w-4 h-4" weight="fill" />
+                  )}
                 </div>
 
                 <div
@@ -189,7 +186,7 @@ export function RoleAwareAIChatbot() {
                   }`}
                 >
                   <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
-                  
+
                   {/* Citations */}
                   {msg.citations && msg.citations.length > 0 && (
                     <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 space-y-1">
@@ -197,8 +194,11 @@ export function RoleAwareAIChatbot() {
                         <Quotes className="w-3 h-3" /> Grounded Evidence
                       </span>
                       {msg.citations.map((c, i) => (
-                        <div key={i} className="text-[11px] bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg italic text-slate-600 dark:text-slate-300 border border-slate-200/40 dark:border-slate-700/40">
-                          "{c.excerpt}"
+                        <div
+                          key={i}
+                          className="text-[11px] bg-white/60 dark:bg-slate-900/60 p-2 rounded-lg italic text-slate-600 dark:text-slate-300 border border-slate-200/40 dark:border-slate-700/40"
+                        >
+                          &ldquo;{c.excerpt}&rdquo;
                         </div>
                       ))}
                     </div>
@@ -212,7 +212,7 @@ export function RoleAwareAIChatbot() {
             {askMutation.isPending && (
               <div className="flex items-center gap-2 text-slate-400 italic">
                 <Robot className="w-4 h-4 animate-bounce" />
-                <span>Checking grounded policy evidence…</span>
+                <span>Thinking…</span>
               </div>
             )}
             <div ref={chatEndRef} />

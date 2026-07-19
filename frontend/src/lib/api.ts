@@ -728,3 +728,17 @@ export const paymentsApi = {
 };
 
 export { apiClient };
+
+/* ── AI Chatbot ────────────────────────────────────────────────── */
+
+export type AIChatCitation = { excerpt: string; source_chunk_id: string };
+export type AIChatResponse = {
+  answer: string;
+  citations: AIChatCitation[];
+  evidence_found: boolean;
+};
+
+export const aiChatApi = {
+  ask: (question: string) =>
+    unwrap(apiClient.post<AIChatResponse>("/ai-chat", { question })),
+};

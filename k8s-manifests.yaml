@@ -5,7 +5,7 @@ metadata:
   namespace: presidio
 type: Opaque
 stringData:
-  DATABASE_URL: "postgresql://postgres.gprhswxnzcipyqyrwcdr:Sree%402007sree@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+  DATABASE_URL: "postgresql+psycopg://postgres.gprhswxnzcipyqyrwcdr:Sree%402007sree@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
   JWT_SECRET: "presidio-local-session-secret-2026"
   SUPABASE_JWT_SECRET: "tUWYUP9S+m4sCl9wRAerD2GktEbIBExQ37wGZNp+bMYT3extuXruwuzuLxpUe/k2Faj26rRllyhen2OaUq3yGA=="
   SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdwcmhzd3huemNpcHlxeXJ3Y2RyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDI4MzMyMCwiZXhwIjoyMDk5ODU5MzIwfQ.phmTfZj5WZqQkBc3dTpZm-uAVl3pyMjgfbn3aD9K-EY"

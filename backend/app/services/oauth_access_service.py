@@ -204,6 +204,17 @@ def resolve_oauth_user(db: Session, *, identity: SupabaseIdentity, settings: Set
         if linked_user is not None:
             return linked_user
         if identity.email != super_admin_email:
+            # Automatically create an access request for this unauthorized OAuth sign-in
+            from app.services import access_request_service
+            try:
+                access_request_service.create_access_request(
+                    db,
+                    email=identity.email,
+                    full_name=identity.email.split("@", 1)[0].replace(".", " ").title() or "OAuth User",
+                )
+            except Exception:
+                pass
+
             # Notify administrators of allowlist login rejection
             from app.services import notification_service
             from app.models.user_role import UserRole

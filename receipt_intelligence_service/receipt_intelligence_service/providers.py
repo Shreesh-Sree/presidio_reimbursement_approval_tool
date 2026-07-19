@@ -81,9 +81,9 @@ class ResilientReceiptProvider:
         self._timeout_seconds = timeout_seconds
         self._max_attempts = max_attempts
 
-    async def extract(self, text: str) -> tuple[ReceiptEvidence, str]:
+    async def extract(self, text: str, *, allow_external: bool = False) -> tuple[ReceiptEvidence, str]:
         """Returns (evidence, provider_name)."""
-        if self._primary is None:
+        if self._primary is None or not allow_external:
             return rule_based_extract(text), "rule_based"
 
         for attempt in range(1, self._max_attempts + 1):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from fastapi import BackgroundTasks
@@ -145,6 +146,32 @@ def test_enqueue_only_adds_background_worker_when_delivery_is_enabled(monkeypatc
     assert notification_delivery_service.enqueue_pending_email_delivery(tasks) is True
     assert len(tasks.tasks) == 1
     assert tasks.tasks[0].func is notification_delivery_service.deliver_pending_email_notifications
+
+
+def test_expired_delivery_lease_is_safely_reclaimed(db, seeded_user):
+    notification = notification_service.notify(
+        db,
+        seeded_user.id,
+        "report_submitted_for_approval",
+        {"title": "Needs review"},
+        channels=("email",),
+    )[0]
+    db.commit()
+
+    first = notification_delivery_service._claim_pending_email_notifications(db, 1)
+    assert len(first) == 1
+    first_token = first[0][2]
+    db.refresh(notification)
+    notification.delivery_lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db.commit()
+
+    second = notification_delivery_service._claim_pending_email_notifications(db, 1)
+    assert len(second) == 1
+    assert second[0][0] == notification.id
+    assert second[0][2] != first_token
+    db.refresh(notification)
+    assert notification.status == "sending"
+    assert notification.delivery_attempts == 2
 
 
 def test_withdrawal_cancellation_notifies_each_pending_or_waiting_approver(db, seeded_user):

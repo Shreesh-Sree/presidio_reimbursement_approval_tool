@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { isSupabaseConfigured, supabase } from "./supabase";
 import { authApi, getApiErrorCode, setApiTokenProvider, type SessionUser } from "../lib/api";
 import { useSessionKeepAlive } from "./useSessionKeepAlive";
@@ -35,20 +36,51 @@ const missingConfigurationValue: AuthContextType = {
 };
 
 function SupabaseSessionProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [deniedEmail, setDeniedEmail] = useState<string | null>(null);
 
+  // Query keys are intentionally not coupled to a user/organization ID
+  // throughout the application. Clear the complete client whenever the
+  // authenticated subject or organization scope changes so an account switch
+  // can never render a previous tenant's cache.
+  const clearSensitiveQueryState = useCallback(() => {
+    void queryClient.cancelQueries().catch(() => undefined);
+    queryClient.clear();
+  }, [queryClient]);
+
   useEffect(() => {
     let cancelled = false;
     let gotSession = false;
     let authorizedSubject: string | null = null;
     let authorizingSubject: string | null = null;
+    let activeSubject: string | null = null;
+    let cacheScope: string | null = null;
+    let authorizationGeneration = 0;
+
+    const switchSubject = (subject: string | null) => {
+      if (activeSubject === subject) return;
+      activeSubject = subject;
+      cacheScope = subject;
+      authorizationGeneration += 1;
+      clearSensitiveQueryState();
+    };
+
+    const switchTenantScope = (subject: string, organizationId: string) => {
+      const nextScope = `${subject}:${organizationId}`;
+      if (activeSubject === subject && cacheScope === nextScope) return;
+      activeSubject = subject;
+      cacheScope = nextScope;
+      authorizationGeneration += 1;
+      clearSensitiveQueryState();
+    };
 
     const clearApplicationSession = () => {
       if (cancelled) return;
+      switchSubject(null);
       setApiTokenProvider(null);
       setToken(null);
       setUser(null);
@@ -68,6 +100,7 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       }
 
       gotSession = true;
+      switchSubject(session.user.id);
       // Supabase serializes auth-state callbacks. Using getSession() from the
       // API interceptor while this callback is executing can wait on that
       // callback's lock and leave the dashboard in its loading state. The
@@ -88,11 +121,13 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
         setStatus("loading");
       }
       authorizingSubject = session.user.id;
+      const attempt = ++authorizationGeneration;
 
       try {
         const sessionUser = await authApi.me();
-        if (cancelled) return;
+        if (cancelled || attempt !== authorizationGeneration || activeSubject !== session.user.id) return;
 
+        switchTenantScope(session.user.id, sessionUser.organization_id);
         authorizedSubject = session.user.id;
         setUser(sessionUser);
         setStatus("authorized");
@@ -150,7 +185,7 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [clearSensitiveQueryState]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,
@@ -162,6 +197,7 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
     deniedEmail,
     error,
     logout: async () => {
+      clearSensitiveQueryState();
       setApiTokenProvider(null);
       setToken(null);
       setUser(null);
@@ -170,9 +206,10 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       setStatus("signed_out");
       await supabase.auth.signOut();
     },
-  }), [deniedEmail, error, status, token, user]);
+  }), [clearSensitiveQueryState, deniedEmail, error, status, token, user]);
 
   const handleIdle = useCallback(async () => {
+    clearSensitiveQueryState();
     setApiTokenProvider(null);
     setToken(null);
     setUser(null);
@@ -180,7 +217,7 @@ function SupabaseSessionProvider({ children }: { children: ReactNode }) {
     setError(null);
     setStatus("signed_out");
     await supabase.auth.signOut();
-  }, []);
+  }, [clearSensitiveQueryState]);
 
   useSessionKeepAlive(handleIdle);
 

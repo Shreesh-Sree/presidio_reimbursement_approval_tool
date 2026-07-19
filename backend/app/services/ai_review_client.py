@@ -144,12 +144,19 @@ def _policy_rules_snapshot(db: Session, policy: Policy, items: list[ExpenseItem]
     category_ids = {item.category_id for item in items}
     categories = {
         category.id: category
-        for category in db.query(ExpenseCategory).filter(ExpenseCategory.id.in_(category_ids)).all()
+        for category in db.query(ExpenseCategory)
+        .filter(
+            ExpenseCategory.id.in_(category_ids),
+            ExpenseCategory.organization_id == policy.organization_id,
+        )
+        .all()
     } if category_ids else {}
     vendor_ids = {rule.vendor_id for rule in policy.rules if rule.vendor_id is not None}
     vendors = {
         vendor.id: vendor
-        for vendor in db.query(Vendor).filter(Vendor.id.in_(vendor_ids)).all()
+        for vendor in db.query(Vendor)
+        .filter(Vendor.id.in_(vendor_ids), Vendor.organization_id == policy.organization_id)
+        .all()
     } if vendor_ids else {}
 
     snapshots: list[dict[str, Any]] = []
@@ -311,12 +318,19 @@ def build_review_event(db: Session, report: ExpenseReport) -> dict[str, Any] | N
     category_ids = {item.category_id for item in items}
     categories = {
         category.id: category
-        for category in db.query(ExpenseCategory).filter(ExpenseCategory.id.in_(category_ids)).all()
+        for category in db.query(ExpenseCategory)
+        .filter(
+            ExpenseCategory.id.in_(category_ids),
+            ExpenseCategory.organization_id == employee.organization_id,
+        )
+        .all()
     }
     vendor_ids = {item.vendor_id for item in items if item.vendor_id is not None}
     vendors = {
         vendor.id: vendor
-        for vendor in db.query(Vendor).filter(Vendor.id.in_(vendor_ids)).all()
+        for vendor in db.query(Vendor)
+        .filter(Vendor.id.in_(vendor_ids), Vendor.organization_id == employee.organization_id)
+        .all()
     } if vendor_ids else {}
     event_id = _opaque_uuid("event", report.id, report.applied_policy_id, report.submitted_at)
     prior_submissions = (
@@ -406,26 +420,62 @@ def review_payload(report: ExpenseReport) -> dict[str, Any] | None:
     }
 
 
-def record_human_disposition(report: ExpenseReport, reviewer_id: uuid.UUID | str, action: str, remarks: str | None) -> None:
-    """Best-effort advisory disposition; it never changes core workflow state."""
+def build_human_disposition_event(
+    report: ExpenseReport,
+    reviewer_id: uuid.UUID | str,
+    action: str,
+    remarks: str | None,
+) -> dict[str, Any] | None:
+    """Build the minimized payload persisted by the transactional outbox.
 
-    if report.ai_review_job_id is None or _service_url() is None:
+    The database stores only the opaque reviewer reference, never the source
+    user identifier.  A missing AI job is normal: human workflow remains the
+    authority whether or not advisory review was enabled for the report.
+    """
+
+    if _service_url() is None:
+        return None
+    return {
+        # The human decision can happen before the queued review-request
+        # event receives a job ID.  The worker resolves it from the report at
+        # delivery time and retains this field once known.
+        "job_id": str(report.ai_review_job_id) if report.ai_review_job_id else None,
+        "disposition": {
+            "reviewer_ref": _opaque_ref("subject", reviewer_id),
+            "action": action,
+            "remarks": (remarks or "").strip() or None,
+            "finding_ids": [],
+        },
+    }
+
+
+def deliver_human_disposition_event(event: dict[str, Any], *, job_id: str | None = None) -> None:
+    """Send one queued advisory disposition or raise so the worker retries."""
+
+    resolved_job_id = job_id or event.get("job_id")
+    disposition = event.get("disposition")
+    if not isinstance(resolved_job_id, str) or not isinstance(disposition, dict):
+        raise AIReviewError("Invalid queued AI disposition payload")
+    if _service_url() is None:
+        raise AIReviewError("AI review service is not configured")
+
+    job = _request("GET", f"/v1/review-jobs/{resolved_job_id}")
+    if job.get("status") != "completed":
+        # The review may still be processing when an approver decides.  Keep
+        # the durable intent for a later worker pass rather than dropping it.
+        raise AIReviewError("AI review job is not completed yet")
+    _request("POST", f"/v1/review-jobs/{resolved_job_id}/dispositions", disposition)
+
+
+def record_human_disposition(report: ExpenseReport, reviewer_id: uuid.UUID | str, action: str, remarks: str | None) -> None:
+    """Legacy best-effort helper retained for non-transactional callers."""
+
+    event = build_human_disposition_event(report, reviewer_id, action, remarks)
+    if event is None:
         return
     try:
-        job = _request("GET", f"/v1/review-jobs/{report.ai_review_job_id}")
-        if job.get("status") != "completed":
-            return
-        _request(
-            "POST",
-            f"/v1/review-jobs/{report.ai_review_job_id}/dispositions",
-            {
-                "reviewer_ref": _opaque_ref("subject", reviewer_id),
-                "action": action,
-                "remarks": remarks,
-                "finding_ids": [],
-            },
-        )
+        deliver_human_disposition_event(event)
     except AIReviewError:
         # A review disposition is an AI-service audit enhancement, not a
-        # workflow prerequisite.  The core approval audit remains authoritative.
+        # workflow prerequisite.  API actions use the durable outbox instead.
         return

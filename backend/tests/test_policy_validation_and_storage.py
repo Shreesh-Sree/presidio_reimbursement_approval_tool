@@ -61,15 +61,21 @@ def test_policy_version_creates_rules_and_preserves_effective_window(db, seeded_
         )
 
 
-def test_category_hierarchy_rejects_deleting_a_parent_with_active_children(db):
-    parent = category_service.create_category(db, "TRAVEL", "Travel")
-    child = category_service.create_category(db, "AIR", "Airfare", parent_id=parent.id)
+def test_category_hierarchy_rejects_deleting_a_parent_with_active_children(db, seeded_org):
+    parent = category_service.create_category(
+        db, "TRAVEL", "Travel", organization_id=seeded_org.id
+    )
+    child = category_service.create_category(
+        db, "AIR", "Airfare", organization_id=seeded_org.id, parent_id=parent.id
+    )
 
-    tree = category_service.category_tree_payload(category_service.list_categories(db))
+    tree = category_service.category_tree_payload(
+        category_service.list_categories(db, seeded_org.id)
+    )
     assert tree[0]["id"] == str(parent.id)
     assert tree[0]["children"][0]["id"] == str(child.id)
     with pytest.raises(category_service.CategoryConflictError):
-        category_service.deactivate_category(db, parent.id)
+        category_service.deactivate_category(db, parent.id, seeded_org.id)
 
 
 def test_validation_uses_policy_rules_and_does_not_change_report_status(db, seeded_user):
@@ -113,7 +119,9 @@ def test_validation_uses_policy_rules_and_does_not_change_report_status(db, seed
 def test_receipt_storage_validates_metadata_and_returns_local_file(db, seeded_user, tmp_path, monkeypatch):
     monkeypatch.setenv("LOCAL_STORAGE_PATH", str(tmp_path / "uploads"))
     report = _draft_report(db, seeded_user)
-    category = category_service.create_category(db, "LODGING", "Lodging")
+    category = category_service.create_category(
+        db, "LODGING", "Lodging", organization_id=seeded_user.organization_id
+    )
     item = ExpenseItem(
         expense_report_id=report.id,
         line_number=1,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +13,8 @@ class AIReviewSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="AI_REVIEW_", env_file=".env", extra="ignore")
 
+    environment: Literal["local", "test", "staging", "production"] = "production"
+    persistence_backend: Literal["sqlite", "postgresql"] = "sqlite"
     database_path: str = "var/ai-review.sqlite3"
     database_url: str | None = Field(default=None, repr=False)
     provider: Literal["rule_based", "gemini", "groq"] = "groq"
@@ -38,3 +40,23 @@ class AIReviewSettings(BaseSettings):
             return None
         token = str(value).strip()
         return token or None
+
+    @model_validator(mode="after")
+    def require_durable_authenticated_runtime(self) -> "AIReviewSettings":
+        """Keep SQLite and unauthenticated routes explicit local/test-only choices."""
+
+        if self.environment in {"local", "test"}:
+            return self
+        missing: list[str] = []
+        if not self.service_token:
+            missing.append("AI_REVIEW_SERVICE_TOKEN")
+        if self.persistence_backend != "postgresql":
+            missing.append("AI_REVIEW_PERSISTENCE_BACKEND=postgresql")
+        if not self.database_url:
+            missing.append("AI_REVIEW_DATABASE_URL")
+        if missing:
+            raise ValueError(
+                "staging and production AI review deployments require durable authenticated "
+                f"configuration: {', '.join(missing)}"
+            )
+        return self

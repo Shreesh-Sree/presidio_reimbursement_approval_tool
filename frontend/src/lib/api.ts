@@ -1,6 +1,18 @@
 import axios from "axios";
 import { getVisitorId } from "../security/fingerprint";
 
+export const DEFAULT_API_REQUEST_TIMEOUT_MS = 15_000;
+
+function configuredApiRequestTimeout() {
+  const configured = Number(import.meta.env.VITE_API_REQUEST_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured >= 1_000 && configured <= 60_000
+    ? configured
+    : DEFAULT_API_REQUEST_TIMEOUT_MS;
+}
+
+/** Bounded browser request deadline; callers may additionally pass AbortSignal. */
+export const API_REQUEST_TIMEOUT_MS = configuredApiRequestTimeout();
+
 export type PolicyRule = {
   id?: string;
   category_id?: string;
@@ -388,6 +400,8 @@ export type ReportComment = {
 export type SessionUser = {
   user_id: string;
   email: string;
+  organization_id: string;
+  department_id?: string | null;
   roles: string[];
   permissions?: string[];
 };
@@ -402,6 +416,7 @@ export type ManagedUser = {
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? "/api",
   headers: { "Content-Type": "application/json" },
+  timeout: API_REQUEST_TIMEOUT_MS,
 });
 
 /**
@@ -435,6 +450,12 @@ const unwrap = <T>(request: Promise<{ data: T }>) => request.then((response) => 
 /** Return a safe, readable message for FastAPI and network errors. */
 export function getApiErrorMessage(error: unknown, fallback: string) {
   if (axios.isAxiosError(error)) {
+    if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+      return "The request timed out. Please try again.";
+    }
+    if (error.code === "ERR_CANCELED") {
+      return "The request was cancelled.";
+    }
     const detail = error.response?.data?.detail;
     if (typeof detail === "string" && detail.trim()) return detail;
     if (Array.isArray(detail)) {
@@ -447,6 +468,18 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
 
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+/** A cancelled request is intentional and must not be retried or surfaced as a server failure. */
+export function isApiRequestCancelled(error: unknown) {
+  return axios.isAxiosError(error) && (error.code === "ERR_CANCELED" || axios.isCancel(error));
+}
+
+/** Network, timeout, rate-limit, and server failures can be retried by an explicit caller policy. */
+export function isRetryableApiError(error: unknown) {
+  if (!axios.isAxiosError(error) || isApiRequestCancelled(error)) return false;
+  const status = error.response?.status;
+  return !status || status === 408 || status === 429 || status >= 500;
 }
 
 /** Extract a stable API error code without exposing transport details to UI components. */

@@ -33,36 +33,65 @@ def _uuid(value: str | uuid.UUID) -> uuid.UUID:
         raise VendorNotFoundError("Invalid vendor id") from exc
 
 
-def _active_vendor(db: Session, vendor_id: str | uuid.UUID) -> Vendor:
+def _organization_id(value: str | uuid.UUID) -> uuid.UUID:
+    try:
+        return _uuid(value)
+    except VendorNotFoundError as exc:
+        raise VendorNotFoundError("Invalid organization id") from exc
+
+
+def _active_vendor(
+    db: Session, vendor_id: str | uuid.UUID, organization_id: str | uuid.UUID
+) -> Vendor:
     vendor = db.scalar(
-        select(Vendor).where(Vendor.id == _uuid(vendor_id), Vendor.is_deleted.is_(False))
+        select(Vendor).where(
+            Vendor.id == _uuid(vendor_id),
+            Vendor.organization_id == _organization_id(organization_id),
+            Vendor.is_deleted.is_(False),
+        )
     )
     if vendor is None:
         raise VendorNotFoundError("Vendor not found")
     return vendor
 
 
-def create_vendor(db: Session, name: str, normalized_name: str | None = None, description: str | None = None) -> Vendor:
+def create_vendor(
+    db: Session,
+    name: str,
+    *,
+    organization_id: str | uuid.UUID,
+    normalized_name: str | None = None,
+    description: str | None = None,
+) -> Vendor:
+    resolved_organization_id = _organization_id(organization_id)
     cleaned_name = name.strip()
     normalized = (normalized_name or normalize_vendor_name(cleaned_name)).strip().lower()
     if not cleaned_name or not normalized:
         raise VendorConflictError("Vendor name is required")
     existing = db.scalar(
         select(Vendor).where(
+            Vendor.organization_id == resolved_organization_id,
             func.lower(Vendor.normalized_name) == normalized,
             Vendor.is_deleted.is_(False),
         )
     )
     if existing is not None:
         raise VendorConflictError("A vendor with that normalized name already exists")
-    vendor = Vendor(name=cleaned_name, normalized_name=normalized, description=description.strip() if description else None)
+    vendor = Vendor(
+        organization_id=resolved_organization_id,
+        name=cleaned_name,
+        normalized_name=normalized,
+        description=description.strip() if description else None,
+    )
     db.add(vendor)
     db.commit()
     db.refresh(vendor)
     return vendor
 
 
-def get_or_create_vendor(db: Session, name: str) -> Vendor:
+def get_or_create_vendor(
+    db: Session, name: str, *, organization_id: str | uuid.UUID
+) -> Vendor:
     """Resolve a policy-rule free-text vendor without duplicating normalization."""
 
     normalized = normalize_vendor_name(name)
@@ -70,6 +99,7 @@ def get_or_create_vendor(db: Session, name: str) -> Vendor:
         raise VendorConflictError("Vendor name is required")
     existing = db.scalar(
         select(Vendor).where(
+            Vendor.organization_id == _organization_id(organization_id),
             func.lower(Vendor.normalized_name) == normalized,
             Vendor.is_deleted.is_(False),
         )
@@ -77,26 +107,44 @@ def get_or_create_vendor(db: Session, name: str) -> Vendor:
     if existing is not None:
         return existing
     # This helper participates in the caller's transaction instead of committing.
-    vendor = Vendor(name=name.strip(), normalized_name=normalized)
+    vendor = Vendor(
+        organization_id=_organization_id(organization_id),
+        name=name.strip(),
+        normalized_name=normalized,
+    )
     db.add(vendor)
     db.flush()
     return vendor
 
 
-def list_vendors(db: Session) -> list[Vendor]:
+def list_vendors(db: Session, organization_id: str | uuid.UUID) -> list[Vendor]:
     return list(
         db.scalars(
-            select(Vendor).where(Vendor.is_deleted.is_(False)).order_by(Vendor.name.asc())
+            select(Vendor)
+            .where(
+                Vendor.organization_id == _organization_id(organization_id),
+                Vendor.is_deleted.is_(False),
+            )
+            .order_by(Vendor.name.asc())
         )
     )
 
 
-def get_vendor(db: Session, vendor_id: str | uuid.UUID) -> Vendor:
-    return _active_vendor(db, vendor_id)
+def get_vendor(
+    db: Session, vendor_id: str | uuid.UUID, organization_id: str | uuid.UUID
+) -> Vendor:
+    return _active_vendor(db, vendor_id, organization_id)
 
 
-def update_vendor(db: Session, vendor_id: str | uuid.UUID, **changes: Any) -> Vendor:
-    vendor = _active_vendor(db, vendor_id)
+def update_vendor(
+    db: Session,
+    vendor_id: str | uuid.UUID,
+    *,
+    organization_id: str | uuid.UUID,
+    **changes: Any,
+) -> Vendor:
+    resolved_organization_id = _organization_id(organization_id)
+    vendor = _active_vendor(db, vendor_id, resolved_organization_id)
     if "name" in changes and changes["name"] is not None:
         name = str(changes["name"]).strip()
         if not name:
@@ -108,6 +156,7 @@ def update_vendor(db: Session, vendor_id: str | uuid.UUID, **changes: Any) -> Ve
             raise VendorConflictError("Vendor normalized name cannot be empty")
         duplicate = db.scalar(
             select(Vendor).where(
+                Vendor.organization_id == resolved_organization_id,
                 func.lower(Vendor.normalized_name) == normalized,
                 Vendor.id != vendor.id,
                 Vendor.is_deleted.is_(False),
@@ -124,8 +173,10 @@ def update_vendor(db: Session, vendor_id: str | uuid.UUID, **changes: Any) -> Ve
     return vendor
 
 
-def deactivate_vendor(db: Session, vendor_id: str | uuid.UUID) -> Vendor:
-    vendor = _active_vendor(db, vendor_id)
+def deactivate_vendor(
+    db: Session, vendor_id: str | uuid.UUID, organization_id: str | uuid.UUID
+) -> Vendor:
+    vendor = _active_vendor(db, vendor_id, organization_id)
     vendor.is_deleted = True
     db.commit()
     db.refresh(vendor)
@@ -135,6 +186,7 @@ def deactivate_vendor(db: Session, vendor_id: str | uuid.UUID) -> Vendor:
 def vendor_payload(vendor: Vendor) -> dict[str, Any]:
     return {
         "id": str(vendor.id),
+        "organization_id": str(vendor.organization_id),
         "name": vendor.name,
         "normalized_name": vendor.normalized_name,
         "description": vendor.description,

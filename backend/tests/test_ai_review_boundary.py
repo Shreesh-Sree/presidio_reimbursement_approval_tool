@@ -17,7 +17,11 @@ from app.services.report_service import create_draft
 
 
 def _submitted_snapshot(db, seeded_user, seeded_policy, seeded_category):
-    vendor = Vendor(name="Sensitive Merchant Name", normalized_name="SENSITIVE_VENDOR")
+    vendor = Vendor(
+        organization_id=seeded_user.organization_id,
+        name="Sensitive Merchant Name",
+        normalized_name="SENSITIVE_VENDOR",
+    )
     db.add(vendor)
     db.flush()
     db.add(

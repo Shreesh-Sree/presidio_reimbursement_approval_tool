@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/roles", tags=["roles"])
 
 
 @router.get("")
-async def list_roles(
+def list_roles(
     db: Session = Depends(get_db),
     _current_user: dict[str, object] = Depends(require_permission("user:read")),
 ):

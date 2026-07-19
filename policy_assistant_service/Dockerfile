@@ -1,4 +1,4 @@
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim@sha256:cea0e6040540fb2b965b6e7fb5ffa00871e632eef63719f0ea54bca189ce14a6 AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_LINK_MODE=copy
@@ -14,13 +14,14 @@ COPY policy_assistant_service /build/policy_assistant_service
 RUN uv sync --frozen --no-dev
 
 # --- Runtime ---
-FROM python:3.14-slim
+FROM python:3.14-slim@sha256:cea0e6040540fb2b965b6e7fb5ffa00871e632eef63719f0ea54bca189ce14a6
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:${PATH}"
 
-RUN groupadd -r app && useradd -r -g app -d /app app
+RUN groupadd -r app && useradd -r -g app -d /app app \
+    && install -d -o app -g app /app/var
 
 WORKDIR /app
 COPY --from=builder --chown=app:app /build/.venv /app/.venv

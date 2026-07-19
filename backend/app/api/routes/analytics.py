@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
 @router.get("/overview", response_model=AnalyticsOverview)
-async def get_overview(
+def get_overview(
     period_months: int = Query(default=6, ge=1, le=24),
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:read")),

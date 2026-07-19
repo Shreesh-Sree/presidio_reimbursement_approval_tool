@@ -17,6 +17,7 @@ from app.models.attachment import Attachment
 from app.models.comment import Comment
 from app.models.delegation import Delegation
 from app.models.notification import Notification
+from app.models.integration_outbox import IntegrationOutbox
 from app.models.payment_record import PaymentRecord
 from app.models.payment_batch import PaymentBatch
 from app.models.payment_event import PaymentEvent
@@ -45,6 +46,7 @@ __all__ = [
     "Comment",
     "Delegation",
     "Notification",
+    "IntegrationOutbox",
     "PaymentRecord",
     "PaymentBatch",
     "PaymentEvent",

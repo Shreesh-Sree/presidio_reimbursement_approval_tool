@@ -37,6 +37,7 @@ def test_contracts_reject_pii_and_non_opaque_scope_references(client, auth_heade
 def test_configuration_rejects_postgresql_and_requires_a_separate_sqlite_store(service_token):
     with pytest.raises(ValueError, match="SQLite"):
         PolicyAssistantSettings(
+            environment="test",
             database_path="postgresql+psycopg://core-user:secret@db.example/core",
             service_token=service_token,
         )

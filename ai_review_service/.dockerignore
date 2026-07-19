@@ -1,9 +1,11 @@
-.env
+.env*
+!.env.example
 .venv
 .pytest_cache
 __pycache__
 **/__pycache__
 *.py[cod]
 var
+*.sqlite*
 htmlcov
 coverage.xml

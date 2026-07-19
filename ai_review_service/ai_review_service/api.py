@@ -22,12 +22,11 @@ from .service import ExpenseReviewService, build_service
 from .worker import LocalReviewWorker
 
 
-def _bearer_guard(service_token: str | None):
-    """Build optional service-to-service bearer authentication.
+def _bearer_guard(service_token: str | None, *, allow_unauthenticated_local: bool = False):
+    """Build a fail-closed service-to-service bearer authentication guard.
 
-    Local development can omit ``AI_REVIEW_SERVICE_TOKEN``.  Any configured
-    value turns authentication on for every API operation, including the
-    manual processing and disposition endpoints.
+    Only an explicit local/test configuration can omit ``AI_REVIEW_SERVICE_TOKEN``.
+    Staging and production reject protected requests when configuration is absent.
     """
 
     bearer = HTTPBearer(auto_error=False)
@@ -41,7 +40,12 @@ def _bearer_guard(service_token: str | None):
         if request.url.path in {"/health", "/ready"}:
             return
         if service_token is None:
-            return
+            if allow_unauthenticated_local:
+                return
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="AI review service authentication is not configured",
+            )
         if credentials is None or not secrets.compare_digest(credentials.credentials, service_token):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -91,7 +95,14 @@ def create_app(
             "Advisory-only review worker. Deploy behind an internal authenticated event gateway; "
             "it never approves, rejects, or updates reimbursement records."
         ),
-        dependencies=[Depends(_bearer_guard(settings.service_token))],
+        dependencies=[
+            Depends(
+                _bearer_guard(
+                    settings.service_token,
+                    allow_unauthenticated_local=settings.environment in {"local", "test"},
+                )
+            )
+        ],
         lifespan=lifespan,
     )
 

@@ -28,7 +28,7 @@ export function SignInPage() {
             <h1 className="text-[28px] font-semibold tracking-tight text-[#1d1d1f] dark:text-[#f5f5f7]">
               AlgoQX
             </h1>
-            <p className="mt-1 text-[15px] text-[#86868b]">Expense Management</p>
+            <p className="mt-1 text-[15px] text-[#59595f]">Expense Management</p>
           </div>
 
           {!showEmailForm ? (
@@ -65,7 +65,7 @@ export function SignInPage() {
                   <div className="w-full border-t border-[#d2d2d7] dark:border-white/12" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="bg-white px-4 text-[#86868b] dark:bg-[#1d1d1f]">Or</span>
+                  <span className="bg-white px-4 text-[#59595f] dark:bg-[#1d1d1f]">Or</span>
                 </div>
               </div>
 
@@ -77,7 +77,7 @@ export function SignInPage() {
                 Request Access with Email
               </button>
 
-              <p className="mt-6 text-center text-[13px] text-[#86868b]">
+              <p className="mt-6 text-center text-[13px] text-[#59595f]">
                 Sign in through your organization's approved identity provider.
               </p>
             </>
@@ -86,7 +86,7 @@ export function SignInPage() {
               <button
                 type="button"
                 onClick={() => setShowEmailForm(false)}
-                className="mb-4 text-sm text-[#86868b] hover:text-[#1d1d1f] dark:hover:text-[#f5f5f7]"
+                className="mb-4 text-sm text-[#59595f] hover:text-[#1d1d1f] dark:hover:text-[#f5f5f7]"
               >
                 ← Back to sign in options
               </button>

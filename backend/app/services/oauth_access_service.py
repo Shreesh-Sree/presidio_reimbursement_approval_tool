@@ -22,6 +22,7 @@ from app.models.department import Department
 from app.models.organization import Organization
 from app.models.user import User
 from app.services import user_service
+from app.services.audit_service import record_audit
 
 
 class OAuthAccessDeniedError(RuntimeError):
@@ -51,6 +52,55 @@ def _active_users_for_email(db: Session, email: str) -> list[User]:
             .order_by(User.created_at, User.id)
         ).all()
     )
+
+
+def _reconcile_verified_subject_email(
+    db: Session,
+    *,
+    identity: SupabaseIdentity,
+) -> User | None:
+    """Reconcile a verified provider email only for its already-linked subject.
+
+    Supabase owns OAuth email verification.  The application refuses admin-side
+    local mutations in that mode, then promotes the provider's new email on a
+    later verified token while retaining the immutable subject binding.  This
+    supports normal provider email changes without permitting email reuse to
+    take over another account.
+    """
+
+    user = db.scalar(
+        select(User).where(
+            User.external_auth_subject == identity.subject,
+            User.is_deleted.is_(False),
+            User.status == "active",
+        )
+    )
+    if user is None:
+        return None
+    conflict = db.scalar(
+        select(User.id).where(
+            func.lower(User.email) == identity.email.lower(),
+            User.id != user.id,
+            User.is_deleted.is_(False),
+        )
+    )
+    if conflict is not None:
+        raise OAuthAccessDeniedError()
+    if user.email.lower() != identity.email.lower():
+        before = {"email": user.email}
+        user.email = identity.email.lower()
+        record_audit(
+            db,
+            "users",
+            str(user.id),
+            "reconcile_oauth_email",
+            before=before,
+            after={"email": user.email},
+        )
+    user.last_login_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def _bootstrap_organization_and_department(db: Session, settings: Settings) -> tuple[Organization, Department]:
@@ -150,6 +200,9 @@ def resolve_oauth_user(db: Session, *, identity: SupabaseIdentity, settings: Set
 
     super_admin_email = _normalise_configured_email(settings.super_admin_email)
     if not active_users:
+        linked_user = _reconcile_verified_subject_email(db, identity=identity)
+        if linked_user is not None:
+            return linked_user
         if identity.email != super_admin_email:
             raise OAuthAccessDeniedError()
         # An inactive/deleted row must be reactivated deliberately through

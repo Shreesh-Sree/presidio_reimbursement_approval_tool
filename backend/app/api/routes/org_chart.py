@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/org-chart", tags=["org-chart"])
 
 
 @router.get("")
-async def get_org_chart(
+def get_org_chart(
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:read")),
 ):

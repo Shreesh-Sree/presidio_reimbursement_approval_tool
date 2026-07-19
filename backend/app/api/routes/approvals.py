@@ -9,7 +9,7 @@ from app.api.report_schemas import ApprovalActionInput
 from app.core.database import get_db
 from app.core.deps import require_permission
 from app.models.user import User
-from app.services import ai_review_client, approval_service, notification_delivery_service, presentation_service
+from app.services import approval_service, integration_outbox_service, notification_delivery_service, presentation_service
 
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
@@ -24,14 +24,12 @@ def _raise_approval_error(exc: Exception) -> None:
 
 
 @router.get("/queue")
-async def approval_queue(
+def approval_queue(
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
-    # This idempotent sweep keeps local/small deployments responsive without
-    # assigning an outcome automatically. Production can invoke the same
-    # service from a scheduler for stricter SLA timing.
-    approval_service.process_overdue_approvals(db, organization_id=user["organization_id"])
+    # SLA escalation is durable scheduled work (``python -m app.worker
+    # --once``), not a side effect of an approver viewing this queue.
     entries = approval_service.queue_for_approver(db, user["user_id"])
     queue = []
     for level, report in entries:
@@ -47,7 +45,7 @@ async def approval_queue(
 
 
 @router.get("/history")
-async def approval_history(
+def approval_history(
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
@@ -61,7 +59,7 @@ async def approval_history(
     return history
 
 
-async def _take_action(
+def _take_action(
     report_id: str,
     action: str,
     payload: ApprovalActionInput,
@@ -70,42 +68,58 @@ async def _take_action(
     user: dict[str, object],
 ):
     try:
-        report = approval_service.act_on_report(db, report_id, user["user_id"], action, payload.remarks)
-        ai_review_client.record_human_disposition(report, user["user_id"], action, payload.remarks)
+        report = approval_service.act_on_report(
+            db,
+            report_id,
+            user["user_id"],
+            action,
+            payload.remarks,
+            commit=False,
+        )
+        integration_outbox_service.enqueue_human_disposition(
+            db,
+            report,
+            user["user_id"],
+            action,
+            payload.remarks,
+        )
+        db.commit()
+        db.refresh(report)
         notification_delivery_service.enqueue_pending_email_delivery(background_tasks)
         return presentation_service.report_payload(db, report)
     except Exception as exc:
+        db.rollback()
         _raise_approval_error(exc)
 
 
 @router.post("/{report_id}/approve")
-async def approve(
+def approve(
     report_id: str,
     payload: ApprovalActionInput,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
-    return await _take_action(report_id, "approve", payload, background_tasks, db, user)
+    return _take_action(report_id, "approve", payload, background_tasks, db, user)
 
 
 @router.post("/{report_id}/reject")
-async def reject(
+def reject(
     report_id: str,
     payload: ApprovalActionInput,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
-    return await _take_action(report_id, "reject", payload, background_tasks, db, user)
+    return _take_action(report_id, "reject", payload, background_tasks, db, user)
 
 
 @router.post("/{report_id}/send-back")
-async def send_back(
+def send_back(
     report_id: str,
     payload: ApprovalActionInput,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
-    return await _take_action(report_id, "send_back", payload, background_tasks, db, user)
+    return _take_action(report_id, "send_back", payload, background_tasks, db, user)

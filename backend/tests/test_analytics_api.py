@@ -64,7 +64,11 @@ def test_overview_is_aggregate_and_scoped_to_the_authenticated_user(client, db):
     )
     assert other_employee.status_code == 201, other_employee.text
 
-    category = ExpenseCategory(code="TRAVEL", name="Travel")
+    category = ExpenseCategory(
+        organization_id=UUID(bootstrap.json()["user"]["organization_id"]),
+        code="TRAVEL",
+        name="Travel",
+    )
     db.add(category)
     db.flush()
     employee_model = db.get(User, UUID(employee.json()["id"]))

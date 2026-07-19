@@ -21,15 +21,21 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add pending_approval user status and user_access_requests table."""
 
-    # Add pending_approval status
-    op.execute("""
-        ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check
-    """)
-    op.execute("""
-        ALTER TABLE users
-        ADD CONSTRAINT users_status_check
-        CHECK (status IN ('active', 'inactive', 'pending_approval'))
-    """)
+    # SQLite cannot ``ALTER TABLE ... DROP/ADD CONSTRAINT``.  Batch mode
+    # recreates the table there while remaining a normal schema change on
+    # PostgreSQL.  Earlier revisions did not always create this check, so only
+    # drop it when the target database actually has the named constraint.
+    existing_checks = {
+        check.get("name")
+        for check in sa.inspect(op.get_bind()).get_check_constraints("users")
+    }
+    with op.batch_alter_table("users") as batch_op:
+        if "users_status_check" in existing_checks:
+            batch_op.drop_constraint("users_status_check", type_="check")
+        batch_op.create_check_constraint(
+            "users_status_check",
+            "status IN ('active', 'inactive', 'pending_approval')",
+        )
 
     # Create user_access_requests table
     op.create_table(
@@ -62,9 +68,14 @@ def downgrade() -> None:
     op.drop_index('ix_user_access_requests_status')
     op.drop_table('user_access_requests')
 
-    op.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check")
-    op.execute("""
-        ALTER TABLE users
-        ADD CONSTRAINT users_status_check
-        CHECK (status IN ('active', 'inactive'))
-    """)
+    existing_checks = {
+        check.get("name")
+        for check in sa.inspect(op.get_bind()).get_check_constraints("users")
+    }
+    with op.batch_alter_table("users") as batch_op:
+        if "users_status_check" in existing_checks:
+            batch_op.drop_constraint("users_status_check", type_="check")
+        batch_op.create_check_constraint(
+            "users_status_check",
+            "status IN ('active', 'inactive')",
+        )

@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
 @router.get("")
-async def list_notifications(
+def list_notifications(
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(get_current_user),
 ):
@@ -23,7 +23,7 @@ async def list_notifications(
 
 
 @router.post("/{notification_id}/read")
-async def mark_notification_read(
+def mark_notification_read(
     notification_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(get_current_user),

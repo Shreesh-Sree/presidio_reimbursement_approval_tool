@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import {
@@ -53,10 +53,15 @@ export function PaymentsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [remarks, setRemarks] = useState("");
+  const [batchError, setBatchError] = useState<string | null>(null);
   const [paid, setPaid] = useState<PaymentRecord | null>(null);
   const [reference, setReference] = useState("");
+  const [paidError, setPaidError] = useState<string | null>(null);
   const [failed, setFailed] = useState<PaymentRecord | null>(null);
   const [reason, setReason] = useState("");
+  const [failedError, setFailedError] = useState<string | null>(null);
+  const paidDialogPaymentId = useRef<string | null>(null);
+  const failedDialogPaymentId = useRef<string | null>(null);
   const payments = useQuery({
     queryKey: ["payments", "queue", filter],
     queryFn: () => paymentsApi.list(filter === "all" ? {} : { status: filter }),
@@ -74,14 +79,44 @@ export function PaymentsPage() {
   useEffect(() => setSelected(new Set()), [filter]);
   const refresh = () =>
     void client.invalidateQueries({ queryKey: ["payments"] });
+  const closeBatchDialog = () => {
+    setBatchOpen(false);
+    setRemarks("");
+    setBatchError(null);
+  };
+  const openPaidDialog = (payment: PaymentRecord) => {
+    paidDialogPaymentId.current = payment.id;
+    setPaid(payment);
+    setReference("");
+    setPaidError(null);
+  };
+  const closePaidDialog = () => {
+    paidDialogPaymentId.current = null;
+    setPaid(null);
+    setReference("");
+    setPaidError(null);
+  };
+  const openFailedDialog = (payment: PaymentRecord) => {
+    failedDialogPaymentId.current = payment.id;
+    setFailed(payment);
+    setReason("");
+    setFailedError(null);
+  };
+  const closeFailedDialog = () => {
+    failedDialogPaymentId.current = null;
+    setFailed(null);
+    setReason("");
+    setFailedError(null);
+  };
   const create = useMutation({
     mutationFn: (input: PaymentBatchCreateInput) => paymentsApi.createBatch(input),
     onSuccess: (batch) => {
       refresh();
       setSelected(new Set());
-      setBatchOpen(false);
+      closeBatchDialog();
       setMessage(`${batch.batch_reference} was created.`);
     },
+    onError: (error) => setBatchError(getApiErrorMessage(error, "Unable to create this payment batch.")),
   });
   const exportBatch = useMutation({
     mutationFn: ({ id, format }: { id: string; format: "xlsx" | "pdf" }) =>
@@ -97,19 +132,29 @@ export function PaymentsPage() {
   const markPaid = useMutation({
     mutationFn: ({ id, input }: { id: string; input: PaymentPaidInput }) =>
       paymentsApi.markPaid(id, input),
-    onSuccess: () => {
+    onSuccess: (_payment, variables) => {
       refresh();
-      setPaid(null);
+      if (paidDialogPaymentId.current === variables.id) closePaidDialog();
       setMessage("Reimbursement marked as paid.");
+    },
+    onError: (error, variables) => {
+      if (paidDialogPaymentId.current === variables.id) {
+        setPaidError(getApiErrorMessage(error, "Unable to mark this reimbursement as paid."));
+      }
     },
   });
   const markFailed = useMutation({
     mutationFn: ({ id, input }: { id: string; input: PaymentFailedInput }) =>
       paymentsApi.markFailed(id, input),
-    onSuccess: () => {
+    onSuccess: (_payment, variables) => {
       refresh();
-      setFailed(null);
+      if (failedDialogPaymentId.current === variables.id) closeFailedDialog();
       setMessage("Payment marked for finance follow-up.");
+    },
+    onError: (error, variables) => {
+      if (failedDialogPaymentId.current === variables.id) {
+        setFailedError(getApiErrorMessage(error, "Unable to mark this payment for follow-up."));
+      }
     },
   });
   const toggle = (payment: PaymentRecord) => {
@@ -169,7 +214,7 @@ export function PaymentsPage() {
               export batch.
             </p>
           </div>
-          <Button disabled={!chosen.length} onClick={() => setBatchOpen(true)}>
+          <Button disabled={!chosen.length} onClick={() => { setBatchOpen(true); setRemarks(""); setBatchError(null); }}>
             Create batch
           </Button>
         </div>
@@ -215,10 +260,10 @@ export function PaymentsPage() {
                     )}
                     {payment.status === "exported" && (
                       <>
-                        <Button onClick={() => setPaid(payment)} variant="outline">
+                        <Button onClick={() => openPaidDialog(payment)} variant="outline">
                           Mark paid
                         </Button>
-                        <Button onClick={() => setFailed(payment)} variant="destructive">
+                        <Button onClick={() => openFailedDialog(payment)} variant="destructive">
                           Follow up
                         </Button>
                       </>
@@ -295,7 +340,7 @@ export function PaymentsPage() {
           </table>
         </div>
       </section>
-      <Dialog onOpenChange={setBatchOpen} open={batchOpen}>
+      <Dialog onOpenChange={(open) => { if (!open) closeBatchDialog(); }} open={batchOpen}>
         <DialogContent>
           <DialogTitle>Create finance batch</DialogTitle>
           <DialogDescription>
@@ -311,6 +356,7 @@ export function PaymentsPage() {
                 value={remarks}
               />
             </FormField>
+            {batchError && <p className="repl-alert error" role="alert">{batchError}</p>}
             <Button disabled={create.isPending} type="submit">
               Create batch
             </Button>
@@ -318,11 +364,14 @@ export function PaymentsPage() {
         </DialogContent>
       </Dialog>
       <Dialog
-        onOpenChange={(open) => !open && setPaid(null)}
+        onOpenChange={(open) => { if (!open) closePaidDialog(); }}
         open={Boolean(paid)}
       >
         <DialogContent>
           <DialogTitle>Mark reimbursement paid</DialogTitle>
+          <DialogDescription>
+            {paid ? `Record the settlement reference for ${paid.payment_reference}.` : "Record the settlement reference."}
+          </DialogDescription>
           <Form
             className="mt-5"
             onSubmit={(event) => {
@@ -331,7 +380,7 @@ export function PaymentsPage() {
                 markPaid.mutate({
                   id: paid.id,
                   input: {
-                    provider_reference: reference,
+                    provider_reference: reference.trim(),
                     payment_date: undefined,
                     remarks: undefined,
                   },
@@ -347,18 +396,22 @@ export function PaymentsPage() {
                 value={reference}
               />
             </FormField>
-            <Button disabled={!reference || markPaid.isPending} type="submit">
+            {paidError && <p className="repl-alert error" role="alert">{paidError}</p>}
+            <Button disabled={!reference.trim() || markPaid.isPending} type="submit">
               Mark paid
             </Button>
           </Form>
         </DialogContent>
       </Dialog>
       <Dialog
-        onOpenChange={(open) => !open && setFailed(null)}
+        onOpenChange={(open) => { if (!open) closeFailedDialog(); }}
         open={Boolean(failed)}
       >
         <DialogContent>
           <DialogTitle>Mark payment for follow-up</DialogTitle>
+          <DialogDescription>
+            {failed ? `Record the finance follow-up reason for ${failed.payment_reference}.` : "Record the finance follow-up reason."}
+          </DialogDescription>
           <Form
             className="mt-5"
             onSubmit={(event) => {
@@ -379,8 +432,9 @@ export function PaymentsPage() {
                 value={reason}
               />
             </FormField>
+            {failedError && <p className="repl-alert error" role="alert">{failedError}</p>}
             <Button
-              disabled={!reason || markFailed.isPending}
+              disabled={!reason.trim() || markFailed.isPending}
               type="submit"
               variant="destructive"
             >

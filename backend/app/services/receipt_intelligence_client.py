@@ -68,6 +68,23 @@ def _uuid(value: uuid.UUID | str, *, label: str) -> uuid.UUID:
         raise ReceiptIntelligenceError(f"Receipt intelligence received an invalid {label} reference") from exc
 
 
+def _external_provider_consent(organization_id: uuid.UUID | str) -> bool:
+    """Return an explicit organization-level external-provider opt-in.
+
+    The default is deny.  Deployment configuration contains only UUIDs, not
+    receipt data, and is intentionally separate from the advisory service's
+    global provider kill switch.
+    """
+
+    requested = _uuid(organization_id, label="organization")
+    configured = {
+        value.strip()
+        for value in os.getenv("RECEIPT_INTELLIGENCE_EXTERNAL_PROVIDER_ORGANIZATION_IDS", "").split(",")
+        if value.strip()
+    }
+    return str(requested) in configured
+
+
 def _opaque_ref(prefix: str, value: uuid.UUID | str) -> str:
     """Derive a stable, non-reversible reference without disclosing core IDs."""
 
@@ -215,6 +232,7 @@ def analyze_receipt(
         "event_type": "receipt.analysis.requested",
         "event_version": "1.0",
         "organization_scope": context.organization_ref,
+        "external_provider_consent": _external_provider_consent(organization_id),
         "receipt": receipt_payload,
         "policy": {
             "expense_amount": _decimal_string(expense_amount, label="expense amount"),

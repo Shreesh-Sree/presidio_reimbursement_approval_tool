@@ -23,6 +23,11 @@ class Notification(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Bas
         Index("ix_notifications_status", "status"),
         Index("ix_notifications_sent_at", "sent_at"),
         Index("ix_notifications_is_deleted", "is_deleted"),
+        # Keep these aligned with the durable-delivery migration.  The first
+        # supports ready-work scans; the second lets a replacement worker
+        # reclaim rows after a crashed sender's lease expires.
+        Index("ix_notifications_delivery_ready", "channel", "status", "next_attempt_at"),
+        Index("ix_notifications_delivery_lease", "delivery_lease_expires_at"),
     )
 
     recipient_user_id: Mapped[uuid.UUID] = mapped_column(
@@ -38,6 +43,14 @@ class Notification(UUIDMixin, TimestampMixin, SoftDeleteMixin, VersionMixin, Bas
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivery_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # These fields implement a lease-based worker handoff.  A process crash
+    # cannot leave a row indefinitely in ``sending`` because another worker
+    # may reclaim it after the lease expires.
+    delivery_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivery_claim_token: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    delivery_claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivery_lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Retain the DBML's ``payload`` spelling for newer callers while keeping the
     # existing notification service's ``payload_json`` constructor argument.
     payload = synonym("payload_json")

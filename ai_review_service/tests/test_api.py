@@ -12,7 +12,7 @@ def test_private_ai_service_exposes_advisory_job_contract(event_factory):
     client = TestClient(
         create_app(
             service,
-            settings=AIReviewSettings(service_token=None, auto_process_jobs=True),
+            settings=AIReviewSettings(environment="test", service_token=None, auto_process_jobs=True),
         )
     )
     event = event_factory()
@@ -35,6 +35,7 @@ def test_new_jobs_are_processed_automatically_by_the_local_worker(event_factory)
         create_app(
             service,
             settings=AIReviewSettings(
+                environment="test",
                 service_token=None,
                 auto_process_jobs=True,
                 local_worker_retry_delay_seconds=0,
@@ -57,7 +58,7 @@ def test_configured_service_token_protects_every_review_endpoint(event_factory):
     client = TestClient(
         create_app(
             service,
-            settings=AIReviewSettings(service_token=token, auto_process_jobs=False),
+            settings=AIReviewSettings(environment="test", service_token=token, auto_process_jobs=False),
         )
     )
     event = event_factory()

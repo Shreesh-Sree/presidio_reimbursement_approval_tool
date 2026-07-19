@@ -21,6 +21,7 @@ from .contracts import (
 from .observability import LOGGER_NAME, get_correlation_id
 from .persistence import DigestRepository, SqliteDigestRepository
 from .providers import ResilientReceiptProvider, build_provider
+from .redaction import redact_for_external_provider
 
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -108,7 +109,20 @@ class ReceiptIntelligenceService:
                             details={"ignored_line_count": suspicious_line_count},
                         )
                     )
-                evidence, provider_name = await self._provider.extract(safe_text)
+                allow_external = (
+                    self._settings.groq_external_egress_enabled
+                    and request.external_provider_consent
+                )
+                provider_text = (
+                    redact_for_external_provider(
+                        safe_text, max_chars=self._settings.groq_max_text_chars
+                    )
+                    if allow_external
+                    else safe_text
+                )
+                evidence, provider_name = await self._provider.extract(
+                    provider_text, allow_external=allow_external
+                )
 
         policy = request.policy
         if (
@@ -176,9 +190,9 @@ class ReceiptIntelligenceService:
 def build_service(settings: ReceiptIntelligenceSettings) -> ReceiptIntelligenceService:
     """Build a service backed by PostgreSQL (production) or SQLite (local dev)."""
 
-    if settings.database_url:
+    if settings.persistence_backend == "postgresql":
         from .postgres_persistence import PostgresDigestRepository
-        repository = PostgresDigestRepository(settings.database_url)
+        repository = PostgresDigestRepository(settings.database_url or "")
     else:
         repository = SqliteDigestRepository(settings.database_path)
     return ReceiptIntelligenceService(

@@ -23,6 +23,7 @@ dependencies = [
     "sqlalchemy>=2.0.51",
     "uvicorn>=0.51.0",
     "appwrite>=13.0.0",
+    "azure-identity>=1.25.0",
     "azure-storage-blob>=12.30.0",
     "azure-communication-email>=1.0.0",
 ]

@@ -5,8 +5,9 @@ test.describe("public access", () => {
     await page.goto("/reports");
 
     await expect(page).toHaveURL(/\/sign-in/);
-    await expect(page.getByRole("heading", { name: /expenses,? clearly approved/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /sign in with your work account/i })).toBeVisible();
-    await expect(page.getByText(/sign up|create account/i)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "AlgoQX" })).toBeVisible();
+    await expect(page.getByText("Expense Management")).toBeVisible();
+    await expect(page.getByRole("button", { name: /continue with google/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /request access with email/i })).toBeVisible();
   });
 });

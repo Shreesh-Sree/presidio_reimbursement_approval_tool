@@ -62,22 +62,37 @@ class PostgresReviewRepository:
         return ReviewJob.model_validate_json(row[0]) if row else None
 
     def claim(self, job_id: UUID) -> ReviewJob | None:
-        with self._lock:
-            job = self.get_job(job_id)
-            if not job:
-                return None
-            if job.status not in {ReviewJobStatus.QUEUED, ReviewJobStatus.RETRY_PENDING}:
-                return job
-            claimed = job.model_copy(
-                update={
-                    "status": ReviewJobStatus.PROCESSING,
-                    "attempt_count": job.attempt_count + 1,
-                    "updated_at": utc_now(),
-                    "failure_reason": None,
-                }
-            )
-            self._save_job(claimed)
-            return claimed
+        """Claim one pending job with a database lock, not a process-local lock.
+
+        Container Apps can restart or run more than one revision while traffic
+        shifts. ``FOR UPDATE`` serializes claimers across those processes so a
+        job cannot be processed twice merely because two workers observed it.
+        """
+
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                row = conn.execute(
+                    "SELECT job_json FROM ai_review_jobs WHERE id = %s FOR UPDATE",
+                    (str(job_id),),
+                ).fetchone()
+                if not row:
+                    return None
+                job = ReviewJob.model_validate_json(row[0])
+                if job.status not in {ReviewJobStatus.QUEUED, ReviewJobStatus.RETRY_PENDING}:
+                    return job
+                claimed = job.model_copy(
+                    update={
+                        "status": ReviewJobStatus.PROCESSING,
+                        "attempt_count": job.attempt_count + 1,
+                        "updated_at": utc_now(),
+                        "failure_reason": None,
+                    }
+                )
+                conn.execute(
+                    "UPDATE ai_review_jobs SET job_json = %s WHERE id = %s",
+                    (claimed.model_dump_json(), str(job_id)),
+                )
+                return claimed
 
     def complete(self, job_id: UUID, result: ReviewResult) -> ReviewJob:
         with self._lock:

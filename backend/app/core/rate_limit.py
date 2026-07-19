@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 _RATE_LIMITED_PREFIXES = ("/api/auth/login", "/api/auth/bootstrap")
+_PUBLIC_EXACT_PATHS = {"/api/access-requests"}
 _DEFAULT_LIMIT = 10
 _DEFAULT_WINDOW_SECONDS = 60
 
@@ -50,7 +51,10 @@ class RateLimitMiddleware:
 
     def _is_rate_limited(self, scope: Scope) -> bool:
         path: str = scope.get("path", "")
-        if not any(path.startswith(prefix) for prefix in _RATE_LIMITED_PREFIXES):
+        if not (
+            any(path.startswith(prefix) for prefix in _RATE_LIMITED_PREFIXES)
+            or path in _PUBLIC_EXACT_PATHS
+        ):
             return False
         if scope.get("method", "GET") != "POST":
             return False

@@ -159,7 +159,14 @@ def create_app(
         if not settings.ocr_enabled:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="OCR is disabled")
         try:
-            return OcrResponse(text=extract_text(request.content_base64, max_bytes=settings.max_ocr_bytes, languages=settings.ocr_languages))
+            return OcrResponse(
+                text=extract_text(
+                    request.content_base64,
+                    max_bytes=settings.max_ocr_bytes,
+                    max_pixels=settings.max_ocr_pixels,
+                    languages=settings.ocr_languages,
+                )
+            )
         except OcrError as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
 

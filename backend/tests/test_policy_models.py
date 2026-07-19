@@ -35,6 +35,7 @@ def test_policy_rule_model_create(db, seeded_org):
     db.flush()
     
     category = ExpenseCategory(
+        organization_id=seeded_org.id,
         code="TAXI",
         name="Taxi",
         receipt_required=True,

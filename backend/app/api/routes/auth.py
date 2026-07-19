@@ -55,6 +55,8 @@ def _session_user_payload(db: Session, user: User) -> dict[str, object]:
     return {
         "user_id": str(user.id),
         "email": user.email,
+        "organization_id": str(user.organization_id),
+        "department_id": str(user.department_id),
         "roles": user_service.role_codes_for_user(db, user.id),
         "permissions": user_service.permission_codes_for_user(db, user.id),
     }
@@ -80,7 +82,7 @@ def _issue_login_response(db: Session, user: User) -> dict[str, object]:
 
 
 @router.post("/bootstrap", status_code=status.HTTP_201_CREATED)
-async def bootstrap(request: BootstrapRequest, db: Session = Depends(get_db)):
+def bootstrap(request: BootstrapRequest, db: Session = Depends(get_db)):
     """Create the first organization and administrator in an empty deployment.
 
     The endpoint intentionally becomes unavailable once an active account
@@ -136,7 +138,7 @@ async def bootstrap(request: BootstrapRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+def login(request: LoginRequest, db: Session = Depends(get_db)):
     _require_local_auth()
     user_service.ensure_system_roles_and_permissions(db)
     user = db.scalar(
@@ -157,7 +159,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-async def logout(
+def logout(
     current_user: dict[str, object] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -173,7 +175,7 @@ async def logout(
 
 
 @router.get("/me")
-async def get_me(
+def get_me(
     current_user: dict[str, object] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -184,6 +186,8 @@ async def get_me(
     return {
         "user_id": current_user["user_id"],
         "email": current_user["email"],
+        "organization_id": current_user["organization_id"],
+        "department_id": current_user["department_id"],
         "roles": current_user["roles"],
         "permissions": current_user["permissions"],
     }

@@ -1,13 +1,32 @@
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { CaretDown, Check } from "@phosphor-icons/react";
-import { Children, isValidElement, type ChangeEvent, type SelectHTMLAttributes } from "react";
+import { Children, isValidElement, type ChangeEvent, type FocusEvent, type SelectHTMLAttributes } from "react";
 import { cn } from "../../lib/utils";
 
 /**
  * A design-system select with the same small API as a native select. Keeping
  * the option-child API lets existing forms migrate without browser dropdowns.
  */
-export function Select({ className, children, disabled, id, name, onChange, value }: SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
+  autoComplete,
+  className,
+  children,
+  disabled,
+  form,
+  id,
+  name,
+  onBlur,
+  onChange,
+  onFocus,
+  required,
+  tabIndex,
+  title,
+  value,
+}: SelectHTMLAttributes<HTMLSelectElement>) {
   const options = Children.toArray(children).flatMap((child) => {
     if (!isValidElement<{ value?: string; disabled?: boolean; children?: unknown }>(child) || child.type !== "option") return [];
     return [{ disabled: child.props.disabled, label: String(child.props.children ?? ""), value: child.props.value ?? "" }];
@@ -19,13 +38,29 @@ export function Select({ className, children, disabled, id, name, onChange, valu
   };
 
   return (
-    <SelectPrimitive.Root disabled={disabled} name={name} onValueChange={change} value={selectedValue}>
+    <SelectPrimitive.Root
+      autoComplete={autoComplete}
+      disabled={disabled}
+      form={form}
+      name={name}
+      onValueChange={change}
+      required={required}
+      value={selectedValue}
+    >
       <SelectPrimitive.Trigger
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         className={cn(
           "flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#d2d2d7] bg-white px-4 py-2.5 text-left text-sm text-[#1d1d1f] outline-none transition-all duration-200 focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/12 dark:bg-[#1d1d1f] dark:text-[#f5f5f7] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20",
           className,
         )}
         id={id}
+        onBlur={onBlur ? (event) => onBlur(event as unknown as FocusEvent<HTMLSelectElement>) : undefined}
+        onFocus={onFocus ? (event) => onFocus(event as unknown as FocusEvent<HTMLSelectElement>) : undefined}
+        tabIndex={tabIndex}
+        title={title}
       >
         <SelectPrimitive.Value>{selected?.label}</SelectPrimitive.Value>
         <SelectPrimitive.Icon aria-hidden><CaretDown size={16} weight="bold" /></SelectPrimitive.Icon>

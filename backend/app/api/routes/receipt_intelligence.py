@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from decimal import Decimal
 import uuid
 
@@ -128,7 +127,7 @@ def _receipt_threshold(
     "/{report_id}/items/{item_id}/receipt-analysis",
     response_model=ReceiptAnalysisResponse,
 )
-async def analyze_receipt_metadata(
+def analyze_receipt_metadata(
     report_id: str,
     item_id: str,
     payload: ReceiptAnalysisInput | None = None,
@@ -143,13 +142,12 @@ async def analyze_receipt_metadata(
     try:
         extracted_text = None
         if receipt is not None and receipt.mime_type in {"image/jpeg", "image/png", "image/webp"}:
-            extracted_text = await asyncio.to_thread(
-                receipt_intelligence_client.extract_receipt_text,
-                content=storage_service.read_attachment(receipt),
+            receipt_bytes = storage_service.read_attachment(receipt)
+            extracted_text = receipt_intelligence_client.extract_receipt_text(
+                content=receipt_bytes,
                 media_type=receipt.mime_type,
             )
-        result = await asyncio.to_thread(
-            receipt_intelligence_client.analyze_receipt,
+        result = receipt_intelligence_client.analyze_receipt(
             organization_id=str(user["organization_id"]),
             report_id=str(report.id),
             item_id=str(item.id),

@@ -14,6 +14,7 @@ from app.models.user_access_request import UserAccessRequest
 from app.models.user_role import UserRole
 from app.models.organization import Organization
 from app.services import user_service
+from app.services.audit_service import record_audit
 
 
 def create_access_request(
@@ -23,6 +24,11 @@ def create_access_request(
     organization_code: str | None = None,
 ) -> UserAccessRequest:
     """Create new access request for email signup."""
+
+    normalized_email = email.strip().lower()
+    normalized_name = " ".join(full_name.split())
+    if not normalized_email or not 2 <= len(normalized_name) <= 255:
+        raise ValueError("Invalid access request")
 
     # Public signup must always use the configured tenant. Allowing callers to
     # select an organization would make it possible to inject requests into a
@@ -34,18 +40,32 @@ def create_access_request(
 
     # Check if already exists
     existing = db.execute(
-        select(UserAccessRequest).where(UserAccessRequest.email == email)
+        select(UserAccessRequest).where(UserAccessRequest.email == normalized_email)
     ).scalar_one_or_none()
 
     if existing:
-        if existing.status == "pending":
-            return existing
-        raise ValueError("Access request already processed")
+        # The public endpoint deliberately returns the same acknowledgement
+        # for pending, approved, rejected, and existing-user states.
+        return existing
+
+    existing_user = db.scalar(
+        select(User.id).where(User.email == normalized_email, User.is_deleted.is_(False))
+    )
+    if existing_user is not None:
+        # Do not create a second tenant entry or disclose that an account
+        # exists.  The route still returns the generic acknowledgement.
+        return UserAccessRequest(
+            email=normalized_email,
+            full_name=normalized_name,
+            organization_id=org.id,
+            requested_at=datetime.now(timezone.utc),
+            status="received",
+        )
 
     request = UserAccessRequest(
         id=uuid.uuid4(),
-        email=email,
-        full_name=full_name,
+        email=normalized_email,
+        full_name=normalized_name,
         organization_id=org.id,
         requested_at=datetime.now(timezone.utc),
         status="pending"
@@ -121,6 +141,14 @@ def approve_request(
     request.approved_at = datetime.now(timezone.utc)
     request.approved_by_user_id = admin_user_id
     request.user_id = user.id
+    record_audit(
+        db,
+        "user_access_requests",
+        str(request.id),
+        "approved",
+        after={"user_id": str(user.id), "organization_id": str(request.organization_id)},
+        performed_by=str(admin_user_id),
+    )
 
     db.commit()
     db.refresh(user)
@@ -144,6 +172,13 @@ def reject_request(
     request.status = "rejected"
     request.rejected_at = datetime.now(timezone.utc)
     request.rejected_by_user_id = admin_user_id
+    record_audit(
+        db,
+        "user_access_requests",
+        str(request.id),
+        "rejected",
+        performed_by=str(admin_user_id),
+    )
 
     db.commit()
     db.refresh(request)

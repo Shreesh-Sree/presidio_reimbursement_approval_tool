@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -14,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import require_permission
 from app.services import policy_assistant_client, policy_document_text, policy_service, storage_service
+from app.services.upload_guard import UploadTooLargeError, read_bounded_upload_sync
 
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
@@ -74,7 +74,7 @@ def _policy_error(exc: Exception) -> None:
 
 
 @router.get("")
-async def list_policies(
+def list_policies(
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("policy:manage")),
 ):
@@ -85,7 +85,7 @@ async def list_policies(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_policy(
+def create_policy(
     payload: PolicyCreateInput,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("policy:manage")),
@@ -106,7 +106,7 @@ async def create_policy(
 
 
 @router.get("/{policy_id}")
-async def get_policy(
+def get_policy(
     policy_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("policy:manage")),
@@ -121,7 +121,7 @@ async def get_policy(
 
 
 @router.patch("/{policy_id}")
-async def update_policy(
+def update_policy(
     policy_id: str,
     payload: PolicyUpdateInput,
     db: Session = Depends(get_db),
@@ -143,7 +143,7 @@ async def update_policy(
 
 
 @router.post("/{policy_id}/activate")
-async def activate_policy(
+def activate_policy(
     policy_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("policy:manage")),
@@ -162,7 +162,7 @@ async def activate_policy(
 
 
 @router.post("/{policy_id}/assistant-index")
-async def index_policy_for_assistant(
+def index_policy_for_assistant(
     policy_id: str,
     payload: PolicyAssistantIndexInput,
     db: Session = Depends(get_db),
@@ -172,8 +172,7 @@ async def index_policy_for_assistant(
 
     try:
         policy = policy_service.get_policy(db, policy_id, user["organization_id"])
-        indexing = await asyncio.to_thread(
-            policy_assistant_client.index_policy_text,
+        indexing = policy_assistant_client.index_policy_text(
             organization_id=str(user["organization_id"]),
             policy_id=str(policy.id),
             content=payload.content,
@@ -184,7 +183,7 @@ async def index_policy_for_assistant(
 
 
 @router.post("/{policy_id}/assistant-ask")
-async def ask_policy_assistant(
+def ask_policy_assistant(
     policy_id: str,
     payload: PolicyAssistantQuestionInput,
     db: Session = Depends(get_db),
@@ -194,8 +193,7 @@ async def ask_policy_assistant(
 
     try:
         policy = policy_service.get_policy(db, policy_id, user["organization_id"])
-        answer = await asyncio.to_thread(
-            policy_assistant_client.ask_policy,
+        answer = policy_assistant_client.ask_policy(
             organization_id=str(user["organization_id"]),
             policy_id=str(policy.id),
             question=payload.question,
@@ -207,7 +205,7 @@ async def ask_policy_assistant(
 
 
 @router.post("/{policy_id}/upload-doc")
-async def upload_policy_document(
+def upload_policy_document(
     policy_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -218,7 +216,9 @@ async def upload_policy_document(
     committed = False
     try:
         policy = policy_service.get_policy(db, policy_id, user["organization_id"])
-        content = await file.read()
+        content = read_bounded_upload_sync(
+            file, max_bytes=storage_service._max_upload_bytes("policy_document")
+        )
         attachment = storage_service.create_attachment(
             db,
             entity_type="policy_document",
@@ -241,13 +241,11 @@ async def upload_policy_document(
         db.refresh(policy)
         response = policy_service.policy_payload(db, policy)
         try:
-            extracted_text = await asyncio.to_thread(
-                policy_document_text.extract_policy_text,
+            extracted_text = policy_document_text.extract_policy_text(
                 file_name=attachment.original_file_name,
                 content=content,
             )
-            indexing = await asyncio.to_thread(
-                policy_assistant_client.index_policy_text,
+            indexing = policy_assistant_client.index_policy_text(
                 organization_id=str(user["organization_id"]),
                 policy_id=str(policy.id),
                 content=extracted_text,
@@ -261,6 +259,14 @@ async def upload_policy_document(
             # assistant is offline or a legacy/scanned file has no text layer.
             response["assistant_indexing"] = {"status": "unavailable", "message": str(exc)}
         return response
+    except UploadTooLargeError as exc:
+        db.rollback()
+        if stored_path is not None and not committed:
+            try:
+                storage_service.delete_storage_path(stored_path)
+            except storage_service.StorageError:
+                pass
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc)) from exc
     except Exception as exc:
         db.rollback()
         if stored_path is not None and not committed:
@@ -270,4 +276,4 @@ async def upload_policy_document(
                 pass
         _policy_error(exc)
     finally:
-        await file.close()
+        file.file.close()

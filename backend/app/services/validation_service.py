@@ -93,11 +93,13 @@ def validate_report(db: Session, report: ExpenseReport, policy: Policy | None = 
         return []
 
     rules = [rule for rule in selected_policy.rules if not rule.is_deleted]
+    organization_id = organization_id_for_report(db, report)
     categories = {
         category.id: category
         for category in db.scalars(
             select(ExpenseCategory).where(
                 ExpenseCategory.id.in_({item.category_id for item in items}),
+                ExpenseCategory.organization_id == organization_id,
                 ExpenseCategory.is_deleted.is_(False),
             )
         )

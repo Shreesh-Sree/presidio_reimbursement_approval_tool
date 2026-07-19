@@ -20,6 +20,7 @@ def auth_headers(service_token: str) -> dict[str, str]:
 @pytest.fixture
 def client(tmp_path, service_token: str):
     settings = PolicyAssistantSettings(
+        environment="test",
         database_path=str(tmp_path / "policy-assistant.sqlite3"),
         service_token=service_token,
         chunk_size_chars=350,

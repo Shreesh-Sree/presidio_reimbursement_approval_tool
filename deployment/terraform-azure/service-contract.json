@@ -1,0 +1,18 @@
+{
+  "backend": {
+    "repository": "backend",
+    "port": 8000
+  },
+  "ai_review": {
+    "repository": "ai-review-service",
+    "port": 8011
+  },
+  "receipt_intelligence": {
+    "repository": "receipt-intelligence-service",
+    "port": 8012
+  },
+  "policy_assistant": {
+    "repository": "policy-assistant-service",
+    "port": 8013
+  }
+}

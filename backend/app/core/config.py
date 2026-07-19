@@ -1,7 +1,7 @@
 import functools
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     database_url: str
     jwt_secret: str
+    # Default to the strict mode. Local/test use must be explicit so a missing
+    # deployment variable cannot silently permit wildcard CORS or disk storage.
+    deployment_environment: Literal["local", "test", "staging", "production"] = "production"
     # Browser users authenticate through Supabase in normal deployments.
     # ``local`` remains an explicit migration/test-only mode so existing
     # password hashes can be retired without opening a second browser sign-in path.
@@ -48,8 +51,10 @@ class Settings(BaseSettings):
     appwrite_project_id: str = ""
     appwrite_api_key: str = ""
     appwrite_bucket_id: str = "presidio-private-files"
+    storage_backend: Literal["local", "azure", "appwrite", "s3"] = "local"
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     azure_storage_connection_string: str = ""
+    azure_storage_account_url: str = ""
     azure_storage_container: str = "uploads"
     # Each advisory service is independently deployed and persisted. The core
     # application only owns these narrow HTTP-boundary settings.
@@ -71,6 +76,36 @@ class Settings(BaseSettings):
         """Return a whitespace-safe list suitable for FastAPI CORS middleware."""
 
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def require_production_boundary_configuration(self) -> "Settings":
+        """Reject permissive browser and attachment defaults outside local/test."""
+
+        if self.deployment_environment in {"local", "test"}:
+            return self
+        origins = self.cors_origins_list
+        if not origins or "*" in origins:
+            raise ValueError(
+                "CORS_ORIGINS must be an explicit non-wildcard allowlist outside local/test"
+            )
+        if self.storage_backend == "local":
+            raise ValueError("STORAGE_BACKEND=local is only allowed in local/test environments")
+        if self.storage_backend == "azure" and not self.azure_storage_account_url:
+            raise ValueError(
+                "AZURE_STORAGE_ACCOUNT_URL is required for managed-identity Azure Blob storage"
+            )
+        if self.email_delivery_enabled:
+            missing: list[str] = []
+            if not self.azure_communication_connection_string.strip():
+                missing.append("AZURE_COMMUNICATION_CONNECTION_STRING")
+            if not self.azure_communication_sender.strip():
+                missing.append("AZURE_COMMUNICATION_SENDER")
+            if missing:
+                raise ValueError(
+                    "enabled production email delivery requires Azure Communication Services "
+                    f"configuration: {', '.join(missing)}"
+                )
+        return self
 
 
 

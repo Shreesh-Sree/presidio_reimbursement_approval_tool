@@ -37,6 +37,7 @@ def notify(
             status="sent" if channel == "in_app" else "pending",
             payload_json=payload,
             sent_at=datetime.now(UTC) if channel == "in_app" else None,
+            next_attempt_at=datetime.now(UTC) if channel == "email" else None,
         )
         db.add(notification)
         notifications.append(notification)

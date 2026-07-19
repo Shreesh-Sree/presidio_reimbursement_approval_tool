@@ -69,16 +69,14 @@ def _money(value: object, *, field_name: str) -> Decimal:
 
 
 def _belongs_to_organization(rule: WorkflowRule, organization_id: uuid.UUID) -> bool:
-    """Keep rules isolated even though legacy rules predate organization scope.
+    """Return whether a rule belongs to the requested tenant.
 
-    ``conditions_json`` was intentionally introduced as the extensible routing
-    predicate.  The organization predicate is server-owned and omitted from
-    public payloads; legacy unscoped rows remain usable by the approval engine
-    but cannot be viewed or edited through this tenant-scoped administration
-    API.
+    Organization ownership used to live in ``conditions_json``.  The model
+    now carries it as a non-null foreign key, so this helper deliberately does
+    not fall back to the legacy JSON predicate.
     """
 
-    return str((rule.conditions_json or {}).get("organization_id")) == str(organization_id)
+    return rule.organization_id == organization_id
 
 
 def _active_scoped_rule(
@@ -90,10 +88,11 @@ def _active_scoped_rule(
     rule = db.scalar(
         select(WorkflowRule).where(
             WorkflowRule.id == resolved_id,
+            WorkflowRule.organization_id == organization_id,
             WorkflowRule.is_deleted.is_(False),
         )
     )
-    if rule is None or not _belongs_to_organization(rule, organization_id):
+    if rule is None:
         raise WorkflowRuleNotFoundError("Workflow rule not found")
     return rule
 
@@ -102,9 +101,11 @@ def _ensure_name_available(
     db: Session,
     name: str,
     *,
+    organization_id: uuid.UUID,
     excluding_id: uuid.UUID | None = None,
 ) -> None:
     statement = select(WorkflowRule.id).where(
+        WorkflowRule.organization_id == organization_id,
         func.lower(WorkflowRule.name) == name.lower(),
         WorkflowRule.is_deleted.is_(False),
     )
@@ -124,7 +125,7 @@ def _normalize_conditions(
     if unexpected:
         raise WorkflowRuleValidationError("Unsupported workflow condition")
 
-    normalized: dict[str, str] = {"organization_id": str(organization_id)}
+    normalized: dict[str, str] = {}
     min_total = conditions.get("min_total")
     max_total = conditions.get("max_total")
     if min_total is not None:
@@ -270,11 +271,10 @@ def workflow_rule_payload(rule: WorkflowRule) -> dict[str, Any]:
 
 def list_workflow_rules(db: Session, organization_id: uuid.UUID | str, *, include_archived: bool = False) -> list[WorkflowRule]:
     organization = _as_uuid(organization_id, field_name="organization id")
-    rules = db.scalars(
-        select(WorkflowRule)
-        .order_by(WorkflowRule.priority.asc(), WorkflowRule.created_at.asc())
-    ).all()
-    return [rule for rule in rules if _belongs_to_organization(rule, organization) and (include_archived or not rule.is_deleted)]
+    statement = select(WorkflowRule).where(WorkflowRule.organization_id == organization)
+    if not include_archived:
+        statement = statement.where(WorkflowRule.is_deleted.is_(False))
+    return list(db.scalars(statement.order_by(WorkflowRule.priority.asc(), WorkflowRule.created_at.asc())))
 
 
 def get_workflow_rule(
@@ -301,10 +301,11 @@ def create_workflow_rule(
     normalized_name = name.strip()
     if not normalized_name:
         raise WorkflowRuleValidationError("Workflow rule name is required")
-    _ensure_name_available(db, normalized_name)
+    _ensure_name_available(db, normalized_name, organization_id=organization)
     normalized_conditions = _normalize_conditions(db, conditions, organization)
     normalized_chain = _normalize_chain(db, approval_chain, organization)
     rule = WorkflowRule(
+        organization_id=organization,
         name=normalized_name,
         conditions_json=normalized_conditions,
         approval_chain_json=normalized_chain,
@@ -347,7 +348,7 @@ def update_workflow_rule(
         name = str(changes["name"] or "").strip()
         if not name:
             raise WorkflowRuleValidationError("Workflow rule name is required")
-        _ensure_name_available(db, name, excluding_id=rule.id)
+        _ensure_name_available(db, name, organization_id=organization, excluding_id=rule.id)
         rule.name = name
     if "conditions" in changes:
         rule.conditions_json = _normalize_conditions(db, changes["conditions"], organization)
@@ -404,8 +405,13 @@ def delete_workflow_rule(
 
 def restore_workflow_rule(db: Session, rule_id: uuid.UUID | str, *, organization_id: uuid.UUID | str) -> WorkflowRule:
     organization = _as_uuid(organization_id, field_name="organization id")
-    rule = db.scalar(select(WorkflowRule).where(WorkflowRule.id == _as_uuid(rule_id, field_name="workflow rule id")))
-    if rule is None or not _belongs_to_organization(rule, organization):
+    rule = db.scalar(
+        select(WorkflowRule).where(
+            WorkflowRule.id == _as_uuid(rule_id, field_name="workflow rule id"),
+            WorkflowRule.organization_id == organization,
+        )
+    )
+    if rule is None:
         raise WorkflowRuleNotFoundError("Workflow rule not found")
     rule.is_deleted = False
     rule.deleted_at = None

@@ -32,6 +32,14 @@ const exportedPayment: PaymentRecord = {
   batch: { id: "batch-1", batch_reference: "PB-001", status: "exported" },
 };
 
+const secondExportedPayment: PaymentRecord = {
+  ...exportedPayment,
+  id: "payment-exported-2",
+  report_id: "report-3",
+  report_number: "RPT-2026-003",
+  payment_reference: "PAY-RPT-2026-003",
+};
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -46,7 +54,7 @@ function renderPage() {
 describe("PaymentsPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.spyOn(paymentsApi, "list").mockResolvedValue({ items: [pendingPayment, exportedPayment], total: 2 });
+    vi.spyOn(paymentsApi, "list").mockResolvedValue({ items: [pendingPayment, exportedPayment, secondExportedPayment], total: 3 });
     vi.spyOn(paymentsApi, "listBatches").mockResolvedValue({
       items: [{
         id: "batch-1",
@@ -81,7 +89,7 @@ describe("PaymentsPage", () => {
     expect(await screen.findByText("PAY-RPT-2026-001")).toBeInTheDocument();
     expect(screen.getByText("Maya Chen")).toBeInTheDocument();
     expect(screen.getByText("$250.00")).toBeInTheDocument();
-    expect(screen.getAllByText("PB-001")).toHaveLength(2);
+    expect(screen.getAllByText("PB-001")).toHaveLength(3);
     expect(paymentsApi.list).toHaveBeenCalledWith({ status: "pending" });
     expect(screen.queryByText(/account number/i)).not.toBeInTheDocument();
   });
@@ -110,7 +118,7 @@ describe("PaymentsPage", () => {
     renderPage();
 
     await screen.findByText("PAY-RPT-2026-002");
-    await user.click(screen.getByRole("button", { name: /^mark paid$/i }));
+    await user.click(screen.getAllByRole("button", { name: /^mark paid$/i })[0]);
 
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText(/payment provider reference/i), "PROV-2026-77");
@@ -121,5 +129,63 @@ describe("PaymentsPage", () => {
       payment_date: undefined,
       remarks: undefined,
     }));
+  });
+
+  it("does not carry a provider reference from one payment dialog to another", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("PAY-RPT-2026-002");
+    const markPaidButtons = screen.getAllByRole("button", { name: /^mark paid$/i });
+    await user.click(markPaidButtons[0]);
+    const firstDialog = await screen.findByRole("dialog");
+    await user.type(within(firstDialog).getByLabelText(/payment provider reference/i), "PROV-A");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await user.click(markPaidButtons[1]);
+    const secondDialog = await screen.findByRole("dialog");
+    expect(within(secondDialog).getByLabelText(/payment provider reference/i)).toHaveValue("");
+    expect(within(secondDialog).getByText(/pay-rpt-2026-003/i)).toBeInTheDocument();
+  });
+
+  it("keeps the payment dialog open and displays a safe mutation error", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(paymentsApi, "markPaid").mockRejectedValueOnce(new Error("Provider unavailable"));
+    renderPage();
+
+    await screen.findByText("PAY-RPT-2026-002");
+    await user.click(screen.getAllByRole("button", { name: /^mark paid$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText(/payment provider reference/i), "PROV-UNAVAILABLE");
+    await user.click(within(dialog).getByRole("button", { name: /^mark paid$/i }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Provider unavailable");
+    expect(within(dialog).getByLabelText(/payment provider reference/i)).toHaveValue("PROV-UNAVAILABLE");
+  });
+
+  it("does not let a completed payment mutation close a later payment dialog", async () => {
+    const user = userEvent.setup();
+    let resolvePayment: ((value: PaymentRecord) => void) | undefined;
+    vi.spyOn(paymentsApi, "markPaid").mockImplementationOnce(
+      () => new Promise((resolve) => { resolvePayment = resolve; }),
+    );
+    renderPage();
+
+    await screen.findByText("PAY-RPT-2026-002");
+    await user.click(screen.getAllByRole("button", { name: /^mark paid$/i })[0]);
+    const firstDialog = await screen.findByRole("dialog");
+    await user.type(within(firstDialog).getByLabelText(/payment provider reference/i), "PROV-A");
+    await user.click(within(firstDialog).getByRole("button", { name: /^mark paid$/i }));
+    await waitFor(() => expect(paymentsApi.markPaid).toHaveBeenCalledWith("payment-exported", expect.anything()));
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getAllByRole("button", { name: /^mark paid$/i })[1]);
+    const secondDialog = await screen.findByRole("dialog");
+    resolvePayment?.({ ...exportedPayment, status: "paid" });
+
+    await waitFor(() => expect(screen.getByText("Reimbursement marked as paid.")).toBeInTheDocument());
+    expect(secondDialog).toBeInTheDocument();
+    expect(within(secondDialog).getByLabelText(/payment provider reference/i)).toHaveValue("");
   });
 });

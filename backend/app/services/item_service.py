@@ -44,13 +44,18 @@ def _resolve_category(
     db: Session,
     category_id: uuid.UUID | str | None,
     category_name: str | None,
+    organization_id: uuid.UUID,
 ) -> ExpenseCategory:
     category = None
     if category_id:
         try:
             category = (
                 db.query(ExpenseCategory)
-                .filter(ExpenseCategory.id == _as_uuid(category_id), ExpenseCategory.is_deleted.is_(False))
+                .filter(
+                    ExpenseCategory.id == _as_uuid(category_id),
+                    ExpenseCategory.organization_id == organization_id,
+                    ExpenseCategory.is_deleted.is_(False),
+                )
                 .first()
             )
         except ValueError:
@@ -61,6 +66,7 @@ def _resolve_category(
             db.query(ExpenseCategory)
             .filter(
                 ExpenseCategory.is_deleted.is_(False),
+                ExpenseCategory.organization_id == organization_id,
                 or_(ExpenseCategory.name.ilike(normalized), ExpenseCategory.code.ilike(normalized)),
             )
             .first()
@@ -74,13 +80,18 @@ def _resolve_vendor(
     db: Session,
     vendor_id: uuid.UUID | str | None,
     vendor_name: str | None,
+    organization_id: uuid.UUID,
 ) -> Vendor | None:
     vendor = None
     if vendor_id:
         try:
             vendor = (
                 db.query(Vendor)
-                .filter(Vendor.id == _as_uuid(vendor_id), Vendor.is_deleted.is_(False))
+                .filter(
+                    Vendor.id == _as_uuid(vendor_id),
+                    Vendor.organization_id == organization_id,
+                    Vendor.is_deleted.is_(False),
+                )
                 .first()
             )
         except ValueError:
@@ -91,6 +102,7 @@ def _resolve_vendor(
             db.query(Vendor)
             .filter(
                 Vendor.is_deleted.is_(False),
+                Vendor.organization_id == organization_id,
                 or_(Vendor.normalized_name == normalized, Vendor.name.ilike(vendor_name.strip())),
             )
             .first()
@@ -159,8 +171,9 @@ def add_item(
     amount_decimal = Decimal(str(amount))
     if amount_decimal <= 0:
         raise ItemError("Expense amount must be greater than zero")
-    category = _resolve_category(db, category_id, category_name)
-    vendor = _resolve_vendor(db, vendor_id, vendor_name)
+    organization_id = organization_id_for_report(db, report)
+    category = _resolve_category(db, category_id, category_name, organization_id)
+    vendor = _resolve_vendor(db, vendor_id, vendor_name, organization_id)
     item = ExpenseItem(
         expense_report_id=report.id,
         line_number=_next_line_number(db, report.id),
@@ -212,10 +225,20 @@ def update_item(
             raise ItemError("Expense amount must be greater than zero")
         item.amount = amount
     if "category_id" in changes or "category_name" in changes:
-        category = _resolve_category(db, changes.get("category_id"), changes.get("category_name"))
+        category = _resolve_category(
+            db,
+            changes.get("category_id"),
+            changes.get("category_name"),
+            organization_id_for_report(db, report),
+        )
         item.category_id = category.id
     if "vendor_id" in changes or "vendor_name" in changes:
-        vendor = _resolve_vendor(db, changes.get("vendor_id"), changes.get("vendor_name"))
+        vendor = _resolve_vendor(
+            db,
+            changes.get("vendor_id"),
+            changes.get("vendor_name"),
+            organization_id_for_report(db, report),
+        )
         item.vendor_id = vendor.id if vendor else None
         if not changes.get("merchant_name") and vendor:
             item.merchant_name = vendor.name

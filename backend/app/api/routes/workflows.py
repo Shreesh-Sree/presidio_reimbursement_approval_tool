@@ -32,7 +32,7 @@ def _raise_workflow_error(exc: Exception) -> None:
 
 
 @router.get("")
-async def list_workflows(
+def list_workflows(
     include_archived: bool = False,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("workflow:manage")),
@@ -45,7 +45,7 @@ async def list_workflows(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_workflow(
+def create_workflow(
     payload: WorkflowRuleCreateInput,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("workflow:manage")),
@@ -68,7 +68,7 @@ async def create_workflow(
 
 
 @router.post("/{rule_id}/restore")
-async def restore_workflow(rule_id: UUID, db: Session = Depends(get_db), current_user: dict[str, object] = Depends(require_permission("workflow:manage"))):
+def restore_workflow(rule_id: UUID, db: Session = Depends(get_db), current_user: dict[str, object] = Depends(require_permission("workflow:manage"))):
     organization_id, _ = _scope(current_user)
     try:
         return workflow_service.workflow_rule_payload(workflow_service.restore_workflow_rule(db, rule_id, organization_id=organization_id))
@@ -77,7 +77,7 @@ async def restore_workflow(rule_id: UUID, db: Session = Depends(get_db), current
 
 
 @router.get("/{rule_id}")
-async def get_workflow(
+def get_workflow(
     rule_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("workflow:manage")),
@@ -91,7 +91,7 @@ async def get_workflow(
 
 
 @router.patch("/{rule_id}")
-async def update_workflow(
+def update_workflow(
     rule_id: UUID,
     payload: WorkflowRuleUpdateInput,
     db: Session = Depends(get_db),
@@ -117,7 +117,7 @@ async def update_workflow(
 
 
 @router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_workflow(
+def delete_workflow(
     rule_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("workflow:manage")),

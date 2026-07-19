@@ -230,7 +230,10 @@ The frontend defaults to `http://localhost:5173`. The backend exposes health at 
 
 ### Environment setup
 
-Copy `.env.example` files in `backend/` and `frontend/` and fill in your Supabase credentials. Azure Static Web Apps environment variables are configured in the Azure Portal.
+Copy `.env.example` files in `backend/` and `frontend/`, then restrict local
+secret files to mode `0600`. The local advisory launcher explicitly selects
+local SQLite mode; production never does. Azure Static Web Apps environment
+variables are configured in the Azure Portal.
 
 ## Configuration and secrets
 
@@ -253,7 +256,9 @@ AUTH_PROVIDER=supabase
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_JWT_SECRET=your-supabase-jwt-secret
 SUPER_ADMIN_EMAIL=admin@yourcompany.com
-AZURE_STORAGE_CONNECTION_STRING=...
+DEPLOYMENT_ENVIRONMENT=local
+STORAGE_BACKEND=local
+AZURE_STORAGE_ACCOUNT_URL=https://<account>.blob.core.windows.net
 AZURE_STORAGE_CONTAINER=uploads
 
 # Frontend
@@ -279,31 +284,34 @@ cd policy_assistant_service && uv run pytest -q
 cd frontend && npm run test:e2e
 ```
 
-CI runs the backend, frontend, all three microservices, Terraform formatting/validation, and gitleaks secret scanning. Pull requests cannot merge until required checks pass.
+CI runs the backend, frontend (including hermetic Playwright), all three
+microservices, Terraform formatting/configuration-contract validation, CodeQL,
+secret scanning, IaC/container scanning, and SBOM generation. Pull requests
+must be protected by those required checks.
 
 ## Production deployment
 
 ```mermaid
 flowchart LR
-    Commit[Push to main] --> CI[GitHub CI]
-    CI --> Migrate[Run Alembic migrations]
-    Migrate --> Build[Build and push container images]
-    Build --> Deploy[Deploy Azure Container Apps]
-    Deploy --> Frontend[Deploy Azure Static Web Apps]
-    Frontend --> Verify[Health checks]
+    Commit[Push to main] --> CI[Required CI gates]
+    CI --> Build[Build, attest and sign images]
+    Build --> Migrate[Run maintenance-gated Alembic migrations]
+    Migrate --> Terraform[Terraform remote-state plan/apply]
+    Terraform --> Frontend[Deploy Azure Static Web Apps]
+    Frontend --> Verify[Digest and readiness verification]
 ```
 
 ### Production topology
 
 - **Frontend**: Azure Static Web Apps
 - **Core API and advisory services**: Azure Container Apps
-- **Transactional data**: Supabase PostgreSQL (core API + all microservices)
+- **Transactional data**: Supabase PostgreSQL (core API plus separate advisory service credentials/schema ownership)
 - **File storage**: Azure Blob Storage
 - **Authentication**: Supabase Auth (Google OAuth)
 - **AI provider**: Groq (llama-3.1-8b-instant) — primary for all advisory services
 - **Outbound email**: SMTP provider
 - **Infrastructure as code**: Terraform (Azure)
-- **CI/CD**: GitHub Actions with Azure OIDC federation
+- **CI/CD**: GitHub Actions with Azure OIDC, remote Terraform state, immutable digests, SBOM/provenance, and signing
 
 ### Container images
 
@@ -311,7 +319,12 @@ All services use multi-stage Docker builds with:
 - Non-root `app` user (uid 1000)
 - Built-in HEALTHCHECK instructions
 - Layer-cached dependency installation
-- `PORT` environment variable for flexibility
+- Digest-pinned Python base images and a fixed, Terraform-verified listener port
+
+See [Production deployment setup](DEPLOYMENT_SETUP.md),
+[Azure production operations](docs/azure-production-operations.md), and
+[Supabase/Auth production promotion](docs/supabase-production-promotion.md)
+before creating or changing a production environment.
 
 ## Operations and troubleshooting
 

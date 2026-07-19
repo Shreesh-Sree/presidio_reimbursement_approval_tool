@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.report_schemas import CommentInput, LineItemCreateInput, LineItemUpdateInput, ReportCreateInput, ReportUpdateInput
 from app.core.database import get_db
 from app.core.deps import require_permission
-from app.services import ai_review_client, approval_service, audit_service, comment_service, item_service, notification_delivery_service, presentation_service, report_service
+from app.services import ai_review_client, approval_service, audit_service, comment_service, integration_outbox_service, item_service, notification_delivery_service, presentation_service, report_service
 
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -37,7 +37,7 @@ def _report_for_access(db: Session, report_id: str, actor: dict[str, object]):
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_report(
+def create_report(
     payload: ReportCreateInput,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:create")),
@@ -59,7 +59,7 @@ async def create_report(
 
 
 @router.get("")
-async def list_user_reports(
+def list_user_reports(
     status_filter: str | None = None,
     status: str | None = None,
     db: Session = Depends(get_db),
@@ -71,19 +71,23 @@ async def list_user_reports(
 
 
 @router.get("/{report_id}")
-async def get_report(
+def get_report(
     report_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:read")),
 ):
     report = _report_for_access(db, report_id, user)
     permissions = set(user.get("permissions", []))
-    ai_audit = ai_review_client.review_payload(report) if {"report:approve", "*"} & permissions else None
+    ai_audit = (
+        ai_review_client.review_payload(report)
+        if {"report:approve", "*"} & permissions
+        else None
+    )
     return presentation_service.report_payload(db, report, ai_audit=ai_audit)
 
 
 @router.patch("/{report_id}")
-async def update_report(
+def update_report(
     report_id: str,
     payload: ReportUpdateInput,
     db: Session = Depends(get_db),
@@ -100,7 +104,7 @@ async def update_report(
 
 
 @router.post("/{report_id}/submit")
-async def submit_report(
+def submit_report(
     report_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -112,13 +116,17 @@ async def submit_report(
             raise report_service.ReportError("Report not found")
         # Validate the hierarchy before committing the state transition.
         approval_service.validate_workflow_for_report(db, report)
-        submitted = report_service.submit_report(db, report_id, user["user_id"])
-        approval_service.init_workflow(db, submitted, user["user_id"])
+        # Submission, task initialization, notifications, audit history, and
+        # the minimized AI outbox intent must become visible together.  No
+        # remote service is called from this request transaction.
+        submitted = report_service.submit_report(db, report_id, user["user_id"], commit=False)
+        approval_service.init_workflow(db, submitted, user["user_id"], commit=False)
         try:
-            ai_review_client.request_review(db, submitted)
+            integration_outbox_service.enqueue_ai_review(db, submitted)
         except ai_review_client.AIReviewError:
-            # AI advice is intentionally advisory.  Preserve a core audit event
-            # without provider/transport details, then leave human approval live.
+            # AI advice is intentionally advisory. Preserve a core audit event
+            # without provider/transport details, then leave human approval
+            # live; the human workflow still commits atomically.
             audit_service.record_audit(
                 db,
                 "expense_reports",
@@ -126,15 +134,22 @@ async def submit_report(
                 "ai_review_enqueue_unavailable",
                 performed_by=str(user["user_id"]),
             )
-            db.commit()
+        db.commit()
+        db.refresh(submitted)
         notification_delivery_service.enqueue_pending_email_delivery(background_tasks)
         return presentation_service.report_payload(db, submitted)
+    except report_service.PolicyViolationError as exc:
+        # Validation flags are useful feedback on the editable draft.  This is
+        # the one intentional non-submission commit; no report status changed.
+        db.commit()
+        _raise_report_error(exc)
     except Exception as exc:
+        db.rollback()
         _raise_report_error(exc)
 
 
 @router.post("/{report_id}/withdraw")
-async def withdraw_report(
+def withdraw_report(
     report_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -149,7 +164,7 @@ async def withdraw_report(
 
 
 @router.post("/{report_id}/items", status_code=status.HTTP_201_CREATED)
-async def add_item(
+def add_item(
     report_id: str,
     payload: LineItemCreateInput,
     db: Session = Depends(get_db),
@@ -169,7 +184,7 @@ async def add_item(
 
 
 @router.get("/{report_id}/items")
-async def list_items(
+def list_items(
     report_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:read")),
@@ -182,7 +197,7 @@ async def list_items(
 
 
 @router.patch("/{report_id}/items/{item_id}")
-async def update_item(
+def update_item(
     report_id: str,
     item_id: str,
     payload: LineItemUpdateInput,
@@ -203,7 +218,7 @@ async def update_item(
 
 
 @router.delete("/{report_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(
+def delete_item(
     report_id: str,
     item_id: str,
     db: Session = Depends(get_db),
@@ -220,7 +235,7 @@ async def delete_item(
 
 
 @router.get("/{report_id}/comments")
-async def list_comments(
+def list_comments(
     report_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:read")),
@@ -233,7 +248,7 @@ async def list_comments(
 
 
 @router.post("/{report_id}/comments", status_code=status.HTTP_201_CREATED)
-async def add_comment(
+def add_comment(
     report_id: str,
     payload: CommentInput,
     db: Session = Depends(get_db),

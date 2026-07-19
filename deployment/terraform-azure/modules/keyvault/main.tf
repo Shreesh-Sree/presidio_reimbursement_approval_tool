@@ -7,25 +7,20 @@ resource "azurerm_key_vault" "main" {
   sku_name            = "standard"
 
   rbac_authorization_enabled = true
-  purge_protection_enabled   = false
+  purge_protection_enabled   = true
+  soft_delete_retention_days = 90
 
   tags = var.tags
 }
 
-# Grant the deployer full secret management via RBAC
-resource "azurerm_role_assignment" "deployer_secrets_officer" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets Officer"
-  principal_id         = var.deployer_object_id
-}
-
-# Create all secrets
+# The protected Terraform OIDC identity must be granted Key Vault Secrets
+# Officer at this vault by the bootstrap operator before the first apply. The
+# role is deliberately not granted by this module so a compromised apply
+# identity cannot broaden its own data-plane permissions.
 resource "azurerm_key_vault_secret" "secrets" {
   for_each = nonsensitive(var.secrets)
 
   name         = each.key
   value        = each.value
   key_vault_id = azurerm_key_vault.main.id
-
-  depends_on = [azurerm_role_assignment.deployer_secrets_officer]
 }

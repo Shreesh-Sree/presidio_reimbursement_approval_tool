@@ -18,11 +18,6 @@ variable "tenant_id" {
   type        = string
 }
 
-variable "deployer_object_id" {
-  description = "Object ID of the deploying principal (user or service principal)."
-  type        = string
-}
-
 variable "tags" {
   description = "Resource tags."
   type        = map(string)

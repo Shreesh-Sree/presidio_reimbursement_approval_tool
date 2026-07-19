@@ -57,12 +57,12 @@ def _rule_matches(
     report: ExpenseReport,
     organization_id: uuid.UUID | None = None,
 ) -> bool:
-    conditions = rule.conditions_json or {}
-    configured_organization_id = conditions.get("organization_id")
-    if configured_organization_id and (
-        organization_id is None or str(configured_organization_id) != str(organization_id)
-    ):
+    # Organization ownership is a required database field.  Do not let a
+    # missing caller scope or legacy JSON condition turn a rule into a global
+    # match.
+    if organization_id is None or rule.organization_id != organization_id:
         return False
+    conditions = rule.conditions_json or {}
     total = Decimal(report.total_amount or 0)
     try:
         if "min_total" in conditions and total < Decimal(str(conditions["min_total"])):
@@ -87,7 +87,11 @@ def _matching_rule(
 ) -> WorkflowRule | None:
     rules = (
         db.query(WorkflowRule)
-        .filter(WorkflowRule.is_active.is_(True), WorkflowRule.is_deleted.is_(False))
+        .filter(
+            WorkflowRule.organization_id == organization_id,
+            WorkflowRule.is_active.is_(True),
+            WorkflowRule.is_deleted.is_(False),
+        )
         .order_by(WorkflowRule.priority.asc(), WorkflowRule.created_at.asc())
         .all()
     )
@@ -327,8 +331,19 @@ def _active_escalation_manager(db: Session, original_approver_user_id: uuid.UUID
     return None
 
 
-def init_workflow(db: Session, report: ExpenseReport, submitted_by: uuid.UUID | str | None = None) -> list[ApprovalLevel]:
-    """Create sequential approver tasks when a report enters ``submitted``."""
+def init_workflow(
+    db: Session,
+    report: ExpenseReport,
+    submitted_by: uuid.UUID | str | None = None,
+    *,
+    commit: bool = True,
+) -> list[ApprovalLevel]:
+    """Create sequential approver tasks when a report enters ``submitted``.
+
+    Use ``commit=False`` when this is part of the submission transaction; a
+    failure then rolls the report status, audit history, tasks, and queued
+    notifications back together.
+    """
 
     if report.status != "submitted":
         raise ApprovalError("Only submitted reports can enter approval")
@@ -414,9 +429,12 @@ def init_workflow(db: Session, report: ExpenseReport, submitted_by: uuid.UUID | 
         },
         performed_by=str(actor_id),
     )
-    db.commit()
-    for level in levels:
-        db.refresh(level)
+    if commit:
+        db.commit()
+        for level in levels:
+            db.refresh(level)
+    else:
+        db.flush()
     return levels
 
 
@@ -489,6 +507,8 @@ def act_on_report(
     user_id: uuid.UUID | str,
     action: str,
     remarks: str | None = None,
+    *,
+    commit: bool = True,
 ) -> ExpenseReport:
     if action not in {"approve", "reject", "send_back"}:
         raise ApprovalError("Unsupported approval action")
@@ -598,8 +618,14 @@ def act_on_report(
         after={"status": report.status, "approval_level": level.level_number},
         performed_by=str(user_id),
     )
-    db.commit()
-    db.refresh(report)
+    if commit:
+        db.commit()
+        db.refresh(report)
+    else:
+        # Callers that add a durable integration intent must commit the human
+        # decision and that intent together.  Flush keeps generated history
+        # identifiers available without making the approval visible early.
+        db.flush()
     return report
 
 

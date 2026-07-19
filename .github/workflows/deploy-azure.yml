@@ -1,37 +1,15 @@
-# Deploy to Azure (containers + frontend + database migrations)
-#
-# Triggers on push to main. Runs full pipeline:
-#   1. Wait for CI checks to pass
-#   2. Run database migrations against Supabase PostgreSQL
-#   3. Build and push container images to ACR
-#   4. Deploy containers to Azure Container Apps
-#   5. Deploy frontend to Azure Static Web Apps
-#   6. Verify health of all deployed services
-#   7. Apply Terraform changes (if infra files changed)
-#
-# Required GitHub Secrets:
-#   AZURE_CLIENT_ID                  - Service principal for OIDC federation
-#   AZURE_TENANT_ID                  - Azure AD tenant
-#   AZURE_SUBSCRIPTION_ID            - Target subscription
-#   ACR_LOGIN_SERVER                 - Container registry (e.g., presidioregistry.azurecr.io)
-#   AZURE_STATIC_WEB_APPS_API_TOKEN  - SWA deployment token
-#   DATABASE_URL                     - Supabase PostgreSQL connection string
-#   VITE_SUPABASE_ANON_KEY           - Frontend Supabase anon key
-#
-# Required GitHub Variables:
-#   VITE_SUPABASE_URL                - Supabase project URL
-#   VITE_API_BASE_URL                - Production API base URL
-#   API_BASE_URL                     - Backend FQDN for health checks
-
-name: Deploy to Production
+name: Deploy Azure production
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+# Terraform is the only Container Apps deploy authority. Image tags are
+# retained only as build metadata; every running revision receives a digest.
 permissions:
   contents: read
+  checks: read
   id-token: write
 
 concurrency:
@@ -39,221 +17,249 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RESOURCE_GROUP: presidio-reimbursement-rg
-  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  # ─── Gate: wait for CI to pass ───────────────────────────────────────
   ci-gate:
-    name: Wait for CI
+    name: Wait for required CI
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for CI checks
-        uses: lewagon/wait-on-check-action@v1.3.4
+      - name: Wait for CI checks for this commit
+        uses: lewagon/wait-on-check-action@ccfb013c15c8afb7bf2b7c028fb74dc5a068cccc # v1.3.4
         with:
           ref: ${{ github.sha }}
-          running-workflow-name: Wait for CI
+          running-workflow-name: Wait for required CI
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          check-regexp: ^(backend|frontend|ai-review|receipt-intelligence|policy-assistant|terraform|secrets)$
+          check-regexp: ^(backend|frontend|ai-review|receipt-intelligence|policy-assistant|terraform|secrets|supply-chain)$
           wait-interval: 15
           allowed-conclusions: success,skipped
 
-  # ─── Database migrations (Supabase PostgreSQL) ───────────────────────
-  migrate:
-    name: Run migrations
+  build-and-push:
+    name: Build, attest, sign, and push images
     runs-on: ubuntu-latest
     needs: [ci-gate]
     environment: azure-production
+    outputs:
+      backend_digest: ${{ steps.images.outputs.backend_digest }}
+      ai_review_digest: ${{ steps.images.outputs.ai_review_digest }}
+      receipt_intelligence_digest: ${{ steps.images.outputs.receipt_intelligence_digest }}
+      policy_assistant_digest: ${{ steps.images.outputs.policy_assistant_digest }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Login to Azure with protected OIDC identity
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Verify target registry access
+        uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+        with:
+          inlineScript: |
+            set -euo pipefail
+            test -n "$ACR_LOGIN_SERVER"
+            az acr show --name "${ACR_LOGIN_SERVER%%.*}" --query name --output tsv >/dev/null
+      - name: Authenticate Docker to ACR
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+        run: az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+      - name: Build immutable images and emit digests
+        id: images
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+        run: |
+          set -euo pipefail
+          docker buildx create --name production-builder --use
+          for entry in backend:backend ai_review:ai_review_service receipt_intelligence:receipt_intelligence_service policy_assistant:policy_assistant_service; do
+            key="${entry%%:*}"
+            context="${entry##*:}"
+            repository="$(jq -r --arg key "$key" '.[$key].repository' deployment/terraform-azure/service-contract.json)"
+            metadata="$(mktemp)"
+            image="$ACR_LOGIN_SERVER/$repository:$IMAGE_TAG"
+            docker buildx build --platform linux/amd64 --push --provenance=mode=max --sbom=true --metadata-file "$metadata" --tag "$image" "$context"
+            digest="$(jq -r '."containerimage.digest" // empty' "$metadata")"
+            if ! [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "::error::No immutable digest was returned for $repository"
+              exit 1
+            fi
+            echo "${key}_digest=$digest" >> "$GITHUB_OUTPUT"
+          done
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      - name: Sign and verify every immutable image
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+        run: |
+          set -euo pipefail
+          for key in backend ai_review receipt_intelligence policy_assistant; do
+            repository="$(jq -r --arg key "$key" '.[$key].repository' deployment/terraform-azure/service-contract.json)"
+            digest="${{ steps.images.outputs.backend_digest }}"
+            if [ "$key" = ai_review ]; then digest="${{ steps.images.outputs.ai_review_digest }}"; fi
+            if [ "$key" = receipt_intelligence ]; then digest="${{ steps.images.outputs.receipt_intelligence_digest }}"; fi
+            if [ "$key" = policy_assistant ]; then digest="${{ steps.images.outputs.policy_assistant_digest }}"; fi
+            image="$ACR_LOGIN_SERVER/$repository@$digest"
+            cosign sign --yes "$image"
+            cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.*$" "$image" >/dev/null
+          done
 
-      - uses: actions/setup-python@v5
+  migrate:
+    name: Run maintenance-gated database migrations
+    runs-on: ubuntu-latest
+    needs: [ci-gate, build-and-push]
+    environment: azure-production
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.14"
-
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
-
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --frozen --no-dev
-
-      - name: Run Alembic migrations
+      # Migration 009 adds required tenant ownership fields. An older API or
+      # worker can write incompatible rows, so never apply it during a rolling
+      # release. The protected environment value is a single-commit approval:
+      # an operator sets it to this exact SHA only after draining writes.
+      - name: Require approved maintenance window for breaking schema migration
+        env:
+          BREAKING_MIGRATION_MAINTENANCE_APPROVED: ${{ vars.BREAKING_MIGRATION_MAINTENANCE_APPROVED }}
+        run: |
+          set -euo pipefail
+          if [ "${BREAKING_MIGRATION_MAINTENANCE_APPROVED:-}" != "$GITHUB_SHA" ]; then
+            echo "::error::Migration is blocked. Set protected environment variable BREAKING_MIGRATION_MAINTENANCE_APPROVED to this exact commit SHA only after the documented write drain and backup are complete."
+            exit 1
+          fi
+      - name: Apply migration head
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          echo "Current migration status:"
-          uv run alembic current || echo "No current revision"
-          echo "Running migrations..."
+          set -euo pipefail
+          uv run alembic current
           uv run alembic upgrade head
-          echo "Migration complete. New revision:"
           uv run alembic current
 
-  # ─── Build and push container images ─────────────────────────────────
-  build-and-push:
-    name: Build containers
-    runs-on: ubuntu-latest
-    needs: [ci-gate]
-    environment: azure-production
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Login to Azure via OIDC
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-
-      - name: Verify Azure credentials
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            echo "Verifying Azure credentials..."
-            if ! az account show &>/dev/null; then
-              echo "::error::Azure login failed - credentials may be invalid"
-              exit 1
-            fi
-            echo "Checking ACR access..."
-            if ! az acr show --name "${ACR_LOGIN_SERVER%%.*}" --query name --output tsv &>/dev/null; then
-              echo "::error::Cannot access ACR: $ACR_LOGIN_SERVER"
-              exit 1
-            fi
-            echo "✓ Credentials verified"
-      - name: Login to ACR via Azure CLI
-        run: |
-          az acr login --name "${ACR_LOGIN_SERVER%%.*}"
-          echo "✓ Logged into ACR"
-
-      - name: Build and push all images
-        continue-on-error: false
-        run: |
-          services=(
-            "backend:presidio-api"
-            "ai_review_service:presidio-ai-review"
-            "receipt_intelligence_service:presidio-receipt-intelligence"
-            "policy_assistant_service:presidio-policy-assistant"
-          )
-          for entry in "${services[@]}"; do
-            context="${entry%%:*}"
-            image="${entry##*:}"
-            echo "::group::Building $image from $context"
-            if docker build \
-              --tag "$ACR_LOGIN_SERVER/$image:$IMAGE_TAG" \
-              --tag "$ACR_LOGIN_SERVER/$image:latest" \
-              "$context"; then
-              docker push "$ACR_LOGIN_SERVER/$image:$IMAGE_TAG" || { echo "::error::Failed to push $image:$IMAGE_TAG"; exit 1; }
-              docker push "$ACR_LOGIN_SERVER/$image:latest" || { echo "::error::Failed to push $image:latest"; exit 1; }
-            else
-              echo "::error::Failed to build $image from $context"
-              exit 1
-            fi
-            echo "::endgroup::"
-          done
-
-  # ─── Deploy containers to Azure Container Apps ───────────────────────
-  deploy-services:
-    name: Deploy services
+  terraform:
+    name: Terraform plan and apply immutable release
     runs-on: ubuntu-latest
     needs: [migrate, build-and-push]
     environment: azure-production
+    defaults:
+      run:
+        working-directory: deployment/terraform-azure
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+      TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+      TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
+      TF_BACKEND_KEY: ${{ vars.TF_BACKEND_KEY }}
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_resource_group_name: ${{ vars.AZURE_RESOURCE_GROUP }}
+      TF_VAR_location: ${{ vars.AZURE_LOCATION }}
+      TF_VAR_project_name: ${{ vars.AZURE_PROJECT_NAME }}
+      TF_VAR_environment: production
+      TF_VAR_database_url: ${{ secrets.DATABASE_URL }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+      TF_VAR_supabase_url: ${{ vars.VITE_SUPABASE_URL }}
+      TF_VAR_supabase_jwt_secret: ${{ secrets.SUPABASE_JWT_SECRET }}
+      TF_VAR_supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      TF_VAR_super_admin_email: ${{ secrets.SUPER_ADMIN_EMAIL }}
+      TF_VAR_email_delivery_enabled: "true"
+      TF_VAR_azure_communication_connection_string: ${{ secrets.AZURE_COMMUNICATION_CONNECTION_STRING }}
+      TF_VAR_azure_communication_sender: ${{ vars.AZURE_COMMUNICATION_SENDER }}
+      TF_VAR_ai_review_service_token: ${{ secrets.AI_REVIEW_SERVICE_TOKEN }}
+      TF_VAR_ai_review_database_url: ${{ secrets.AI_REVIEW_DATABASE_URL }}
+      TF_VAR_ai_review_reference_hmac_key: ${{ secrets.AI_REVIEW_REFERENCE_HMAC_KEY }}
+      TF_VAR_receipt_intelligence_service_token: ${{ secrets.RECEIPT_INTELLIGENCE_SERVICE_TOKEN }}
+      TF_VAR_receipt_intelligence_database_url: ${{ secrets.RECEIPT_INTELLIGENCE_DATABASE_URL }}
+      TF_VAR_policy_assistant_service_token: ${{ secrets.POLICY_ASSISTANT_SERVICE_TOKEN }}
+      TF_VAR_policy_assistant_database_url: ${{ secrets.POLICY_ASSISTANT_DATABASE_URL }}
+      TF_VAR_policy_assistant_reference_hmac_key: ${{ secrets.POLICY_ASSISTANT_REFERENCE_HMAC_KEY }}
+      TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS }}
+      TF_VAR_owner: ${{ vars.OPERATIONS_OWNER }}
+      TF_VAR_cost_center: ${{ vars.COST_CENTER }}
+      TF_VAR_data_classification: confidential
+      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_backend_image_digest: ${{ needs.build-and-push.outputs.backend_digest }}
+      TF_VAR_ai_review_image_digest: ${{ needs.build-and-push.outputs.ai_review_digest }}
+      TF_VAR_receipt_intelligence_image_digest: ${{ needs.build-and-push.outputs.receipt_intelligence_digest }}
+      TF_VAR_policy_assistant_image_digest: ${{ needs.build-and-push.outputs.policy_assistant_digest }}
     steps:
-      - name: Login to Azure via OIDC
-        uses: azure/login@v2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Login to Azure with protected OIDC identity
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy all container apps
-        uses: azure/cli@v2
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
-          inlineScript: |
-            # Map: "container_app_name:image_name"
-            services=(
-              "presidio-reimburse-prod-api:presidio-api"
-              "presidio-reimburse-prod-ai:presidio-ai-review"
-              "presidio-reimburse-prod-rcpt:presidio-receipt-intelligence"
-              "presidio-reimburse-prod-pol:presidio-policy-assistant"
-            )
-            for entry in "${services[@]}"; do
-              app="${entry%%:*}"
-              image="${entry##*:}"
-              echo "Deploying $app (image: $image)..."
-              if ! az containerapp show --name "$app" --resource-group "${{ env.RESOURCE_GROUP }}" &>/dev/null; then
-                echo "::warning::Container app $app does not exist. Skipping."
-                continue
-              fi
-              for attempt in {1..3}; do
-                if az containerapp update \
-                  --name "$app" \
-                  --resource-group "${{ env.RESOURCE_GROUP }}" \
-                  --image "${{ env.ACR_LOGIN_SERVER }}/$image:${{ env.IMAGE_TAG }}" \
-                  --output none; then
-                  echo "✓ $app deployed successfully"
-                  break
-                else
-                  if [ $attempt -eq 3 ]; then
-                    echo "::error::Failed to deploy $app after 3 attempts"
-                    exit 1
-                  fi
-                  echo "Retry $attempt failed, waiting 10s..."
-                  sleep 10
-                fi
-              done
-            done
+          terraform_version: "1.12.2"
+      - name: Initialise encrypted, locked remote state
+        run: |
+          set -euo pipefail
+          for required in TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_BACKEND_KEY; do
+            if [ -z "${!required:-}" ]; then
+              echo "::error::$required must be set in the protected environment"
+              exit 1
+            fi
+          done
+          terraform init -reconfigure -input=false -lock-timeout=5m \
+            -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TF_BACKEND_CONTAINER" \
+            -backend-config="key=$TF_BACKEND_KEY" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="client_id=$ARM_CLIENT_ID" \
+            -backend-config="tenant_id=$ARM_TENANT_ID" \
+            -backend-config="subscription_id=$ARM_SUBSCRIPTION_ID"
+      - name: Plan and apply only a successful changed plan
+        run: |
+          set -u
+          set +e
+          terraform plan -input=false -lock-timeout=5m -detailed-exitcode -out=tfplan
+          plan_status=$?
+          set -e
+          case "$plan_status" in
+            0) echo "No Terraform changes detected." ;;
+            2) terraform apply -input=false -lock-timeout=5m tfplan ;;
+            *) echo "::error::Terraform plan failed with exit code $plan_status"; exit "$plan_status" ;;
+          esac
 
-      - name: Wait for rollout
-        run: sleep 30
-
-      - name: Verify service health
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az containerapp list \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
-              --query "[].{Name:name, FQDN:properties.configuration.ingress.fqdn, Status:properties.runningStatus}" \
-              --output table
-
-  # ─── Deploy frontend to Azure Static Web Apps ────────────────────────
   deploy-frontend:
     name: Deploy frontend
     runs-on: ubuntu-latest
     needs: [ci-gate]
     environment: azure-production
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install and build
+      - name: Build static app
         working-directory: frontend
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: |
+          set -euo pipefail
           npm ci
           npm run build
           cp staticwebapp.config.json dist/
-          echo "Build artifacts:"
-          ls -lh dist/ | head -20
-          if [ ! -f "dist/index.html" ]; then
-            echo "::error::Frontend build failed - index.html not found"
-            exit 1
-          fi
-
-      - name: Deploy to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
+      - name: Deploy static app
+        uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: upload
@@ -261,118 +267,50 @@ jobs:
           skip_app_build: true
           skip_api_build: true
 
-  # ─── Terraform (only when infra files change) ────────────────────────
-  terraform:
-    name: Terraform apply
+  verify:
+    name: Verify immutable revisions and readiness
     runs-on: ubuntu-latest
-    needs: [ci-gate]
+    needs: [terraform, deploy-frontend, build-and-push]
     environment: azure-production
-    defaults:
-      run:
-        working-directory: deployment/terraform-azure
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 2
-
-      - name: Check for infrastructure changes
-        id: changes
-        run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q "^deployment/terraform-azure/"; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-        working-directory: .
-
-      - name: Login to Azure via OIDC
-        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-        uses: azure/login@v2
+      - name: Login to Azure with protected OIDC identity
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - uses: hashicorp/setup-terraform@v3
-        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      - name: Verify deployed Container App image digests
+        uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          BACKEND_DIGEST: ${{ needs.build-and-push.outputs.backend_digest }}
+          AI_REVIEW_DIGEST: ${{ needs.build-and-push.outputs.ai_review_digest }}
+          RECEIPT_INTELLIGENCE_DIGEST: ${{ needs.build-and-push.outputs.receipt_intelligence_digest }}
+          POLICY_ASSISTANT_DIGEST: ${{ needs.build-and-push.outputs.policy_assistant_digest }}
         with:
-          terraform_version: "1.12.2"
-
-      - name: Terraform init
-        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          terraform init -input=false -upgrade
-          if [ $? -ne 0 ]; then
-            echo "::error::Terraform init failed. Check backend configuration and credentials."
-            exit 1
-          fi
+          inlineScript: |
+            set -euo pipefail
+            for entry in api:backend:"$BACKEND_DIGEST" ai:ai_review:"$AI_REVIEW_DIGEST" rcpt:receipt_intelligence:"$RECEIPT_INTELLIGENCE_DIGEST" pol:policy_assistant:"$POLICY_ASSISTANT_DIGEST"; do
+              app_suffix="${entry%%:*}"
+              rest="${entry#*:}"
+              key="${rest%%:*}"
+              digest="${rest#*:}"
+              repository="$(jq -r --arg key "$key" '.[$key].repository' deployment/terraform-azure/service-contract.json)"
+              app="${{ vars.AZURE_PROJECT_NAME }}-production-$app_suffix"
+              expected="$ACR_LOGIN_SERVER/$repository@$digest"
+              actual="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$app" --query 'properties.template.containers[0].image' --output tsv)"
+              if [ "$actual" != "$expected" ]; then
+                echo "::error::$app is running $actual, expected $expected"
+                exit 1
+              fi
+            done
+      - name: Verify API health and readiness
         env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: "true"
-
-      - name: Terraform plan and apply
-        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: |
-          set -e
-          echo "Running Terraform plan..."
-          if ! terraform plan -out=tfplan -input=false -detailed-exitcode; then
-            exit_code=$?
-            if [ $exit_code -eq 2 ]; then
-              echo "Changes detected, applying..."
-            else
-              echo "::error::Terraform plan failed with exit code $exit_code"
-              exit $exit_code
-            fi
-          else
-            echo "No changes detected, skipping apply"
-            exit 0
-          fi
-          echo "Applying Terraform changes..."
-          terraform apply -auto-approve tfplan
-          echo "✓ Terraform apply complete"
-        env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: "true"
-
-  # ─── Post-deploy health verification ─────────────────────────────────
-  verify:
-    name: Verify deployment
-    runs-on: ubuntu-latest
-    needs: [deploy-services, deploy-frontend]
-    steps:
-      - name: Check API health
-        run: |
-          for i in $(seq 1 5); do
-            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/api/health" || echo "000")
-            if [ "$status" = "200" ]; then
-              echo "API healthy (attempt $i)"
-              exit 0
-            fi
-            echo "API not ready (status=$status), retrying in 10s..."
-            sleep 10
+          set -euo pipefail
+          for endpoint in /api/health /api/ready; do
+            status="$(curl --fail --silent --show-error --output /dev/null --write-out '%{http_code}' "$API_BASE_URL$endpoint")"
+            test "$status" = "200"
           done
-          echo "::error::API health check failed after 5 attempts"
-          exit 1
-
-      - name: Check access-requests route registration
-        run: |
-          # The listing endpoint requires authentication, so a healthy anonymous
-          # request must be rejected with 401/403 rather than returning 404.
-          status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/api/access-requests" || echo "000")
-          if [ "$status" != "401" ] && [ "$status" != "403" ]; then
-            echo "::error::Access-requests route is unavailable (status=$status)"
-            exit 1
-          fi
-          echo "Access-requests route is registered (status=$status)"
-
-      - name: Check API readiness
-        run: |
-          status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/api/ready" || echo "000")
-          if [ "$status" != "200" ]; then
-            echo "::warning::API readiness check returned $status (database may still be connecting)"
-          fi
-          echo "API readiness: $status"

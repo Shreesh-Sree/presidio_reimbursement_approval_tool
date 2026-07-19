@@ -117,12 +117,18 @@ def _category_code(name: str) -> str:
     return (code or "CATEGORY")[:90]
 
 
-def _resolve_category(db: Session, category_id: Any, category_name: Any) -> uuid.UUID | None:
+def _resolve_category(
+    db: Session,
+    category_id: Any,
+    category_name: Any,
+    organization_id: uuid.UUID,
+) -> uuid.UUID | None:
     resolved_id = _uuid(category_id, field_name="category id")
     if resolved_id is not None:
         category = db.scalar(
             select(ExpenseCategory).where(
                 ExpenseCategory.id == resolved_id,
+                ExpenseCategory.organization_id == organization_id,
                 ExpenseCategory.is_deleted.is_(False),
             )
         )
@@ -135,6 +141,7 @@ def _resolve_category(db: Session, category_id: Any, category_name: Any) -> uuid
     category = db.scalar(
         select(ExpenseCategory).where(
             func.lower(ExpenseCategory.name) == name.lower(),
+            ExpenseCategory.organization_id == organization_id,
             ExpenseCategory.is_deleted.is_(False),
         )
     )
@@ -143,24 +150,43 @@ def _resolve_category(db: Session, category_id: Any, category_name: Any) -> uuid
 
     # The UI permits entering category names while defining a new policy.  Make
     # that workflow useful by creating a top-level category in the same
-    # transaction, while keeping codes globally unique.
+    # transaction, while keeping codes unique within this organization.
     base_code = _category_code(name)
     candidate = base_code
     suffix = 2
-    while db.scalar(select(ExpenseCategory.id).where(ExpenseCategory.code == candidate)) is not None:
+    while db.scalar(
+        select(ExpenseCategory.id).where(
+            ExpenseCategory.organization_id == organization_id,
+            ExpenseCategory.code == candidate,
+        )
+    ) is not None:
         candidate = f"{base_code[:84]}-{suffix}"
         suffix += 1
-    category = ExpenseCategory(code=candidate, name=name, receipt_required=True)
+    category = ExpenseCategory(
+        organization_id=organization_id,
+        code=candidate,
+        name=name,
+        receipt_required=True,
+    )
     db.add(category)
     db.flush()
     return category.id
 
 
-def _resolve_vendor(db: Session, vendor_id: Any, vendor_name: Any) -> uuid.UUID | None:
+def _resolve_vendor(
+    db: Session,
+    vendor_id: Any,
+    vendor_name: Any,
+    organization_id: uuid.UUID,
+) -> uuid.UUID | None:
     resolved_id = _uuid(vendor_id, field_name="vendor id")
     if resolved_id is not None:
         vendor = db.scalar(
-            select(Vendor).where(Vendor.id == resolved_id, Vendor.is_deleted.is_(False))
+            select(Vendor).where(
+                Vendor.id == resolved_id,
+                Vendor.organization_id == organization_id,
+                Vendor.is_deleted.is_(False),
+            )
         )
         if vendor is None:
             raise PolicyConflictError("Policy rule refers to a missing vendor")
@@ -172,12 +198,17 @@ def _resolve_vendor(db: Session, vendor_id: Any, vendor_name: Any) -> uuid.UUID 
     vendor = db.scalar(
         select(Vendor).where(
             func.lower(Vendor.normalized_name) == normalized_name,
+            Vendor.organization_id == organization_id,
             Vendor.is_deleted.is_(False),
         )
     )
     if vendor is not None:
         return vendor.id
-    vendor = Vendor(name=name, normalized_name=normalized_name)
+    vendor = Vendor(
+        organization_id=organization_id,
+        name=name,
+        normalized_name=normalized_name,
+    )
     db.add(vendor)
     db.flush()
     return vendor.id
@@ -190,8 +221,12 @@ def _replace_rules(db: Session, policy: Policy, rules_data: Iterable[Any]) -> No
 
     for raw_rule in rules_data:
         rule = _as_rule_dict(raw_rule)
-        category_id = _resolve_category(db, rule.get("category_id"), rule.get("category_name"))
-        vendor_id = _resolve_vendor(db, rule.get("vendor_id"), rule.get("vendor_name"))
+        category_id = _resolve_category(
+            db, rule.get("category_id"), rule.get("category_name"), policy.organization_id
+        )
+        vendor_id = _resolve_vendor(
+            db, rule.get("vendor_id"), rule.get("vendor_name"), policy.organization_id
+        )
         caps = {
             field: _rule_number(rule, field)
             for field in ("max_per_day", "max_per_trip", "per_category_cap", "receipt_required_above")

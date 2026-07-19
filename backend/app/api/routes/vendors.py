@@ -37,59 +37,72 @@ def _vendor_error(exc: Exception) -> None:
 
 
 @router.get("")
-async def list_vendors(
+def list_vendors(
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("vendor:read")),
+    user: dict[str, str] = Depends(require_permission("vendor:read")),
 ):
-    return [vendor_service.vendor_payload(vendor) for vendor in vendor_service.list_vendors(db)]
+    return [
+        vendor_service.vendor_payload(vendor)
+        for vendor in vendor_service.list_vendors(db, user["organization_id"])
+    ]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_vendor(
+def create_vendor(
     payload: VendorCreateInput,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("vendor:manage")),
+    user: dict[str, str] = Depends(require_permission("vendor:manage")),
 ):
     try:
-        return vendor_service.vendor_payload(vendor_service.create_vendor(db, **payload.model_dump()))
+        return vendor_service.vendor_payload(
+            vendor_service.create_vendor(
+                db, organization_id=user["organization_id"], **payload.model_dump()
+            )
+        )
     except Exception as exc:
         _vendor_error(exc)
 
 
 @router.get("/{vendor_id}")
-async def get_vendor(
+def get_vendor(
     vendor_id: str,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("vendor:read")),
+    user: dict[str, str] = Depends(require_permission("vendor:read")),
 ):
     try:
-        return vendor_service.vendor_payload(vendor_service.get_vendor(db, vendor_id))
+        return vendor_service.vendor_payload(
+            vendor_service.get_vendor(db, vendor_id, user["organization_id"])
+        )
     except Exception as exc:
         _vendor_error(exc)
 
 
 @router.patch("/{vendor_id}")
-async def update_vendor(
+def update_vendor(
     vendor_id: str,
     payload: VendorUpdateInput,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("vendor:manage")),
+    user: dict[str, str] = Depends(require_permission("vendor:manage")),
 ):
     try:
         changes: dict[str, Any] = payload.model_dump(exclude_unset=True)
-        return vendor_service.vendor_payload(vendor_service.update_vendor(db, vendor_id, **changes))
+        return vendor_service.vendor_payload(
+            vendor_service.update_vendor(
+                db, vendor_id, organization_id=user["organization_id"], **changes
+            )
+        )
     except Exception as exc:
         _vendor_error(exc)
 
 
 @router.delete("/{vendor_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_vendor(
+def delete_vendor(
     vendor_id: str,
     db: Session = Depends(get_db),
-    _user: dict[str, str] = Depends(require_permission("vendor:manage")),
+    user: dict[str, str] = Depends(require_permission("vendor:manage")),
 ) -> Response:
     try:
-        vendor_service.deactivate_vendor(db, vendor_id)
+        vendor_service.deactivate_vendor(db, vendor_id, user["organization_id"])
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
         _vendor_error(exc)

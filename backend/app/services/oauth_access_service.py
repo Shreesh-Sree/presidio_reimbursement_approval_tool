@@ -204,6 +204,29 @@ def resolve_oauth_user(db: Session, *, identity: SupabaseIdentity, settings: Set
         if linked_user is not None:
             return linked_user
         if identity.email != super_admin_email:
+            # Notify administrators of allowlist login rejection
+            from app.services import notification_service
+            from app.models.user_role import UserRole
+            from app.models.role import Role
+            admin_role_ids = db.scalars(
+                select(Role.id).where(Role.code.in_(["admin", "administrator"]))
+            ).all()
+            if admin_role_ids:
+                admin_user_ids = db.scalars(
+                    select(UserRole.user_id).where(UserRole.role_id.in_(admin_role_ids))
+                ).all()
+                for admin_id in admin_user_ids:
+                    notification_service.notify(
+                        db,
+                        recipient_id=admin_id,
+                        template_code="access_denied_attempt",
+                        payload={
+                            "title": "Failed Access Attempt",
+                            "body": f"Allowlist rejected: {identity.email}",
+                            "email": identity.email,
+                        }
+                    )
+            db.commit()
             raise OAuthAccessDeniedError()
         # An inactive/deleted row must be reactivated deliberately through
         # application administration; do not let configuration resurrect it.

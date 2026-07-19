@@ -107,6 +107,7 @@ export function AccessRequestsPage() {
               <div className="flex-1">
                 <h3 className="text-lg font-medium">{request.full_name}</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400">{request.email}</p>
+                <p className="mt-1 text-xs font-mono text-slate-500">ID: {request.id}</p>
                 <p className="mt-2 text-xs text-slate-500">
                   Requested: {new Date(request.requested_at).toLocaleString()}
                 </p>

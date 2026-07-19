@@ -18,7 +18,7 @@ import {
 } from "../../lib/api";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 const periods = [3, 6, 12, 24];
-const colors = ["#0071e3", "#147ce5", "#2997ff", "#64a8ff"];
+const colors = ["#00ED64", "#00684A", "#016BF8", "#7856FF"];
 const money = ({ amount, currency }: CurrencyAmount) => {
   try {
     return new Intl.NumberFormat("en-US", {
@@ -60,7 +60,7 @@ export function AnalyticsPage() {
   }, [data]);
   return (
     <main className="repl-page analytics-page">
-      <header className="repl-page-head">
+      <header className="page-header">
         <div>
           <p className="repl-eyebrow">Operational analytics</p>
           <h1 className="repl-title">Reimbursement insights.</h1>
@@ -94,7 +94,7 @@ export function AnalyticsPage() {
       {analytics.isLoading && <LoadingState label="Loading analytics" />}
       {data && (
         <>
-          <section className="metric-grid">
+          <section className="metric-grid" role="region" aria-label="Key metrics">
             {[
               ["Reports in view", data.summary.report_count],
               ["Awaiting approval", data.summary.pending_approval_count],
@@ -107,7 +107,7 @@ export function AnalyticsPage() {
                   : `${data.summary.total_requested.length} currencies`,
               ],
             ].map(([label, value]) => (
-              <article className="repl-card" key={String(label)}>
+              <article className="repl-card stat-card" key={String(label)}>
                 <p>{label}</p>
                 <strong>{value}</strong>
               </article>

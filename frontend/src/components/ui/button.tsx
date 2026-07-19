@@ -8,11 +8,11 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  default: "bg-[#0071e3] text-white hover:bg-[#0077ED] focus-visible:outline-[#0071e3]",
-  outline: "border border-[#d2d2d7] bg-white text-[#1d1d1f] hover:bg-[#f5f5f7] dark:border-white/12 dark:bg-[#1d1d1f] dark:text-[#f5f5f7] dark:hover:bg-[#2d2d2d]",
-  ghost: "text-[#1d1d1f] hover:bg-[#f5f5f7] dark:text-[#f5f5f7] dark:hover:bg-[#2d2d2d]",
-  destructive: "bg-[#c5221f] text-white hover:bg-[#a91b17] focus-visible:outline-[#c5221f]",
-  secondary: "bg-[#1d1d1f] text-white hover:bg-[#424245] dark:bg-[#f5f5f7] dark:text-[#1d1d1f] dark:hover:bg-white",
+  default: "bg-[#00ED64] text-[#001E2B] hover:bg-[#00C956] focus-visible:outline-[#00ED64]",
+  outline: "border border-[var(--color-hairline-strong)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:bg-[var(--color-surface)] dark:border-white/16 dark:bg-[#001E2B] dark:text-[#F9FBFA] dark:hover:bg-[#0D2B36]",
+  ghost: "text-[var(--color-ink)] hover:bg-[var(--color-surface)] dark:text-[#F9FBFA] dark:hover:bg-[#0D2B36]",
+  destructive: "bg-[#CF4C3A] text-white hover:bg-[#B5382A] focus-visible:outline-[#CF4C3A]",
+  secondary: "bg-[#001E2B] text-white hover:bg-[#0D2B36] dark:bg-[#F9FBFA] dark:text-[#001E2B] dark:hover:bg-white",
 };
 
 export function Button({ className, variant = "default", type = "button", ...props }: ButtonProps) {

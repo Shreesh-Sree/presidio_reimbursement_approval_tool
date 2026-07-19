@@ -53,7 +53,7 @@ export function Select({
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         className={cn(
-          "flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#d2d2d7] bg-white px-4 py-2.5 text-left text-sm text-[#1d1d1f] outline-none transition-all duration-200 focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/12 dark:bg-[#1d1d1f] dark:text-[#f5f5f7] dark:focus:border-[#2997ff] dark:focus:ring-[#2997ff]/20",
+          "flex h-11 w-full items-center justify-between gap-3 rounded-lg border border-[var(--color-hairline-strong)] bg-[var(--color-canvas)] px-4 py-2.5 text-left text-sm text-[var(--color-ink)] outline-none transition-all duration-150 focus:border-[#00684A] focus:ring-2 focus:ring-[#00ED64]/15 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/16 dark:bg-[#0D2B36] dark:text-[#F9FBFA] dark:focus:border-[#00ED64] dark:focus:ring-[#00ED64]/20",
           className,
         )}
         id={id}
@@ -66,11 +66,11 @@ export function Select({
         <SelectPrimitive.Icon aria-hidden><CaretDown size={16} weight="bold" /></SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content className="z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-2xl border border-[#d2d2d7] bg-white p-1.5 shadow-lg dark:border-white/12 dark:bg-[#1d1d1f]" position="popper" sideOffset={8}>
+        <SelectPrimitive.Content className="z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-[var(--color-canvas)] p-1.5 shadow-lg dark:border-white/10 dark:bg-[#001E2B]" position="popper" sideOffset={8}>
           <SelectPrimitive.Viewport>
             {options.map((option) => (
               <SelectPrimitive.Item
-                className="relative flex min-h-10 cursor-pointer select-none items-center rounded-xl py-2 pl-9 pr-4 text-sm font-medium text-[#1d1d1f] outline-none data-[highlighted]:bg-[#f5f5f7] data-[state=checked]:bg-[#0071e3] data-[state=checked]:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-40 dark:text-[#f5f5f7] dark:data-[highlighted]:bg-white/6"
+                className="relative flex min-h-10 cursor-pointer select-none items-center rounded-lg py-2 pl-9 pr-4 text-sm font-medium text-[var(--color-ink)] outline-none data-[highlighted]:bg-[var(--color-surface)] data-[state=checked]:bg-[#00ED64] data-[state=checked]:text-[#001E2B] data-[disabled]:pointer-events-none data-[disabled]:opacity-40 dark:text-[#F9FBFA] dark:data-[highlighted]:bg-[#0D2B36]"
                 disabled={option.disabled}
                 key={option.value}
                 value={option.value}

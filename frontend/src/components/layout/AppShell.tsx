@@ -106,7 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {hasPermission(user, "report:create") && (
             <Link
               to="/reports?action=new"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs mr-3"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#00ED64] text-[#001E2B] text-xs font-semibold hover:bg-[#00C956] transition-colors shadow-xs mr-3"
               title="Create New Expense Report"
             >
               <Plus size={15} weight="bold" />

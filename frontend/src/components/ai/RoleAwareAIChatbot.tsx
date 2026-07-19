@@ -122,21 +122,21 @@ export function RoleAwareAIChatbot() {
       {/* Floating Action Button */}
       <button
         aria-label="Open AI Assistant"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full bg-blue-600 text-white font-medium shadow-lg hover:bg-blue-700 active:scale-95 transition-all group"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full bg-[#00ED64] text-[#001E2B] font-medium shadow-lg hover:bg-[#00C956] active:scale-95 transition-all group"
         onClick={() => setIsOpen(!isOpen)}
         type="button"
       >
-        <Sparkle className="w-5 h-5 animate-pulse text-amber-300" weight="fill" />
+        <Sparkle className="w-5 h-5 animate-pulse text-[#001E2B]" weight="fill" />
         <span className="text-sm font-semibold">{isOpen ? "Close AI Chat" : "AI Advisor"}</span>
       </button>
 
       {/* Chat Modal Window */}
       {isOpen && (
-        <div className="fixed bottom-20 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] h-[540px] max-h-[80vh] flex flex-col rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden transition-all">
+        <div className="fixed bottom-20 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] h-[540px] max-h-[80vh] flex flex-col rounded-xl border border-[var(--color-hairline)] bg-[var(--color-canvas)] dark:bg-[#001E2B] dark:border-[rgba(255,255,255,0.1)] shadow-2xl overflow-hidden transition-all">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md">
+          <div className="flex items-center justify-between px-4 py-3.5 border-b border-[var(--color-hairline)] dark:border-[rgba(255,255,255,0.1)] bg-[var(--color-surface)] dark:bg-[#0D2B36] backdrop-blur-md">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+              <div className="p-2 rounded-lg bg-[#E3FCF7] dark:bg-[rgba(0,237,100,0.1)] text-[#00684A] dark:text-[#00ED64]">
                 <Robot className="w-5 h-5" weight="bold" />
               </div>
               <div>
@@ -149,7 +149,7 @@ export function RoleAwareAIChatbot() {
             </div>
             <button
               aria-label="Close Chat"
-              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-[var(--color-slate)] hover:bg-[var(--color-surface)] dark:hover:bg-[#00384D] transition-colors"
               onClick={() => setIsOpen(false)}
               type="button"
             >
@@ -167,7 +167,7 @@ export function RoleAwareAIChatbot() {
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                     msg.sender === "user"
-                      ? "bg-blue-600 text-white"
+                      ? "bg-[#001E2B] text-[#00ED64]"
                       : "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
                   }`}
                 >
@@ -181,8 +181,8 @@ export function RoleAwareAIChatbot() {
                 <div
                   className={`max-w-[80%] rounded-2xl p-3 space-y-2 ${
                     msg.sender === "user"
-                      ? "bg-blue-600 text-white rounded-tr-none"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200/50 dark:border-slate-700/50"
+                      ? "bg-[#001E2B] text-white rounded-tr-none"
+                      : "bg-[var(--color-surface)] dark:bg-[#0D2B36] text-[var(--color-ink)] rounded-tl-none border border-[var(--color-hairline)] dark:border-[rgba(255,255,255,0.08)]"
                   }`}
                 >
                   <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
@@ -241,7 +241,7 @@ export function RoleAwareAIChatbot() {
             }}
           >
             <input
-              className="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              className="flex-1 text-xs px-3 py-2 rounded-lg border border-[var(--color-hairline-strong)] dark:border-[rgba(255,255,255,0.16)] bg-[var(--color-surface)] dark:bg-[#0D2B36] text-[var(--color-ink)] focus:outline-hidden focus:ring-2 focus:ring-[#00ED64]"
               disabled={askMutation.isPending}
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Ask ${roleTitle}…`}
@@ -249,7 +249,7 @@ export function RoleAwareAIChatbot() {
             />
             <button
               aria-label="Send Message"
-              className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 transition-colors shrink-0"
+              className="p-2 rounded-lg bg-[#00ED64] hover:bg-[#00C956] text-[#001E2B] disabled:opacity-50 transition-colors shrink-0"
               disabled={!input.trim() || askMutation.isPending}
               type="submit"
             >

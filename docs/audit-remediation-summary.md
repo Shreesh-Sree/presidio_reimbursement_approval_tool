@@ -15,6 +15,9 @@ edge-security environment is listed as an external gate below.
   passed; the production-target rejection test passed separately.
 - Terraform formatting, offline validation, deployment-contract validation,
   Docker Compose validation, and four service image builds passed.
+- Checkov 3.3.8 against `deployment/terraform-azure` — 46 passed, 0 failed,
+  and 5 narrowly documented inline exceptions; the CI workflow pins this exact
+  scanner image digest.
 - Runtime dependency lock checks and `npm audit --omit=dev --audit-level=high`
   passed.  CI workflow linting was also run with Actionlint.
 

@@ -15,23 +15,42 @@ module "logging" {
   tags                = local.common_tags
 }
 
+module "network" {
+  source = "./modules/network"
+
+  name_prefix                             = local.name_prefix
+  resource_group_name                     = data.azurerm_resource_group.main.name
+  location                                = var.location
+  address_space                           = var.network_address_space
+  container_apps_subnet_address_prefix    = var.container_apps_subnet_address_prefix
+  private_endpoints_subnet_address_prefix = var.private_endpoints_subnet_address_prefix
+  tags                                    = local.common_tags
+}
+
 module "registry" {
   source = "./modules/registry"
 
-  name_prefix         = local.name_prefix
-  resource_group_name = data.azurerm_resource_group.main.name
-  location            = var.location
-  tags                = local.common_tags
+  name_prefix                = local.name_prefix
+  resource_group_name        = data.azurerm_resource_group.main.name
+  location                   = var.location
+  tags                       = local.common_tags
+  private_endpoint_subnet_id = module.network.private_endpoint_subnet_id
+  private_dns_zone_id        = module.network.private_dns_zone_ids["registry"]
 }
 
 module "keyvault" {
   source = "./modules/keyvault"
 
-  name_prefix         = local.name_prefix
-  resource_group_name = data.azurerm_resource_group.main.name
-  location            = var.location
-  tenant_id           = data.azurerm_client_config.current.tenant_id
-  tags                = local.common_tags
+  name_prefix                     = local.name_prefix
+  resource_group_name             = data.azurerm_resource_group.main.name
+  location                        = var.location
+  tenant_id                       = data.azurerm_client_config.current.tenant_id
+  tags                            = local.common_tags
+  container_apps_subnet_id        = module.network.container_apps_subnet_id
+  private_endpoint_subnet_id      = module.network.private_endpoint_subnet_id
+  private_dns_zone_id             = module.network.private_dns_zone_ids["key_vault"]
+  secret_expiration_date          = var.key_vault_secret_expiration_date
+  storage_cmk_key_expiration_date = var.storage_cmk_key_expiration_date
 
   secrets = {
     "database-url"                          = var.database_url
@@ -54,10 +73,16 @@ module "keyvault" {
 module "storage" {
   source = "./modules/storage"
 
-  name_prefix         = local.name_prefix
-  resource_group_name = data.azurerm_resource_group.main.name
-  location            = var.location
-  tags                = local.common_tags
+  name_prefix                = local.name_prefix
+  resource_group_name        = data.azurerm_resource_group.main.name
+  location                   = var.location
+  tags                       = local.common_tags
+  container_apps_subnet_id   = module.network.container_apps_subnet_id
+  private_endpoint_subnet_id = module.network.private_endpoint_subnet_id
+  private_dns_zone_id        = module.network.private_dns_zone_ids["blob"]
+  key_vault_id               = module.keyvault.id
+  customer_managed_key_id    = module.keyvault.storage_cmk_key_id
+  log_analytics_workspace_id = module.logging.workspace_id
 }
 
 module "container_apps" {
@@ -69,6 +94,7 @@ module "container_apps" {
   tags                = local.common_tags
 
   log_analytics_workspace_id = module.logging.workspace_id
+  infrastructure_subnet_id   = module.network.container_apps_subnet_id
 
   acr_login_server = module.registry.login_server
   acr_id           = module.registry.id

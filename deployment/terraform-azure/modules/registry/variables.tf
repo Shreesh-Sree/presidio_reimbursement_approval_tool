@@ -17,3 +17,13 @@ variable "tags" {
   description = "Resource tags."
   type        = map(string)
 }
+
+variable "private_endpoint_subnet_id" {
+  description = "Dedicated subnet in which the ACR private endpoint is created."
+  type        = string
+}
+
+variable "private_dns_zone_id" {
+  description = "Private DNS zone ID for privatelink.azurecr.io."
+  type        = string
+}

@@ -116,9 +116,11 @@ def main() -> int:
         require(f'variable "{variable}"' in root_variables, f"missing immutable image variable {variable}")
     require('backend "azurerm" {}' in versions, "Terraform must declare an AzureRM remote-state backend")
     require(
-        "BREAKING_MIGRATION_MAINTENANCE_APPROVED" in deploy_workflow
-        and '!= "$GITHUB_SHA"' in deploy_workflow,
-        "deploy workflow must block schema migrations until a protected single-commit maintenance approval",
+        "schema-gate:" in deploy_workflow
+        and "009_tenant_workflows_outbox" in deploy_workflow
+        and "alembic current" in deploy_workflow
+        and "alembic upgrade head" not in deploy_workflow,
+        "normal deploy workflow must verify the approved Supabase schema without applying migrations",
     )
     require(not (ROOT / "receipt_intelligence_service" / "requirements.txt").exists(), "floating receipt requirements.txt must remain removed")
 

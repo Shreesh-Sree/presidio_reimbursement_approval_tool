@@ -23,6 +23,11 @@ variable "log_analytics_workspace_id" {
   type        = string
 }
 
+variable "infrastructure_subnet_id" {
+  description = "Dedicated, undelegated Consumption Container Apps infrastructure subnet. Changing it recreates the environment."
+  type        = string
+}
+
 variable "acr_login_server" {
   description = "ACR login server hostname."
   type        = string

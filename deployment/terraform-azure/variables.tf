@@ -15,6 +15,39 @@ variable "location" {
   default     = "centralindia"
 }
 
+variable "network_address_space" {
+  description = "Private address space reserved for Container Apps egress and private endpoints. Choose a non-overlapping production CIDR before first apply."
+  type        = string
+  default     = "10.42.0.0/16"
+
+  validation {
+    condition     = can(cidrnetmask(var.network_address_space))
+    error_message = "network_address_space must be a valid CIDR block."
+  }
+}
+
+variable "container_apps_subnet_address_prefix" {
+  description = "Dedicated undelegated /23-or-larger subnet for the Consumption Container Apps environment. Changing it recreates the environment."
+  type        = string
+  default     = "10.42.0.0/23"
+
+  validation {
+    condition     = can(cidrnetmask(var.container_apps_subnet_address_prefix))
+    error_message = "container_apps_subnet_address_prefix must be a valid CIDR block."
+  }
+}
+
+variable "private_endpoints_subnet_address_prefix" {
+  description = "Dedicated private-endpoint subnet. Size it for the registry, Blob, Key Vault, and future endpoint growth."
+  type        = string
+  default     = "10.42.2.0/24"
+
+  validation {
+    condition     = can(cidrnetmask(var.private_endpoints_subnet_address_prefix))
+    error_message = "private_endpoints_subnet_address_prefix must be a valid CIDR block."
+  }
+}
+
 variable "project_name" {
   description = "Lowercase slug used in Azure resource names."
   type        = string
@@ -72,6 +105,26 @@ variable "super_admin_email" {
   description = "Email for the initial super admin user."
   type        = string
   sensitive   = true
+}
+
+variable "key_vault_secret_expiration_date" {
+  description = "Required ISO-8601 UTC rotation deadline for managed Key Vault secret versions. Rotate values before this date; do not use a moving timestamp expression."
+  type        = string
+
+  validation {
+    condition     = can(formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", var.key_vault_secret_expiration_date))
+    error_message = "key_vault_secret_expiration_date must be an ISO-8601 UTC timestamp, for example 2027-01-31T00:00:00Z."
+  }
+}
+
+variable "storage_cmk_key_expiration_date" {
+  description = "Required ISO-8601 UTC rotation deadline for the Storage customer-managed key."
+  type        = string
+
+  validation {
+    condition     = can(formatdate("YYYY-MM-DD'T'hh:mm:ss'Z'", var.storage_cmk_key_expiration_date))
+    error_message = "storage_cmk_key_expiration_date must be an ISO-8601 UTC timestamp, for example 2027-01-31T00:00:00Z."
+  }
 }
 
 variable "email_delivery_enabled" {

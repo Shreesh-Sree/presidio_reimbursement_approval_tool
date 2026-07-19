@@ -36,7 +36,9 @@ jobs:
 
   build-and-push:
     name: Build, attest, sign, and push images
-    runs-on: ubuntu-latest
+    # ACR public networking is disabled. This protected runner label must point
+    # at a self-hosted runner in the private VNet with the Private DNS zones.
+    runs-on: ${{ vars.AZURE_PRIVATE_RUNNER_LABEL || 'ubuntu-latest' }}
     needs: [ci-gate]
     environment: azure-production
     outputs:
@@ -46,6 +48,16 @@ jobs:
       policy_assistant_digest: ${{ steps.images.outputs.policy_assistant_digest }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Require private-network deployment readiness
+        env:
+          PRIVATE_NETWORK_DEPLOYMENT_READY: ${{ vars.PRIVATE_NETWORK_DEPLOYMENT_READY }}
+          AZURE_PRIVATE_RUNNER_LABEL: ${{ vars.AZURE_PRIVATE_RUNNER_LABEL }}
+        run: |
+          set -euo pipefail
+          if [ "${PRIVATE_NETWORK_DEPLOYMENT_READY:-}" != "true" ] || [ -z "${AZURE_PRIVATE_RUNNER_LABEL:-}" ]; then
+            echo "::error::Private Link is required for ACR, Key Vault, and Storage. Configure a VNet-connected runner, set AZURE_PRIVATE_RUNNER_LABEL, complete the documented blue/green migration, then set PRIVATE_NETWORK_DEPLOYMENT_READY=true in the protected environment."
+            exit 1
+          fi
       - name: Login to Azure with protected OIDC identity
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:
@@ -146,7 +158,7 @@ jobs:
 
   terraform:
     name: Terraform plan and apply immutable release
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.AZURE_PRIVATE_RUNNER_LABEL || 'ubuntu-latest' }}
     needs: [migrate, build-and-push]
     environment: azure-production
     defaults:
@@ -172,6 +184,8 @@ jobs:
       TF_VAR_supabase_jwt_secret: ${{ secrets.SUPABASE_JWT_SECRET }}
       TF_VAR_supabase_service_role_key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       TF_VAR_super_admin_email: ${{ secrets.SUPER_ADMIN_EMAIL }}
+      TF_VAR_key_vault_secret_expiration_date: ${{ vars.KEY_VAULT_SECRET_EXPIRATION_DATE }}
+      TF_VAR_storage_cmk_key_expiration_date: ${{ vars.STORAGE_CMK_KEY_EXPIRATION_DATE }}
       TF_VAR_email_delivery_enabled: "true"
       TF_VAR_azure_communication_connection_string: ${{ secrets.AZURE_COMMUNICATION_CONNECTION_STRING }}
       TF_VAR_azure_communication_sender: ${{ vars.AZURE_COMMUNICATION_SENDER }}
@@ -194,6 +208,16 @@ jobs:
       TF_VAR_policy_assistant_image_digest: ${{ needs.build-and-push.outputs.policy_assistant_digest }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Require private-network deployment readiness
+        env:
+          PRIVATE_NETWORK_DEPLOYMENT_READY: ${{ vars.PRIVATE_NETWORK_DEPLOYMENT_READY }}
+          AZURE_PRIVATE_RUNNER_LABEL: ${{ vars.AZURE_PRIVATE_RUNNER_LABEL }}
+        run: |
+          set -euo pipefail
+          if [ "${PRIVATE_NETWORK_DEPLOYMENT_READY:-}" != "true" ] || [ -z "${AZURE_PRIVATE_RUNNER_LABEL:-}" ]; then
+            echo "::error::Terraform is blocked until a VNet-connected runner and the documented Private Link blue/green migration are ready."
+            exit 1
+          fi
       - name: Login to Azure with protected OIDC identity
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:

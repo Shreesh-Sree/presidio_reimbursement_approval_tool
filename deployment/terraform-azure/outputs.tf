@@ -47,3 +47,8 @@ output "container_apps_environment_name" {
   description = "Container Apps Environment name."
   value       = module.container_apps.environment_name
 }
+
+output "private_virtual_network_id" {
+  description = "Virtual network used for private service access and Container Apps egress."
+  value       = module.network.virtual_network_id
+}

@@ -50,10 +50,12 @@ resource "azurerm_role_assignment" "backend_blob_data_contributor" {
 # --- Container Apps Environment ---
 
 resource "azurerm_container_app_environment" "main" {
-  name                       = "${var.name_prefix}-env"
-  resource_group_name        = var.resource_group_name
-  location                   = var.location
-  log_analytics_workspace_id = var.log_analytics_workspace_id
+  name                           = "${var.name_prefix}-env"
+  resource_group_name            = var.resource_group_name
+  location                       = var.location
+  log_analytics_workspace_id     = var.log_analytics_workspace_id
+  infrastructure_subnet_id       = var.infrastructure_subnet_id
+  internal_load_balancer_enabled = false
 
   tags = var.tags
 }

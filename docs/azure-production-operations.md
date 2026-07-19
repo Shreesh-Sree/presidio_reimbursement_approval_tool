@@ -26,20 +26,24 @@ by repository automation.
    container. Require HTTPS, disable public Blob access and shared-key access,
    use Azure AD/OIDC authentication, and retain/delete-protect state according
    to the organisation's incident policy.
-2. Give the GitHub production OIDC principal only the scopes it needs:
+2. Provision a VNet-connected self-hosted GitHub Actions runner before enabling
+   Private Link. It needs private DNS resolution for ACR, Key Vault, Blob, and
+   the remote state endpoint. GitHub-hosted `ubuntu-latest` runners cannot be
+   assumed to reach those private endpoints.
+3. Give the GitHub production OIDC principal only the scopes it needs:
    resource-group Contributor (not subscription Contributor), ACR Push on the
    project registry, Key Vault Secrets Officer on the project vault for the
    deployment phase, and Storage Blob Data Contributor on the *state* container.
    Grant User Access Administrator only through a separately controlled
    bootstrap identity if role assignment creation is required.
-3. Create the GitHub `azure-production` environment with required reviewers,
+4. Create the GitHub `azure-production` environment with required reviewers,
    deployment branches limited to `main`, and environment-scoped secrets. Verify
    branch protection requires CI, CodeQL, and the supply-chain job.
-4. Bootstrap the ACR from the protected Terraform environment before the first
+5. Bootstrap the ACR from the protected Terraform environment before the first
    image build. A targeted, reviewed `module.registry` apply is permitted only
    for this chicken-and-egg step; immediately follow it with a normal workflow
    release. Do not create placeholder Container Apps by CLI.
-5. Before the first apply, grant the deployment identity Key Vault Secrets
+6. Before the first apply, grant the deployment identity Key Vault Secrets
    Officer at the vault. The Terraform module intentionally does not grant its
    own deployment identity data-plane privilege.
 
@@ -49,8 +53,9 @@ Set these protected GitHub environment values (not repository files):
 | --- | --- |
 | Azure/OIDC secrets | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_LOGIN_SERVER` |
 | Terraform state variables | `TF_BACKEND_RESOURCE_GROUP`, `TF_BACKEND_STORAGE_ACCOUNT`, `TF_BACKEND_CONTAINER`, `TF_BACKEND_KEY` |
-| Terraform environment variables | `AZURE_RESOURCE_GROUP`, `AZURE_LOCATION`, `AZURE_PROJECT_NAME`, `CORS_ORIGINS`, `OPERATIONS_OWNER`, `COST_CENTER`, `ALERT_EMAIL`, `AZURE_COMMUNICATION_SENDER` |
+| Terraform environment variables | `AZURE_RESOURCE_GROUP`, `AZURE_LOCATION`, `AZURE_PROJECT_NAME`, `CORS_ORIGINS`, `OPERATIONS_OWNER`, `COST_CENTER`, `ALERT_EMAIL`, `AZURE_COMMUNICATION_SENDER`, `KEY_VAULT_SECRET_EXPIRATION_DATE`, `STORAGE_CMK_KEY_EXPIRATION_DATE` |
 | Release-only protected variable | `BREAKING_MIGRATION_MAINTENANCE_APPROVED` — exact target commit SHA, set only after the write drain and clear after the release |
+| Private-network protected variables | `AZURE_PRIVATE_RUNNER_LABEL` — VNet-connected runner label; `PRIVATE_NETWORK_DEPLOYMENT_READY=true` only after the documented cutover has completed |
 | Core runtime secrets | `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPER_ADMIN_EMAIL` |
 | Email-delivery secret | `AZURE_COMMUNICATION_CONNECTION_STRING` — non-empty only when `EMAIL_DELIVERY_ENABLED=true`; the sender must be a verified ACS sender |
 | Advisory runtime secrets | `AI_REVIEW_SERVICE_TOKEN`, `AI_REVIEW_DATABASE_URL`, `AI_REVIEW_REFERENCE_HMAC_KEY`, `RECEIPT_INTELLIGENCE_SERVICE_TOKEN`, `RECEIPT_INTELLIGENCE_DATABASE_URL`, `POLICY_ASSISTANT_SERVICE_TOKEN`, `POLICY_ASSISTANT_DATABASE_URL`, `POLICY_ASSISTANT_REFERENCE_HMAC_KEY` |
@@ -69,6 +74,44 @@ When `EMAIL_DELIVERY_ENABLED=true`, Terraform and the backend reject a blank
 ACS connection string or sender rather than falling back to localhost SMTP.
 Confirm the sender is verified in Azure Communication Services and send a
 staging test message before enabling production delivery.
+
+`KEY_VAULT_SECRET_EXPIRATION_DATE` and `STORAGE_CMK_KEY_EXPIRATION_DATE` must
+be deliberate RFC 3339 UTC rotation deadlines (for example,
+`2027-01-31T00:00:00Z`). Updating only an expiry date is not rotation: rotate
+the underlying secret/key through the approved ownership process before its
+deadline.
+
+## Private Link and Checkov rollout
+
+The Terraform configuration disables public access to ACR, Key Vault, and Blob
+storage; creates private endpoints and DNS zones; enables Storage CMK; and
+attaches Container Apps to a dedicated private subnet. This is a **blue/green
+network migration**, not an in-place production change:
+
+1. Reserve non-overlapping CIDRs. The current Consumption Container Apps
+   environment needs a dedicated, undelegated `/23`-or-larger infrastructure
+   subnet; private endpoints use a different subnet.
+2. Build the VNet, private DNS links, and VNet-connected runner using a reviewed
+   bootstrap path. Verify that the runner resolves ACR, Key Vault, Blob, and
+   Terraform state endpoints to private addresses.
+3. Create a new Container Apps environment and registry path where required;
+   `infrastructure_subnet_id` and legacy ACR zone configuration can force
+   replacement. Copy/import signed images, assign the existing managed roles,
+   and smoke-test image pulls, Key Vault references, Blob access, and public API
+   ingress before switching DNS/traffic.
+4. Set `AZURE_PRIVATE_RUNNER_LABEL` and only then set
+   `PRIVATE_NETWORK_DEPLOYMENT_READY=true` in the protected environment. The
+   deploy workflow intentionally fails before any private data-plane operation
+   when either guard is absent.
+
+Five Checkov controls are intentionally skipped inline, not globally: ACR
+Docker Content Trust is retired for new registries (Cosign/digest/provenance
+are enforced instead); image quarantine requires a future approve/unquarantine
+workflow; geo-replication requires an approved DR region; legacy zone settings
+can replace ACR; and legacy Storage Insights conflicts with keyless storage.
+Azure Monitor Blob diagnostics are configured as the compensating logging
+control. Reassess each exception at least annually and before changing the
+release architecture.
 
 ## State and credential incident response
 

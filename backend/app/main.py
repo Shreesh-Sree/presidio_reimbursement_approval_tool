@@ -18,6 +18,7 @@ from app.api.routes import (
     auth,
     categories,
     delegations,
+    departments,
     notifications,
     org_chart,
     payments,
@@ -54,6 +55,7 @@ app.include_router(roles.router)
 app.include_router(org_chart.router)
 app.include_router(policies.router)
 app.include_router(categories.router)
+app.include_router(departments.router)
 app.include_router(delegations.router)
 app.include_router(vendors.router)
 app.include_router(reports.router)

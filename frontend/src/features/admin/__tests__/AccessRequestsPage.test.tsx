@@ -19,11 +19,11 @@ afterEach(() => vi.resetAllMocks());
 
 describe("AccessRequestsPage", () => {
   it("shows a load failure instead of an empty pending-request state", async () => {
-    api.get.mockRejectedValueOnce(new Error("Missing permission: user:manage"));
+    api.get.mockRejectedValueOnce(new Error("Missing permission: access_request:manage"));
 
     renderPage();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Missing permission: user:manage");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Missing permission: access_request:manage");
     expect(screen.queryByText("No pending access requests")).not.toBeInTheDocument();
   });
 });

@@ -151,7 +151,7 @@ function AppContent() {
       <Route path="/reports/:reportId" element={<ProtectedRoute><RequirePermission permission="report:read"><ReportEditor /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals" element={<ProtectedRoute><RequirePermission permission="report:approve"><ApprovalQueuePage /></RequirePermission></ProtectedRoute>} />
       <Route path="/delegations" element={<ProtectedRoute><RequirePermission permission="report:approve"><DelegationsPage /></RequirePermission></ProtectedRoute>} />
-      <Route path="/admin/access-requests" element={<ProtectedRoute><RequirePermission permission="user:manage"><AccessRequestsPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/admin/access-requests" element={<ProtectedRoute><RequirePermission permission="access_request:manage"><AccessRequestsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/approvals/:reportId" element={<ProtectedRoute><RequirePermission permission="report:approve"><ReportReview /></RequirePermission></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/reports" />} />
       <Route path="*" element={<Navigate replace to="/reports" />} />

@@ -48,16 +48,28 @@ class GroqAnswerProvider:
             for i, citation in enumerate(citations)
         )
 
+        import httpx
         model = self._model
         base_url = None
+        http_client = None
         if self._api_key.startswith("nvapi-"):
-            base_url = "https://integrate.api.nvidia.com/v1"
+            base_url = "https://integrate.api.nvidia.com"
             if model == "llama-3.1-8b-instant":
                 model = "meta/llama-3.1-8b-instruct"
+
+            async def rewrite_request(request: httpx.Request):
+                url_str = str(request.url)
+                if "openai/v1" in url_str:
+                    request.url = httpx.URL(url_str.replace("openai/v1", "v1"))
+
+            http_client = httpx.AsyncClient(
+                event_hooks={"request": [rewrite_request]}
+            )
 
         client = AsyncGroq(
             api_key=self._api_key,
             base_url=base_url,
+            http_client=http_client,
             timeout=self._timeout_seconds,
             max_retries=0,
         )

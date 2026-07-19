@@ -42,6 +42,7 @@ class UserCreateRequest(ApiModel):
     password: str | None = Field(default=None, min_length=8, max_length=256)
     roles: list[str] = Field(min_length=1)
     manager_id: UUID | None = None
+    department_id: UUID | None = None
 
     @field_validator("roles")
     @classmethod
@@ -60,6 +61,7 @@ class UserUpdateRequest(ApiModel):
     password: str | None = Field(default=None, min_length=8, max_length=256)
     roles: list[str] | None = None
     manager_id: UUID | None = None
+    department_id: UUID | None = None
 
     @field_validator("roles")
     @classmethod

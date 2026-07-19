@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
 import { LoadingState } from "../../components/ui/loading-state";
+import { getApiErrorMessage } from "../../lib/api";
+import { departmentsApi } from "../departments/api";
 import { type ManagedUser, type UserInput, userAdminApi } from "./api";
 import { UserForm } from "./UserForm";
 
@@ -21,6 +23,7 @@ export function UsersPage() {
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const users = useQuery({ queryKey: ["users"], queryFn: userAdminApi.list });
   const roles = useQuery({ queryKey: ["roles"], queryFn: userAdminApi.listRoles });
+  const departments = useQuery({ queryKey: ["departments", "active"], queryFn: () => departmentsApi.list() });
 
   const refreshUserData = () => {
     queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -72,14 +75,15 @@ export function UsersPage() {
             {bulkFile ? bulkFile.name : "Choose CSV"}
           </label>
           <Button disabled={!bulkFile || bulkCreate.isPending} onClick={() => bulkFile && bulkCreate.mutate(bulkFile)} variant="outline">{bulkCreate.isPending ? "Inviting…" : "Bulk invite"}</Button>
-          <Button disabled={roles.isLoading || roles.isError} onClick={openCreate}>Invite user</Button>
+          <Button disabled={roles.isLoading || roles.isError || departments.isLoading || departments.isError || !(departments.data?.length)} onClick={openCreate}>Invite user</Button>
         </div>
       </header>
 
       {users.isLoading && <LoadingState label="Loading users" />}
       {users.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load users.</p>}
       {roles.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">Unable to load available roles.</p>}
-      {bulkCreate.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700" role="alert">Bulk invite failed. Use a CSV with email, full_name, and semicolon-separated roles columns.</p>}
+      {departments.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">{getApiErrorMessage(departments.error, "Unable to load departments. Create or restore a department before inviting users.")}</p>}
+      {bulkCreate.isError && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-700" role="alert">{getApiErrorMessage(bulkCreate.error, "Bulk invite failed. Use a CSV with email, full_name, and semicolon-separated roles columns.")}</p>}
       {bulkCreate.data && <p className="rounded-md bg-orange-50 p-3 text-sm text-orange-800">Invited {bulkCreate.data.created_count} user(s); {bulkCreate.data.error_count} row(s) need review.</p>}
 
       {users.data?.length === 0 && (
@@ -151,14 +155,16 @@ export function UsersPage() {
         </table>
       </div>
 
-      {deactivateUser.isError && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">Unable to deactivate this user.</p>}
+      {deactivateUser.isError && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">{getApiErrorMessage(deactivateUser.error, "Unable to deactivate this user.")}</p>}
 
       <UserForm
         isError={saveUser.isError}
         isPending={saveUser.isPending}
+        errorMessage={saveUser.isError ? getApiErrorMessage(saveUser.error, "Unable to save this user. Review the details and try again.") : undefined}
         onOpenChange={setFormOpen}
         onSubmit={(input) => saveUser.mutate(input)}
         open={formOpen}
+        departments={departments.data ?? []}
         roles={roles.data ?? []}
         user={editingUser}
         users={users.data ?? []}

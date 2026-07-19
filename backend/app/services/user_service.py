@@ -22,6 +22,7 @@ from app.models.role_permission import RolePermission
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.services.audit_service import record_audit
+from app.services import department_service
 
 
 class UserServiceError(Exception):
@@ -413,6 +414,7 @@ def validate_user_creation(
     db: Session,
     *,
     organization_id: uuid.UUID,
+    department_id: uuid.UUID,
     email: str,
     role_codes: Iterable[str],
     manager_id: uuid.UUID | None,
@@ -423,6 +425,10 @@ def validate_user_creation(
     normalized_email = email.lower()
     if _email_exists(db, organization_id, normalized_email):
         raise UserServiceError("A user with that email already exists", 409)
+    try:
+        department_service.require_assignable_department(db, department_id, organization_id)
+    except department_service.DepartmentNotFoundError as exc:
+        raise UserServiceError("Select an active department in the request organization", 422) from exc
     _active_role_records(db, role_codes)
     _validate_manager(db, organization_id, manager_id)
 
@@ -442,6 +448,7 @@ def create_user(
     validate_user_creation(
         db,
         organization_id=organization_id,
+        department_id=department_id,
         email=email,
         role_codes=role_codes,
         manager_id=manager_id,
@@ -574,6 +581,7 @@ def update_user(
         "email": user.email,
         "full_name": user.full_name,
         "manager_id": str(user.manager_user_id) if user.manager_user_id else None,
+        "department_id": str(user.department_id),
         "roles": role_codes_for_user(db, user.id),
     }
 
@@ -597,6 +605,19 @@ def update_user(
             manager_id = uuid.UUID(str(manager_id))
         _validate_manager(db, organization_id, manager_id, user.id)
         user.manager_user_id = manager_id
+    if "department_id" in changes:
+        department_id = changes["department_id"]
+        if department_id is None:
+            raise UserServiceError("Department is required", 422)
+        try:
+            department = department_service.require_assignable_department(
+                db,
+                department_id,
+                organization_id,
+            )
+        except department_service.DepartmentNotFoundError as exc:
+            raise UserServiceError("Select an active department in the request organization", 422) from exc
+        user.department_id = department.id
 
     record_audit(
         db,
@@ -608,6 +629,7 @@ def update_user(
             "email": user.email,
             "full_name": user.full_name,
             "manager_id": str(user.manager_user_id) if user.manager_user_id else None,
+            "department_id": str(user.department_id),
             "roles": sorted(changes["roles"]) if changes.get("roles") is not None else role_codes_for_user(db, user.id),
         },
     )

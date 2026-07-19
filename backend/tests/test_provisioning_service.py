@@ -93,3 +93,52 @@ def test_invite_user_turns_rate_limit_into_retryable_error(monkeypatch):
             organization_id="org_123",
         )
     assert error.value.status_code == 429
+
+
+def test_invite_user_reports_rejected_service_credential_as_configuration_failure(monkeypatch):
+    def fake_urlopen(_request, timeout):
+        raise HTTPError(
+            "https://test.supabase.co/auth/v1/invite",
+            401,
+            "Unauthorized",
+            hdrs=None,
+            fp=io.BytesIO(b'{"message":"Invalid API key"}'),
+        )
+
+    monkeypatch.setattr(supabase_provisioning_service, "urlopen", fake_urlopen)
+    with pytest.raises(supabase_provisioning_service.SupabaseProvisioningError) as error:
+        supabase_provisioning_service.invite_user(
+            settings=_settings(),
+            email="employee@example.com",
+            full_name="Employee Example",
+            organization_id="org_123",
+        )
+
+    assert error.value.status_code == 503
+    assert error.value.detail == (
+        "Supabase user provisioning credentials were rejected. "
+        "Rotate SUPABASE_SERVICE_ROLE_KEY on the API service."
+    )
+
+
+def test_invite_user_exposes_upstream_validation_errors_as_unprocessable_content(monkeypatch):
+    def fake_urlopen(_request, timeout):
+        raise HTTPError(
+            "https://test.supabase.co/auth/v1/invite",
+            422,
+            "Unprocessable Content",
+            hdrs=None,
+            fp=io.BytesIO(b'{"msg":"Email address is invalid"}'),
+        )
+
+    monkeypatch.setattr(supabase_provisioning_service, "urlopen", fake_urlopen)
+    with pytest.raises(supabase_provisioning_service.SupabaseProvisioningError) as error:
+        supabase_provisioning_service.invite_user(
+            settings=_settings(),
+            email="employee@example.com",
+            full_name="Employee Example",
+            organization_id="org_123",
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.detail == "Email address is invalid"

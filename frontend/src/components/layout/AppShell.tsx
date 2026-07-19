@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bank,
+  Buildings,
   CaretLeft,
   CaretRight,
   ChartBar,
@@ -42,6 +43,7 @@ const navigation: readonly NavigationItem[] = [
   { to: "/categories", label: "Categories", permission: "category:manage", Icon: ListChecks },
   { to: "/workflows", label: "Workflows", permission: "workflow:manage", Icon: GitBranch },
   { to: "/vendors", label: "Vendors", permission: "vendor:manage", Icon: Storefront },
+  { to: "/departments", label: "Departments", permission: "user:update", Icon: Buildings },
   { to: "/users", label: "Users", permission: "user:read", Icon: Users },
   { to: "/org-chart", label: "Org chart", permission: "user:read", Icon: GitBranch },
   { to: "/admin/access-requests", label: "Access Requests", permission: "access_request:manage", Icon: CheckSquare },

@@ -28,6 +28,11 @@ const OrgChartPage = lazy(async () => {
   return { default: module.OrgChartPage };
 });
 
+const DepartmentsPage = lazy(async () => {
+  const module = await import("./features/departments/DepartmentsPage");
+  return { default: module.DepartmentsPage };
+});
+
 const PoliciesPage = lazy(async () => {
   const module = await import("./features/policies/PoliciesPage");
   return { default: module.PoliciesPage };
@@ -140,6 +145,7 @@ function AppContent() {
       <Route path="/access-denied" element={<AccessDeniedPage />} />
       <Route path="/oauth-configuration" element={<OAuthConfigurationPage />} />
       <Route path="/users" element={<ProtectedRoute><RequirePermission permission="user:read"><UsersPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/departments" element={<ProtectedRoute><RequirePermission permission="user:update"><DepartmentsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/org-chart" element={<ProtectedRoute><RequirePermission permission="user:read"><OrgChartPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />

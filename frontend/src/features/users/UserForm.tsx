@@ -5,6 +5,7 @@ import { Form, FormField } from "../../components/ui/form";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Select } from "../../components/ui/select";
+import type { Department } from "../departments/api";
 import type { ManagedUser, RoleOption, UserInput } from "./api";
 
 type FormValues = {
@@ -12,6 +13,7 @@ type FormValues = {
   full_name: string;
   roles: string[];
   manager_id: string;
+  department_id: string;
 };
 
 type UserFormProps = {
@@ -19,28 +21,32 @@ type UserFormProps = {
   onOpenChange: (open: boolean) => void;
   user: ManagedUser | null;
   users: ManagedUser[];
+  departments: Department[];
   roles: RoleOption[];
   onSubmit: (input: UserInput) => void;
   isPending: boolean;
   isError: boolean;
+  errorMessage?: string;
 };
 
-function emptyValues(roles: RoleOption[]): FormValues {
+function emptyValues(roles: RoleOption[], departments: Department[]): FormValues {
   return {
     email: "",
     full_name: "",
     roles: roles.some((role) => role.code === "employee") ? ["employee"] : [],
     manager_id: "",
+    department_id: departments.find((department) => department.status === "active")?.id ?? "",
   };
 }
 
-function valuesFor(user: ManagedUser | null, roles: RoleOption[]): FormValues {
-  if (!user) return emptyValues(roles);
+function valuesFor(user: ManagedUser | null, roles: RoleOption[], departments: Department[]): FormValues {
+  if (!user) return emptyValues(roles, departments);
   return {
     email: user.email,
     full_name: user.full_name,
     roles: user.roles,
     manager_id: user.manager_id ?? "",
+    department_id: user.department_id ?? "",
   };
 }
 
@@ -49,12 +55,14 @@ export function UserForm({
   onOpenChange,
   user,
   users,
+  departments,
   roles,
   onSubmit,
   isPending,
   isError,
+  errorMessage,
 }: UserFormProps) {
-  const [values, setValues] = useState<FormValues>(() => valuesFor(user, roles));
+  const [values, setValues] = useState<FormValues>(() => valuesFor(user, roles, departments));
   const [validationMessage, setValidationMessage] = useState("");
   const isEditing = Boolean(user);
   const managerCandidates = useMemo(
@@ -68,9 +76,9 @@ export function UserForm({
 
   useEffect(() => {
     if (!open) return;
-    setValues(valuesFor(user, roles));
+    setValues(valuesFor(user, roles, departments));
     setValidationMessage("");
-  }, [open, roles, user]);
+  }, [departments, open, roles, user]);
 
   const setRoleSelected = (roleCode: string, selected: boolean) => {
     setValues((current) => ({
@@ -86,12 +94,17 @@ export function UserForm({
       setValidationMessage("Select at least one role.");
       return;
     }
+    if (!values.department_id) {
+      setValidationMessage("Select an active department.");
+      return;
+    }
 
     const input: UserInput = {
       email: values.email.trim(),
       full_name: values.full_name.trim(),
       roles: values.roles,
       manager_id: values.manager_id || null,
+      department_id: values.department_id,
     };
 
     onSubmit(input);
@@ -127,12 +140,19 @@ export function UserForm({
               <Label htmlFor="user-email">Email</Label>
               <Input
                 autoComplete="email"
+                aria-describedby={isEditing ? "user-email-help" : undefined}
+                disabled={isEditing}
                 id="user-email"
                 onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))}
                 required
                 type="email"
                 value={values.email}
               />
+              {isEditing && (
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300" id="user-email-help">
+                  Email is managed and verified by Supabase Auth.
+                </p>
+              )}
             </FormField>
           </div>
 
@@ -179,8 +199,29 @@ export function UserForm({
             )}
           </FormField>
 
+          <FormField>
+            <Label htmlFor="user-department">Department</Label>
+            <Select
+              id="user-department"
+              onChange={(event) => setValues((current) => ({ ...current, department_id: event.target.value }))}
+              required
+              value={values.department_id}
+            >
+              <option disabled value="">Select a department</option>
+              {departments.filter((department) => department.status === "active").map((department) => (
+                <option key={department.id} value={department.id}>{department.name} ({department.code})</option>
+              ))}
+              {user?.department_id && !departments.some((department) => department.id === user.department_id && department.status === "active") && (
+                <option value={user.department_id}>{user.department_name ?? "Current department"} (inactive)</option>
+              )}
+            </Select>
+            {departments.filter((department) => department.status === "active").length === 0 && (
+              <p className="mt-2 text-xs text-orange-600 dark:text-orange-300">Create an active department before inviting employees.</p>
+            )}
+          </FormField>
+
           {validationMessage && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">{validationMessage}</p>}
-          {isError && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">Unable to save this user. Review the details and try again.</p>}
+          {isError && <p className="text-sm text-orange-600 dark:text-orange-300" role="alert">{errorMessage ?? "Unable to save this user. Review the details and try again."}</p>}
 
           <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
             <Button disabled={isPending} onClick={() => onOpenChange(false)} variant="outline">Cancel</Button>

@@ -173,8 +173,16 @@ class GroqNarrativeProvider:
         except ImportError as exc:  # pragma: no cover - depends on optional install
             raise RuntimeError("Groq support is not installed") from exc
 
+        model = self._model
+        base_url = None
+        if self._api_key.startswith("nvapi-"):
+            base_url = "https://integrate.api.nvidia.com/v1"
+            if model in ("llama-3.1-8b-instant", "openai/gpt-oss-20b"):
+                model = "meta/llama-3.1-8b-instruct"
+
         client = AsyncGroq(
             api_key=self._api_key,
+            base_url=base_url,
             timeout=self._timeout_seconds,
             # The resilient wrapper owns all retries. Disabling SDK retries
             # bounds each attempt to one cancellable network request.
@@ -182,7 +190,7 @@ class GroqNarrativeProvider:
         )
         try:
             response = await client.chat.completions.create(
-                model=self._model,
+                model=model,
                 messages=(
                     {
                         "role": "system",

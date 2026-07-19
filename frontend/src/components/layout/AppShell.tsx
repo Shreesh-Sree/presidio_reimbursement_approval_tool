@@ -24,6 +24,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { hasPermission, isAdministrator } from "../../auth/permissions";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
+import { RoleAwareAIChatbot } from "../ai/RoleAwareAIChatbot";
 
 type ServiceTag = "AI" | "OCR";
 type NavigationItem = {
@@ -122,6 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         {children}
       </section>
+      <RoleAwareAIChatbot />
     </div>
   );
 }

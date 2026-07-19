@@ -58,6 +58,21 @@ def _active_category(
     return category
 
 
+def get_category_by_code(
+    db: Session,
+    code: str,
+    organization_id: str | uuid.UUID,
+) -> ExpenseCategory | None:
+    resolved_organization_id = _organization_id(organization_id)
+    return db.scalar(
+        select(ExpenseCategory).where(
+            ExpenseCategory.organization_id == resolved_organization_id,
+            func.lower(ExpenseCategory.code) == code.strip().lower(),
+            ExpenseCategory.is_deleted.is_(False),
+        )
+    )
+
+
 def _ensure_code_available(
     db: Session,
     code: str,
@@ -113,6 +128,10 @@ def create_category(
     description: str | None = None,
     receipt_required: bool = True,
     max_amount: Decimal | float | None = None,
+    max_per_day: Decimal | float | None = None,
+    max_per_trip: Decimal | float | None = None,
+    per_category_cap: Decimal | float | None = None,
+    receipt_required_above: Decimal | float | None = None,
 ) -> ExpenseCategory:
     resolved_organization_id = _organization_id(organization_id)
     normalized_code = code.strip().upper()
@@ -120,6 +139,23 @@ def create_category(
     if not normalized_code or not normalized_name:
         raise CategoryConflictError("Category code and name are required")
     _ensure_code_available(db, normalized_code, resolved_organization_id)
+
+    # Requirement 3: Every Category MUST have Policy Rules attached upon creation
+    effective_max_per_day = max_per_day if max_per_day is not None else max_amount
+    effective_receipt_above = receipt_required_above
+    if effective_receipt_above is None and receipt_required:
+        effective_receipt_above = Decimal("0.00")
+
+    if (
+        effective_max_per_day is None
+        and max_per_trip is None
+        and per_category_cap is None
+        and effective_receipt_above is None
+    ):
+        raise CategoryConflictError(
+            "Categories can only be created if policy rules (e.g. daily limit, trip limit, or receipt threshold) are defined for the category."
+        )
+
     category = ExpenseCategory(
         organization_id=resolved_organization_id,
         code=normalized_code,
@@ -132,9 +168,52 @@ def create_category(
         ),
         description=description.strip() if description else None,
         receipt_required=receipt_required,
-        max_amount=Decimal(str(max_amount)) if max_amount is not None else None,
+        max_amount=Decimal(str(effective_max_per_day)) if effective_max_per_day is not None else None,
     )
     db.add(category)
+    db.flush()
+
+    # Link/create PolicyRule under the organization's active Policy
+    from app.models.policy import Policy, PolicyRule
+    from datetime import datetime, UTC
+
+    active_policy = db.scalar(
+        select(Policy).where(
+            Policy.organization_id == resolved_organization_id,
+            Policy.is_active.is_(True),
+            Policy.is_deleted.is_(False),
+        )
+    )
+    if active_policy is None:
+        active_policy = Policy(
+            organization_id=resolved_organization_id,
+            name="Default Corporate Expense Policy",
+            version_label="v1.0",
+            is_active=True,
+            effective_from=datetime.now(UTC),
+        )
+        db.add(active_policy)
+        db.flush()
+
+    # Check if a PolicyRule for this category already exists under active policy
+    existing_rule = db.scalar(
+        select(PolicyRule).where(
+            PolicyRule.policy_id == active_policy.id,
+            PolicyRule.category_id == category.id,
+            PolicyRule.is_deleted.is_(False),
+        )
+    )
+    if existing_rule is None:
+        rule = PolicyRule(
+            policy_id=active_policy.id,
+            category_id=category.id,
+            max_per_day=Decimal(str(effective_max_per_day)) if effective_max_per_day is not None else None,
+            max_per_trip=Decimal(str(max_per_trip)) if max_per_trip is not None else None,
+            per_category_cap=Decimal(str(per_category_cap)) if per_category_cap is not None else None,
+            receipt_required_above=Decimal(str(effective_receipt_above)) if effective_receipt_above is not None else None,
+        )
+        db.add(rule)
+
     try:
         db.commit()
     except IntegrityError as exc:

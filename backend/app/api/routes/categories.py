@@ -24,6 +24,10 @@ class CategoryCreateInput(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     receipt_required: bool = True
     max_amount: Decimal | None = Field(default=None, ge=0)
+    max_per_day: Decimal | None = Field(default=None, ge=0)
+    max_per_trip: Decimal | None = Field(default=None, ge=0)
+    per_category_cap: Decimal | None = Field(default=None, ge=0)
+    receipt_required_above: Decimal | None = Field(default=None, ge=0)
 
 
 class CategoryUpdateInput(BaseModel):
@@ -33,6 +37,11 @@ class CategoryUpdateInput(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     receipt_required: bool | None = None
     max_amount: Decimal | None = Field(default=None, ge=0)
+    max_per_day: Decimal | None = Field(default=None, ge=0)
+    max_per_trip: Decimal | None = Field(default=None, ge=0)
+    per_category_cap: Decimal | None = Field(default=None, ge=0)
+    receipt_required_above: Decimal | None = Field(default=None, ge=0)
+
 
 
 def _category_error(exc: Exception) -> None:

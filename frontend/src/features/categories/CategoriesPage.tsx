@@ -15,9 +15,20 @@ type CategoryFormState = {
   name: string;
   parent_id: string;
   description: string;
+  max_per_day: string;
+  max_per_trip: string;
+  receipt_required_above: string;
 };
 
-const emptyForm: CategoryFormState = { code: "", name: "", parent_id: "", description: "" };
+const emptyForm: CategoryFormState = {
+  code: "",
+  name: "",
+  parent_id: "",
+  description: "",
+  max_per_day: "",
+  max_per_trip: "",
+  receipt_required_above: "",
+};
 
 function flattenCategories(categories: Category[]): Category[] {
   return categories.flatMap((category) => [
@@ -48,6 +59,11 @@ function CategoryBranch({ category, depth, onEdit, onDelete }: { category: Categ
           <p className="font-semibold text-slate-950 dark:text-white">{category.name}</p>
           <p className="text-sm text-slate-600 dark:text-slate-300">
             {category.code}{category.description ? ` · ${category.description}` : ""}
+            {(category.max_per_day != null || category.max_amount != null) && (
+              <span className="ml-2 inline-flex items-center rounded-md bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950 dark:text-orange-300">
+                Max ${category.max_per_day ?? category.max_amount}/day
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -83,6 +99,9 @@ export function CategoriesPage() {
       name: editingCategory.name,
       parent_id: editingCategory.parent_id ?? "",
       description: editingCategory.description ?? "",
+      max_per_day: editingCategory.max_per_day != null ? String(editingCategory.max_per_day) : (editingCategory.max_amount != null ? String(editingCategory.max_amount) : ""),
+      max_per_trip: editingCategory.max_per_trip != null ? String(editingCategory.max_per_trip) : "",
+      receipt_required_above: editingCategory.receipt_required_above != null ? String(editingCategory.receipt_required_above) : "",
     } : emptyForm);
   }, [dialogOpen, editingCategory]);
 
@@ -93,6 +112,10 @@ export function CategoriesPage() {
         name: values.name,
         parent_id: values.parent_id || null,
         description: values.description || null,
+        max_per_day: values.max_per_day ? Number(values.max_per_day) : undefined,
+        max_per_trip: values.max_per_trip ? Number(values.max_per_trip) : undefined,
+        receipt_required_above: values.receipt_required_above ? Number(values.receipt_required_above) : undefined,
+        max_amount: values.max_per_day ? Number(values.max_per_day) : undefined,
       };
       return editingCategory ? categoriesApi.update(editingCategory.id, input) : categoriesApi.create(input);
     },
@@ -123,7 +146,7 @@ export function CategoriesPage() {
         <div>
           <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Policy management</p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Expense categories</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Organize categories into a hierarchy for policy rules and report line items.</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Organize categories with mandatory policy rules for expense compliance.</p>
         </div>
         <div className="flex gap-2"><Button onClick={() => setShowArchived((value) => !value)} variant="outline">{showArchived ? "Hide archived" : "Archived categories"}</Button><Button onClick={openCreate}>New category</Button></div>
       </header>
@@ -162,9 +185,9 @@ export function CategoriesPage() {
       <Dialog onOpenChange={setDialogOpen} open={dialogOpen}>
         <DialogContent>
           <DialogTitle>{editingCategory ? "Edit category" : "New category"}</DialogTitle>
-          <DialogDescription>Use a parent category to create a nested hierarchy.</DialogDescription>
+          <DialogDescription>Every category must have policy rules defined to govern employee claims.</DialogDescription>
           <Form
-            className="mt-5"
+            className="mt-5 space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
               saveCategory.mutate();
@@ -191,7 +214,27 @@ export function CategoriesPage() {
               <Label htmlFor="category-description">Description</Label>
               <Input id="category-description" onChange={(event) => setValues((current) => ({ ...current, description: event.target.value }))} value={values.description} />
             </FormField>
-            {saveCategory.isError && <p className="text-sm text-orange-600">Unable to save this category.</p>}
+
+            <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-900/40 dark:bg-orange-950/20">
+              <p className="text-xs font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300">Mandatory Category Policy Rules</p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Rules defined here directly enforce limits during employee claim submission.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <FormField>
+                  <Label htmlFor="category-max-day">Daily Limit ($)</Label>
+                  <Input id="category-max-day" onChange={(e) => setValues((c) => ({ ...c, max_per_day: e.target.value }))} placeholder="75.00" required={!editingCategory} step="0.01" type="number" value={values.max_per_day} />
+                </FormField>
+                <FormField>
+                  <Label htmlFor="category-max-trip">Trip Limit ($)</Label>
+                  <Input id="category-max-trip" onChange={(e) => setValues((c) => ({ ...c, max_per_trip: e.target.value }))} placeholder="500.00" step="0.01" type="number" value={values.max_per_trip} />
+                </FormField>
+                <FormField>
+                  <Label htmlFor="category-receipt-above">Receipt Req. Above ($)</Label>
+                  <Input id="category-receipt-above" onChange={(e) => setValues((c) => ({ ...c, receipt_required_above: e.target.value }))} placeholder="25.00" step="0.01" type="number" value={values.receipt_required_above} />
+                </FormField>
+              </div>
+            </div>
+
+            {saveCategory.isError && <p className="text-sm text-orange-600">Unable to save this category. Ensure policy rules are specified.</p>}
             <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
               <Button onClick={() => setDialogOpen(false)} variant="outline">Cancel</Button>
               <Button disabled={saveCategory.isPending} type="submit">{saveCategory.isPending ? "Saving…" : "Save category"}</Button>
@@ -199,6 +242,7 @@ export function CategoriesPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
       <ConfirmDialog
         description={`Delete ${deletingCategory?.name ?? "this category"}? This cannot be undone.`}
         onConfirm={() => deletingCategory && deleteCategory.mutate(deletingCategory.id, { onSuccess: () => setDeletingCategory(null) })}

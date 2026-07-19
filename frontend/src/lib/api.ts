@@ -122,6 +122,10 @@ export type Category = {
   description?: string | null;
   receipt_required?: boolean;
   max_amount?: number | null;
+  max_per_day?: number | null;
+  max_per_trip?: number | null;
+  per_category_cap?: number | null;
+  receipt_required_above?: number | null;
   is_deleted?: boolean;
   children?: Category[];
 };
@@ -413,11 +417,38 @@ export type ManagedUser = {
   status: string;
 };
 
+const PRIMARY_API_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const BACKUP_AZURE_API_URL = import.meta.env.VITE_AZURE_BACKUP_API_URL ?? "https://presidio-backend.azurewebsites.net/api";
+
+let activeBaseUrl = PRIMARY_API_URL;
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "/api",
+  baseURL: activeBaseUrl,
   headers: { "Content-Type": "application/json" },
   timeout: API_REQUEST_TIMEOUT_MS,
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const isNetworkOrTimeout =
+      !error.response ||
+      error.code === "ERR_NETWORK" ||
+      error.code === "ECONNABORTED" ||
+      error.code === "ETIMEDOUT";
+
+    if (isNetworkOrTimeout && activeBaseUrl !== BACKUP_AZURE_API_URL && error.config && !error.config._isRetry) {
+      console.warn(
+        `[Failover] Primary backend unreachable (${activeBaseUrl}). Failover to Azure Cloud Backup (${BACKUP_AZURE_API_URL})`
+      );
+      activeBaseUrl = BACKUP_AZURE_API_URL;
+      apiClient.defaults.baseURL = BACKUP_AZURE_API_URL;
+      const retryConfig = { ...error.config, baseURL: BACKUP_AZURE_API_URL, _isRetry: true };
+      return apiClient(retryConfig);
+    }
+    return Promise.reject(error);
+  }
+);
 
 /**
  * The provider is supplied by the auth session hook, never persisted by
@@ -497,6 +528,18 @@ export const policiesApi = {
   create: (input: PolicyInput) => unwrap(apiClient.post<Policy>("/policies", input)),
   update: (policyId: string, input: PolicyInput) => unwrap(apiClient.patch<Policy>(`/policies/${policyId}`, input)),
   activate: (policyId: string) => unwrap(apiClient.post<Policy>(`/policies/${policyId}/activate`)),
+  extractAndApply: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return unwrap(
+      apiClient.post<{ status: string; created: number; updated: number; total: number }>("/policies/extract", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+    );
+  },
+  getExcelTemplateUrl: () => `/api/policies/templates/excel`,
+  getPdfTemplateUrl: () => `/api/policies/templates/pdf`,
+
   indexAssistant: (policyId: string, content: string) =>
     unwrap(apiClient.post<PolicyAssistantIndexResponse>(`/policies/${policyId}/assistant-index`, { content })),
   askAssistant: (policyId: string, input: PolicyAssistantQuestion) =>

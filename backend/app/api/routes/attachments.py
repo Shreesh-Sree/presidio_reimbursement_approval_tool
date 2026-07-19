@@ -14,7 +14,9 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_permission
 from app.models.expense_item import ExpenseItem
 from app.models.expense_report import ExpenseReport
+from app.models.policy import Policy
 from app.services import report_service, storage_service
+from app.services.upload_guard import UploadTooLargeError, read_bounded_upload_sync
 
 
 router = APIRouter(tags=["attachments"])
@@ -55,7 +57,7 @@ def _ensure_item_owner(db: Session, item: ExpenseItem, user: dict[str, str]) -> 
 
 
 @router.post("/api/items/{item_id}/receipt", status_code=status.HTTP_201_CREATED)
-async def upload_receipt(
+def upload_receipt(
     item_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -67,7 +69,9 @@ async def upload_receipt(
     try:
         item = _expense_item(db, item_id)
         _ensure_item_owner(db, item, user)
-        content = await file.read()
+        content = read_bounded_upload_sync(
+            file, max_bytes=storage_service._max_upload_bytes("receipt")
+        )
         attachment = storage_service.create_attachment(
             db,
             entity_type="expense_item_receipt",
@@ -83,6 +87,9 @@ async def upload_receipt(
         committed = True
         db.refresh(attachment)
         return storage_service.attachment_payload(attachment)
+    except UploadTooLargeError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc)) from exc
     except storage_service.UploadValidationError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -98,11 +105,11 @@ async def upload_receipt(
                 storage_service.delete_storage_path(stored_path)
             except storage_service.StorageError:
                 pass
-        await file.close()
+        file.file.close()
 
 
 @router.get("/api/attachments/{attachment_id}/download")
-async def download_attachment(
+def download_attachment(
     attachment_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(get_current_user),
@@ -131,7 +138,23 @@ async def download_attachment(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
     elif attachment.entity_type == "policy_document":
         permissions = set(user.get("permissions", []))
-        if "*" not in permissions and "policy:manage" not in permissions:
+        is_global_operator = "*" in permissions
+        if not is_global_operator and "policy:manage" not in permissions:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
+        policy_query = select(Policy).where(
+            Policy.id == attachment.entity_id,
+            Policy.uploaded_document_attachment_id == attachment.id,
+            Policy.is_deleted.is_(False),
+        )
+        # Tenant administrators are never authorized merely because they hold
+        # a broad policy permission.  Resolve the attachment's owner first and
+        # apply the same tenant boundary used by policy administration.  ``*``
+        # is reserved for an explicitly provisioned platform operator.
+        if not is_global_operator:
+            policy_query = policy_query.where(
+                Policy.organization_id == uuid.UUID(str(user["organization_id"]))
+            )
+        if db.scalar(policy_query) is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")

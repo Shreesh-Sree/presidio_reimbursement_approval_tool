@@ -188,23 +188,46 @@ class S3Storage:
 
 
 
+def _managed_identity_blob_service_client(account_url: str):
+    """Create the data-plane client without persisting a storage account key."""
+
+    try:
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobServiceClient
+    except ImportError as exc:  # pragma: no cover - dependency is part of production extras
+        raise StorageError("azure-identity and azure-storage-blob are required for Azure Blob storage") from exc
+    return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())
+
+
 class AzureBlobStorage:
-    """Azure Blob Storage backend for production file uploads."""
+    """Azure Blob Storage backend using managed identity in deployed environments."""
 
     scheme = "azure://"
 
     def __init__(self):
         settings = get_settings()
+        account_url = settings.azure_storage_account_url.strip()
         conn_str = settings.azure_storage_connection_string
         container = settings.azure_storage_container
-        if not conn_str or not container:
-            raise StorageError("Azure Blob Storage is not configured: set AZURE_STORAGE_CONNECTION_STRING and AZURE_STORAGE_CONTAINER")
-        try:
-            from azure.storage.blob import BlobServiceClient
-        except ImportError as exc:
-            raise StorageError("azure-storage-blob is required when STORAGE_BACKEND=azure") from exc
+        if not container:
+            raise StorageError("AZURE_STORAGE_CONTAINER is required when STORAGE_BACKEND=azure")
         self.container_name = container
-        self.client = BlobServiceClient.from_connection_string(conn_str)
+        if account_url:
+            self.client = _managed_identity_blob_service_client(account_url)
+        elif conn_str and settings.deployment_environment in {"local", "test"}:
+            try:
+                from azure.storage.blob import BlobServiceClient
+            except ImportError as exc:  # pragma: no cover - dependency is part of production extras
+                raise StorageError("azure-storage-blob is required when STORAGE_BACKEND=azure") from exc
+            self.client = BlobServiceClient.from_connection_string(conn_str)
+        elif conn_str:
+            raise StorageError(
+                "AZURE_STORAGE_CONNECTION_STRING is local/test-only; configure AZURE_STORAGE_ACCOUNT_URL and managed identity"
+            )
+        else:
+            raise StorageError(
+                "Azure Blob Storage is not configured: set AZURE_STORAGE_ACCOUNT_URL and AZURE_STORAGE_CONTAINER"
+            )
         self.container_client = self.client.get_container_client(container)
 
     def put(self, key: str, content: bytes) -> str:
@@ -302,7 +325,7 @@ def _storage_for_path(storage_path: str):
 
 
 def _active_storage():
-    backend = os.getenv("STORAGE_BACKEND", "local").lower()
+    backend = get_settings().storage_backend
     if backend == "local":
         return LocalStorage()
     if backend == "s3":

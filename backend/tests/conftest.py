@@ -20,6 +20,7 @@ from sqlalchemy.pool import StaticPool
 # Settings are read during app imports, so set safe test defaults first.
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("JWT_SECRET", "a-very-long-secret-key-for-testing-at-least-32-bytes-long-definitely")
+os.environ.setdefault("DEPLOYMENT_ENVIRONMENT", "test")
 os.environ.setdefault("AUTH_PROVIDER", "local")
 os.environ.setdefault("AI_REVIEW_REFERENCE_HMAC_KEY", "test-ai-review-reference-key")
 os.environ.setdefault("S3_BUCKET", "test-bucket")
@@ -127,8 +128,13 @@ def seeded_policy(db, seeded_org):
 
 
 @pytest.fixture()
-def seeded_category(db):
-    category = ExpenseCategory(code="TRAVEL", name="Travel", receipt_required=True)
+def seeded_category(db, seeded_org):
+    category = ExpenseCategory(
+        organization_id=seeded_org.id,
+        code="TRAVEL",
+        name="Travel",
+        receipt_required=True,
+    )
     db.add(category)
     db.flush()
     return category

@@ -11,7 +11,7 @@ const variants: Record<ButtonVariant, string> = {
   default: "bg-[#0071e3] text-white hover:bg-[#0077ED] focus-visible:outline-[#0071e3]",
   outline: "border border-[#d2d2d7] bg-white text-[#1d1d1f] hover:bg-[#f5f5f7] dark:border-white/12 dark:bg-[#1d1d1f] dark:text-[#f5f5f7] dark:hover:bg-[#2d2d2d]",
   ghost: "text-[#1d1d1f] hover:bg-[#f5f5f7] dark:text-[#f5f5f7] dark:hover:bg-[#2d2d2d]",
-  destructive: "bg-[#ff3b30] text-white hover:bg-[#ff453a] focus-visible:outline-[#ff3b30]",
+  destructive: "bg-[#c5221f] text-white hover:bg-[#a91b17] focus-visible:outline-[#c5221f]",
   secondary: "bg-[#1d1d1f] text-white hover:bg-[#424245] dark:bg-[#f5f5f7] dark:text-[#1d1d1f] dark:hover:bg-white",
 };
 

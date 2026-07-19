@@ -41,7 +41,7 @@ def _raise_delegation_error(exc: Exception) -> None:
 
 
 @router.get("", response_model=list[DelegationResponse])
-async def list_my_delegations(
+def list_my_delegations(
     include_inactive: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
@@ -60,7 +60,7 @@ async def list_my_delegations(
 
 
 @router.post("", response_model=DelegationResponse, status_code=status.HTTP_201_CREATED)
-async def create_my_delegation(
+def create_my_delegation(
     payload: DelegationCreateInput,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
@@ -81,7 +81,7 @@ async def create_my_delegation(
 
 
 @router.get("/candidates")
-async def list_delegation_candidates(
+def list_delegation_candidates(
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),
 ):
@@ -95,7 +95,7 @@ async def list_delegation_candidates(
 
 
 @router.delete("/{delegation_id}", response_model=DelegationResponse)
-async def deactivate_my_delegation(
+def deactivate_my_delegation(
     delegation_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("report:approve")),

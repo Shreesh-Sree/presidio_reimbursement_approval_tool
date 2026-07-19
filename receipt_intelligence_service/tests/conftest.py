@@ -18,6 +18,7 @@ def service_token() -> str:
 @pytest.fixture
 def client(service_token: str):
     settings = ReceiptIntelligenceSettings(
+        environment="test",
         service_token=service_token,
         max_file_bytes=1_024,
         max_text_chars=2_000,

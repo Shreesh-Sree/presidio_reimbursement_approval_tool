@@ -132,6 +132,10 @@ class ReceiptAnalysisRequest(BaseModel):
         max_length=128,
         description="Opaque tenant/organization scope; do not send a display name.",
     )
+    external_provider_consent: bool = Field(
+        default=False,
+        description="Explicit organization-scoped approval for minimized external AI egress.",
+    )
     receipt: ReceiptDocumentInput | None = None
     policy: ReceiptPolicyContext = Field(default_factory=ReceiptPolicyContext)
 
@@ -200,7 +204,9 @@ class OcrRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     media_type: str = Field(pattern=r"^image/(jpeg|png|webp)$")
-    content_base64: str = Field(min_length=4, max_length=140_000_000)
+    # Bound the JSON string before base64 decoding; deployed proxies should
+    # enforce the same or smaller body limit.
+    content_base64: str = Field(min_length=4, max_length=16 * 1024 * 1024)
 
 
 class OcrResponse(BaseModel):

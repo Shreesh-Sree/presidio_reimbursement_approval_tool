@@ -63,6 +63,8 @@ def test_client_uses_bearer_auth_and_sends_only_metadata_with_opaque_references(
         "event_type": "receipt.analysis.requested",
         "event_version": "1.0",
         "organization_scope": result.context.organization_ref,
+        # External-provider egress is an explicit, default-deny tenant gate.
+        "external_provider_consent": False,
         "receipt": {
             "sha256_digest": "a" * 64,
             "media_type": "application/pdf",

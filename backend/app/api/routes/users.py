@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.deps import require_permission
 from app.services import supabase_provisioning_service, user_service
+from app.services.upload_guard import UploadTooLargeError, read_bounded_upload_sync
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -76,7 +77,7 @@ def _create_user_with_invitation(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_user(
+def create_user(
     request: UserCreateRequest,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:create")),
@@ -96,7 +97,7 @@ async def create_user(
 
 
 @router.post("/bulk", status_code=status.HTTP_201_CREATED)
-async def bulk_create_users(
+def bulk_create_users(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:create")),
@@ -111,9 +112,13 @@ async def bulk_create_users(
 
     if file.content_type not in {"text/csv", "application/vnd.ms-excel", "application/csv"}:
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a CSV file")
-    raw = await file.read()
-    if len(raw) > 1_000_000:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="CSV must be 1 MB or smaller")
+    try:
+        raw = read_bounded_upload_sync(file, max_bytes=1_000_000)
+    except UploadTooLargeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="CSV must be 1 MB or smaller",
+        ) from exc
     try:
         rows = list(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))))
     except (UnicodeDecodeError, csv.Error) as exc:
@@ -143,7 +148,7 @@ async def bulk_create_users(
 
 
 @router.get("")
-async def list_users(
+def list_users(
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:read")),
 ):
@@ -152,7 +157,7 @@ async def list_users(
 
 
 @router.get("/{user_id}")
-async def get_user(
+def get_user(
     user_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:read")),
@@ -165,7 +170,7 @@ async def get_user(
 
 
 @router.patch("/{user_id}")
-async def update_user(
+def update_user(
     user_id: UUID,
     request: UserUpdateRequest,
     db: Session = Depends(get_db),
@@ -175,6 +180,14 @@ async def update_user(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Password fields are unavailable when OAuth-only authentication is enabled",
+        )
+    if get_settings().auth_provider == "supabase" and request.email is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Email is managed by Supabase Auth. Change and verify it through the identity provider; "
+                "the next verified sign-in reconciles the application allowlist."
+            ),
         )
     organization_id, _, _ = _scope(current_user)
     try:
@@ -189,7 +202,7 @@ async def update_user(
 
 
 @router.post("/{user_id}/deactivate")
-async def deactivate_user(
+def deactivate_user(
     user_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict[str, object] = Depends(require_permission("user:deactivate")),

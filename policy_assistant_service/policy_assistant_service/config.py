@@ -15,6 +15,7 @@ class PolicyAssistantSettings(BaseSettings):
         env_prefix="POLICY_ASSISTANT_", env_file=".env", extra="ignore"
     )
 
+    environment: Literal["local", "test", "staging", "production"] = "production"
     persistence_backend: Literal["sqlite", "appwrite", "postgresql"] = "sqlite"
     database_path: str = "var/policy-assistant.sqlite3"
     database_url: str | None = Field(default=None, repr=False)
@@ -52,6 +53,17 @@ class PolicyAssistantSettings(BaseSettings):
     def validate_chunk_settings(self) -> "PolicyAssistantSettings":
         if self.chunk_overlap_chars >= self.chunk_size_chars:
             raise ValueError("chunk_overlap_chars must be smaller than chunk_size_chars")
+        if self.environment not in {"local", "test"}:
+            missing: list[str] = []
+            if self.persistence_backend != "postgresql":
+                missing.append("POLICY_ASSISTANT_PERSISTENCE_BACKEND=postgresql")
+            if not self.database_url:
+                missing.append("POLICY_ASSISTANT_DATABASE_URL")
+            if missing:
+                raise ValueError(
+                    "staging and production policy assistant deployments require durable "
+                    f"PostgreSQL configuration: {', '.join(missing)}"
+                )
         if self.persistence_backend == "sqlite":
             raw = self.database_path.strip()
             lowered = raw.lower()

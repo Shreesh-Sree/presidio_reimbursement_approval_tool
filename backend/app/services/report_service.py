@@ -192,8 +192,19 @@ def recompute_total(db: Session, report: ExpenseReport) -> Decimal:
     return report.total_amount
 
 
-def submit_report(db: Session, report_id: uuid.UUID | str, user_id: uuid.UUID | str) -> ExpenseReport:
-    """Validate and submit a report while preserving its applied policy version."""
+def submit_report(
+    db: Session,
+    report_id: uuid.UUID | str,
+    user_id: uuid.UUID | str,
+    *,
+    commit: bool = True,
+) -> ExpenseReport:
+    """Validate and submit a report while preserving its applied policy version.
+
+    ``commit=False`` lets the route include approval levels and integration
+    intents in the exact same transaction.  The public default remains
+    backwards compatible for service callers that submit a report alone.
+    """
 
     report = _require_report(db, report_id)
     _require_owner(report, user_id)
@@ -224,7 +235,10 @@ def submit_report(db: Session, report_id: uuid.UUID | str, user_id: uuid.UUID | 
     if violations:
         # Validation may persist line-item flags; keep the report editable and
         # persist those flags so the UI can explain exactly what needs fixing.
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         raise PolicyViolationError(violations)
 
     before = {"status": report.status, "applied_policy_id": str(report.applied_policy_id)}
@@ -239,8 +253,11 @@ def submit_report(db: Session, report_id: uuid.UUID | str, user_id: uuid.UUID | 
         after={"status": report.status, "applied_policy_id": str(policy.id)},
         performed_by=str(user_id),
     )
-    db.commit()
-    db.refresh(report)
+    if commit:
+        db.commit()
+        db.refresh(report)
+    else:
+        db.flush()
     return report
 
 

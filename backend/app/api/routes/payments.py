@@ -31,7 +31,7 @@ def _scope(user: dict[str, object]) -> tuple[str, str]:
 
 
 @router.get("")
-async def finance_queue(
+def finance_queue(
     status_filter: str | None = Query(default=None, alias="status"),
     batch_id: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
@@ -61,7 +61,7 @@ async def finance_queue(
 
 
 @router.get("/batches")
-async def list_payment_batches(
+def list_payment_batches(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -76,7 +76,7 @@ async def list_payment_batches(
 
 
 @router.post("/batches", status_code=status.HTTP_201_CREATED)
-async def create_payment_batch(
+def create_payment_batch(
     payload: PaymentBatchCreateInput,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("payment:manage")),
@@ -96,7 +96,7 @@ async def create_payment_batch(
 
 
 @router.get("/batches/{batch_id}")
-async def get_payment_batch(
+def get_payment_batch(
     batch_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("payment:manage")),
@@ -110,7 +110,7 @@ async def get_payment_batch(
 
 
 @router.post("/batches/{batch_id}/export")
-async def export_payment_batch(
+def export_payment_batch(
     batch_id: str,
     format: str = Query(default="csv", pattern="^(csv|xlsx|pdf)$"),
     db: Session = Depends(get_db),
@@ -131,7 +131,7 @@ async def export_payment_batch(
 
 
 @router.get("/{payment_id}")
-async def get_payment(
+def get_payment(
     payment_id: str,
     db: Session = Depends(get_db),
     user: dict[str, object] = Depends(require_permission("payment:manage")),
@@ -150,7 +150,7 @@ async def get_payment(
 
 
 @router.post("/{payment_id}/mark-paid")
-async def mark_payment_paid(
+def mark_payment_paid(
     payment_id: str,
     payload: PaymentPaidInput,
     background_tasks: BackgroundTasks,
@@ -180,7 +180,7 @@ async def mark_payment_paid(
 
 
 @router.post("/{payment_id}/mark-failed")
-async def mark_payment_failed(
+def mark_payment_failed(
     payment_id: str,
     payload: PaymentFailedInput,
     background_tasks: BackgroundTasks,

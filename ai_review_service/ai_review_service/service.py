@@ -131,9 +131,9 @@ def build_service(settings: AIReviewSettings | None = None) -> ExpenseReviewServ
         max_attempts=settings.provider_max_attempts,
         retry_backoff_seconds=settings.provider_retry_backoff_seconds,
     )
-    if settings.database_url:
+    if settings.persistence_backend == "postgresql":
         from .postgres_persistence import PostgresReviewRepository
-        repository = PostgresReviewRepository(settings.database_url)
+        repository = PostgresReviewRepository(settings.database_url or "")
     else:
         repository = SqliteReviewRepository(settings.database_path)
     return ExpenseReviewService(

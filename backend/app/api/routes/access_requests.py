@@ -3,8 +3,8 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, EmailStr
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/access-requests", tags=["access-requests"])
 
 class AccessRequestCreate(BaseModel):
     email: EmailStr
-    full_name: str
+    full_name: str = Field(min_length=2, max_length=255)
 
 
 class AccessRequestApprove(BaseModel):
@@ -33,7 +33,11 @@ class AccessRequestResponse(BaseModel):
     requested_at: str
     status: str
 
-@router.post("", response_model=AccessRequestResponse)
+
+class AccessRequestAcknowledgement(BaseModel):
+    status: str = "received"
+
+@router.post("", response_model=AccessRequestAcknowledgement, status_code=status.HTTP_202_ACCEPTED)
 def create_access_request(
     payload: AccessRequestCreate,
     db: Session = Depends(get_db)
@@ -45,21 +49,16 @@ def create_access_request(
             email=payload.email,
             full_name=payload.full_name,
         )
-        return AccessRequestResponse(
-            id=request.id,
-            email=request.email,
-            full_name=request.full_name,
-            requested_at=request.requested_at.isoformat(),
-            status=request.status
-        )
+        # Do not reveal whether the email already has an account/request.
+        return AccessRequestAcknowledgement()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=422, detail="Unable to accept access request") from e
 
 
 @router.get("", response_model=list[AccessRequestResponse])
 def list_pending_requests(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_permission("user:manage"))
+    user: dict = Depends(require_permission("access_request:manage"))
 ):
     """Admin endpoint to list pending access requests."""
     requests = access_request_service.list_pending_requests(
@@ -82,7 +81,7 @@ def approve_request(
     request_id: uuid.UUID,
     payload: AccessRequestApprove,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_permission("user:manage"))
+    user: dict = Depends(require_permission("access_request:manage"))
 ):
     """Admin endpoint to approve access request."""
     try:
@@ -102,7 +101,7 @@ def approve_request(
 def reject_request(
     request_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: dict = Depends(require_permission("user:manage"))
+    user: dict = Depends(require_permission("access_request:manage"))
 ):
     """Admin endpoint to reject access request."""
     try:
@@ -120,7 +119,7 @@ def reject_request(
 @router.get("/count")
 def get_pending_count(
     db: Session = Depends(get_db),
-    user: dict = Depends(require_permission("user:manage"))
+    user: dict = Depends(require_permission("access_request:manage"))
 ):
     """Get count of pending access requests for dashboard badge."""
     count = access_request_service.get_pending_count(db, user["organization_id"])

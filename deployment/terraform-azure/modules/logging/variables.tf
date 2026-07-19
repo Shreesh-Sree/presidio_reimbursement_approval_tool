@@ -18,6 +18,11 @@ variable "retention_days" {
   type        = number
 }
 
+variable "alert_email" {
+  description = "Operational alert recipient managed by the protected environment."
+  type        = string
+}
+
 variable "tags" {
   description = "Resource tags."
   type        = map(string)

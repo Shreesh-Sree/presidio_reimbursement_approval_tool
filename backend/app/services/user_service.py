@@ -41,6 +41,7 @@ SYSTEM_PERMISSIONS: dict[str, str] = {
     "user:read": "View users and organization hierarchy",
     "user:update": "Update users and reporting managers",
     "user:deactivate": "Deactivate users",
+    "access_request:manage": "Review and decide public access requests",
     "policy:manage": "Manage reimbursement policies",
     "category:read": "View expense categories",
     "category:manage": "Manage expense categories",

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import Field, field_validator
+from typing import Literal
+
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +17,8 @@ class ReceiptIntelligenceSettings(BaseSettings):
         extra="ignore",
     )
 
+    environment: Literal["local", "test", "staging", "production"] = "production"
+    persistence_backend: Literal["sqlite", "postgresql"] = "sqlite"
     database_path: str = "var/receipt-intelligence.sqlite3"
     database_url: str | None = Field(default=None, repr=False)
     service_token: str | None = Field(default=None, repr=False)
@@ -36,6 +40,11 @@ class ReceiptIntelligenceSettings(BaseSettings):
     groq_model: str = "llama-3.1-8b-instant"
     groq_timeout_seconds: float = Field(default=8.0, ge=1.0, le=30.0)
     groq_max_attempts: int = Field(default=2, ge=1, le=5)
+    # External LLM use is fail-closed. A caller must separately attest that
+    # the organization has opted in for this event.
+    groq_external_egress_enabled: bool = False
+    groq_max_text_chars: int = Field(default=2_000, ge=256, le=12_000)
+    max_ocr_pixels: int = Field(default=20_000_000, ge=1_000_000, le=100_000_000)
 
     @field_validator("service_token", mode="before")
     @classmethod
@@ -52,3 +61,21 @@ class ReceiptIntelligenceSettings(BaseSettings):
         if not cleaned:
             raise ValueError("at least one allowed media type is required")
         return cleaned
+
+    @model_validator(mode="after")
+    def require_durable_authenticated_runtime(self) -> "ReceiptIntelligenceSettings":
+        if self.environment in {"local", "test"}:
+            return self
+        missing: list[str] = []
+        if not self.service_token:
+            missing.append("RECEIPT_INTELLIGENCE_SERVICE_TOKEN")
+        if self.persistence_backend != "postgresql":
+            missing.append("RECEIPT_INTELLIGENCE_PERSISTENCE_BACKEND=postgresql")
+        if not self.database_url:
+            missing.append("RECEIPT_INTELLIGENCE_DATABASE_URL")
+        if missing:
+            raise ValueError(
+                "staging and production receipt intelligence deployments require durable "
+                f"authenticated configuration: {', '.join(missing)}"
+            )
+        return self

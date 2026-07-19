@@ -44,7 +44,8 @@ code, pre, .font-mono { font-family: "JetBrains Mono", ui-monospace, monospace; 
 
 /* Collapsed sidebar */
 .sidebar.collapsed .wordmark { font-size: 0; padding: 0; }
-.sidebar.collapsed .wordmark span { font-size: 20px; }
+.sidebar.collapsed .wordmark span { display: none; }
+.sidebar.collapsed .sidebar-close { display: none !important; }
 .sidebar.collapsed .sidebar-nav p, .sidebar.collapsed .nav-label, .sidebar.collapsed .service-tag, .sidebar.collapsed .sidebar-foot span { display: none; }
 .sidebar.collapsed .sidebar-nav a { justify-content: center; padding: 0; }
 .sidebar.collapsed .sidebar-foot { justify-content: center; padding-inline: 0; }

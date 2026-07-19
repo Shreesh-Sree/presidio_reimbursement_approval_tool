@@ -123,6 +123,8 @@ def verify_supabase_token(token: str, settings: Settings) -> SupabaseIdentity:
     except (SupabaseTokenError, SupabaseConfigurationError):
         raise
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         raise SupabaseTokenError("OAuth token could not be verified") from exc
 
     subject = claims.get("sub")

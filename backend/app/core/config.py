@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # Object storage remains optional in development. Production uses Appwrite
     # through a server-only API key; S3 is retained as a migration target.
     s3_bucket: str = ""
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
     appwrite_endpoint: str = ""
     appwrite_project_id: str = ""
     appwrite_api_key: str = ""

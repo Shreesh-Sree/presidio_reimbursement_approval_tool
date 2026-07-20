@@ -168,7 +168,13 @@ class S3Storage:
         except ImportError as exc:  # pragma: no cover - dependency is part of production extras
             raise StorageError("boto3 is required when STORAGE_BACKEND=s3") from exc
         self.bucket = settings.s3_bucket
-        self.client = boto3.client("s3", region_name=settings.aws_region)
+        client_kwargs: dict = {"region_name": settings.aws_region}
+        if settings.s3_endpoint_url:
+            client_kwargs["endpoint_url"] = settings.s3_endpoint_url
+        if settings.s3_access_key_id:
+            client_kwargs["aws_access_key_id"] = settings.s3_access_key_id
+            client_kwargs["aws_secret_access_key"] = settings.s3_secret_access_key
+        self.client = boto3.client("s3", **client_kwargs)
 
     def put(self, key: str, content: bytes) -> str:
         self.client.put_object(Bucket=self.bucket, Key=key, Body=content)

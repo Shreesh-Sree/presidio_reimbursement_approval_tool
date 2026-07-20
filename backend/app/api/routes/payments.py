@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.api.payment_schemas import PaymentBatchCreateInput, PaymentFailedInput, PaymentPaidInput
+from app.api.payment_schemas import PaymentBatchCreateInput, PaymentBatchStatusInput, PaymentFailedInput, PaymentPaidInput
 from app.core.database import get_db
 from app.core.deps import require_permission
 from app.services import notification_delivery_service, payment_service
@@ -105,6 +105,26 @@ def get_payment_batch(
     try:
         batch = payment_service.get_batch(db, batch_id, organization_id)
         return payment_service.batch_payload(db, batch, include_payments=True)
+    except Exception as exc:
+        _raise_payment_error(exc)
+
+
+@router.patch("/batches/{batch_id}/status")
+def update_batch_status(
+    batch_id: str,
+    payload: PaymentBatchStatusInput,
+    db: Session = Depends(get_db),
+    user: dict[str, object] = Depends(require_permission("payment:manage")),
+):
+    organization_id, _actor_id = _scope(user)
+    try:
+        batch = payment_service.get_batch(db, batch_id, organization_id)
+        batch.status = payload.status
+        if payload.remarks:
+            batch.remarks = payload.remarks
+        db.commit()
+        db.refresh(batch)
+        return payment_service.batch_payload(db, batch, include_payments=False)
     except Exception as exc:
         _raise_payment_error(exc)
 

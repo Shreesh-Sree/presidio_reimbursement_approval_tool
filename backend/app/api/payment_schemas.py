@@ -17,6 +17,11 @@ class PaymentBatchCreateInput(PaymentApiModel):
     remarks: str | None = Field(default=None, max_length=1_000)
 
 
+class PaymentBatchStatusInput(PaymentApiModel):
+    status: str = Field(pattern="^(created|exported|completed|cancelled)$")
+    remarks: str | None = Field(default=None, max_length=1_000)
+
+
 class PaymentPaidInput(PaymentApiModel):
     provider_reference: str = Field(min_length=1, max_length=150)
     payment_date: date | None = None

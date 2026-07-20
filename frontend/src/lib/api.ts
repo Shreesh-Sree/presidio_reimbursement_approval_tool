@@ -725,6 +725,8 @@ export const paymentsApi = {
     unwrap(apiClient.post<PaymentRecord>(`/payments/${paymentId}/mark-paid`, input)),
   markFailed: (paymentId: string, input: PaymentFailedInput) =>
     unwrap(apiClient.post<PaymentRecord>(`/payments/${paymentId}/mark-failed`, input)),
+  updateBatchStatus: (batchId: string, input: { status: string; remarks?: string | null }) =>
+    unwrap(apiClient.patch<PaymentBatchSummary>(`/payments/batches/${batchId}/status`, input)),
 };
 
 export { apiClient };

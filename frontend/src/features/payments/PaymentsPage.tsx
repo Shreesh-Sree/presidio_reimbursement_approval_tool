@@ -157,6 +157,14 @@ export function PaymentsPage() {
       }
     },
   });
+  const updateBatchStatus = useMutation({
+    mutationFn: ({ id, status: newStatus }: { id: string; status: string }) =>
+      paymentsApi.updateBatchStatus(id, { status: newStatus }),
+    onSuccess: () => {
+      refresh();
+      setMessage("Batch status updated.");
+    },
+  });
   const toggle = (payment: PaymentRecord) => {
     if (
       payment.status !== "pending" ||
@@ -310,7 +318,16 @@ export function PaymentsPage() {
                 <tr key={batch.id}>
                   <td>{batch.batch_reference}</td>
                   <td>
-                    <span className="pill">{label(batch.status)}</span>
+                    <select
+                      className="form-input" style={{height:'32px',fontSize:'12px',padding:'0 8px',width:'auto',minWidth:'110px'}}
+                      value={batch.status}
+                      onChange={(e) => updateBatchStatus.mutate({ id: batch.id, status: e.target.value })}
+                    >
+                      <option value="created">Created</option>
+                      <option value="exported">Exported</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
                   </td>
                   <td>{batch.payment_count}</td>
                   <td>{money(batch.total_amount, batch.currency)}</td>

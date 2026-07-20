@@ -72,30 +72,28 @@ export function PoliciesPage() {
           <h1 className="repl-title">Reimbursement policies</h1>
           <p className="repl-lede">Corporate reimbursement limits and policy documents. {!isAdmin && "Contact your administrator to make changes."}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            download="policy_rules_template.xlsx"
-            href={policiesApi.getExcelTemplateUrl()}
-          >
-            <Table size={16} /> Excel Template
-          </a>
-          <a
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            download="policy_rules_template.pdf"
-            href={policiesApi.getPdfTemplateUrl()}
-          >
-            <FilePdf size={16} /> PDF Template
-          </a>
-          {isAdmin && (
-            <>
-              <Button onClick={() => setExtractDialogOpen(true)} variant="outline">
-                <UploadSimple className="mr-1.5" size={16} /> Extract Policy
-              </Button>
-              <Button onClick={openCreate}>New policy</Button>
-            </>
-          )}
-        </div>
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              download="policy_rules_template.xlsx"
+              href={policiesApi.getExcelTemplateUrl()}
+            >
+              <Table size={16} /> Excel Template
+            </a>
+            <a
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              download="policy_rules_template.pdf"
+              href={policiesApi.getPdfTemplateUrl()}
+            >
+              <FilePdf size={16} /> PDF Template
+            </a>
+            <Button onClick={() => setExtractDialogOpen(true)} variant="outline">
+              <UploadSimple className="mr-1.5" size={16} /> Extract Policy
+            </Button>
+            <Button onClick={openCreate}>New policy</Button>
+          </div>
+        )}
       </header>
 
       {policies.isLoading && <LoadingState label="Loading policies" />}

@@ -158,7 +158,7 @@ function AppContent() {
       <Route path="/users" element={<ProtectedRoute><RequirePermission permission="user:read"><UsersPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/departments" element={<ProtectedRoute><RequirePermission permission="user:update"><DepartmentsPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/org-chart" element={<ProtectedRoute><RequirePermission permission="user:read"><OrgChartPage /></RequirePermission></ProtectedRoute>} />
-      <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="policy:manage"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
+      <Route path="/policies" element={<ProtectedRoute><RequirePermission permission="category:read"><PoliciesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/categories" element={<ProtectedRoute><RequirePermission permission="category:manage"><CategoriesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/workflows" element={<ProtectedRoute><RequirePermission permission="workflow:manage"><WorkflowRulesPage /></RequirePermission></ProtectedRoute>} />
       <Route path="/vendors" element={<ProtectedRoute><RequirePermission permission="vendor:manage"><VendorsPage /></RequirePermission></ProtectedRoute>} />

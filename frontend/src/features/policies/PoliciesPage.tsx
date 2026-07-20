@@ -135,8 +135,8 @@ export function PoliciesPage() {
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {policy.rules.map((rule, idx) => {
-                          const perDay = rule.max_per_day != null && Number(rule.max_per_day) > 0 ? Number(rule.max_per_day).toLocaleString("en-IN") : "—";
-                          const perTrip = rule.max_per_trip != null && Number(rule.max_per_trip) > 0 ? Number(rule.max_per_trip).toLocaleString("en-IN") : "—";
+                          const perDay = rule.max_per_day != null && Number(rule.max_per_day) > 0 ? Number(rule.max_per_day).toLocaleString("en-IN") : "N/A";
+                          const perTrip = rule.max_per_trip != null && Number(rule.max_per_trip) > 0 ? Number(rule.max_per_trip).toLocaleString("en-IN") : "N/A";
                           const receiptAbove = rule.receipt_required_above != null
                             ? Number(rule.receipt_required_above) === 0 ? "All" : Number(rule.receipt_required_above).toLocaleString("en-IN")
                             : "—";

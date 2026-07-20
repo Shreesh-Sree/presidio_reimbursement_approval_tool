@@ -6,7 +6,7 @@ import { LoadingState } from "../../components/ui/loading-state";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../../components/ui/dialog";
 import { useAuth } from "../../auth/AuthContext";
 import { isAdministrator } from "../../auth/permissions";
-import { policiesApi, type Policy } from "../../lib/api";
+import { attachmentsApi, policiesApi, type Policy } from "../../lib/api";
 import { PolicyAssistantPanel } from "./PolicyAssistantPanel";
 import { PolicyForm } from "./PolicyForm";
 import { PolicyUpload } from "./PolicyUpload";
@@ -160,9 +160,21 @@ export function PoliciesPage() {
                 {isAdmin ? (
                   <PolicyUpload currentDocumentUrl={policy.document_url} onUploaded={handleDocumentUploaded} policyId={policy.id} />
                 ) : policy.document_url ? (
-                  <a href={policy.document_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brand-green-dark)] hover:underline">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brand-green-dark)] hover:underline cursor-pointer border-0 bg-transparent p-0"
+                    onClick={async () => {
+                      const blob = await attachmentsApi.download(policy.document_url!);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${policy.name.replace(/[^a-zA-Z0-9]/g, "_")}_${policy.version_label}.pdf`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
                     <FilePdf size={16} /> Download Policy Document
-                  </a>
+                  </button>
                 ) : null}
               </div>
               <div className="mt-5">

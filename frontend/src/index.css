@@ -52,9 +52,9 @@
   --color-slate: #B8C4C2;
   --color-steel: #889397;
   --color-muted: #5C6C75;
-  --color-hairline: rgba(255,255,255,.1);
+  --color-hairline: rgba(255,255,255,.15);
   --color-hairline-soft: rgba(255,255,255,.06);
-  --color-hairline-strong: rgba(255,255,255,.16);
+  --color-hairline-strong: rgba(255,255,255,.25);
   --color-error-bg: rgba(207,76,58,.12);
   --color-error-text: #FF8C7C;
   --color-surface-feature: rgba(0,237,100,.08);
@@ -152,6 +152,16 @@ code, pre, .font-mono { font-family: var(--font-code); }
 .repl-table td:last-child { white-space: nowrap; }
 .repl-table td:last-child button { font-size: 11px; min-height: 32px; margin-left: 4px; padding: 5px 10px; }
 .pill { border: 1px solid var(--color-hairline); border-radius: var(--radius-button); display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; }
+
+/* Dark mode visibility fixes */
+:root.dark .repl-eyebrow { color: var(--color-brand-green); }
+:root.dark .page-header { background: var(--color-brand-teal-mid); border-color: rgba(255,255,255,.12); }
+:root.dark .service-tile { border-color: rgba(255,255,255,.2); background: var(--color-surface); }
+:root.dark .service-tile:hover { border-color: var(--color-brand-green); }
+:root.dark .repl-card { border-color: rgba(255,255,255,.15); background: var(--color-surface); }
+:root.dark .status-badge.badge-draft { background: rgba(255,255,255,.08); color: var(--color-on-dark-muted); }
+:root.dark .status-badge.badge-pending { background: rgba(255,98,0,.15); }
+:root.dark .pill { border-color: rgba(255,255,255,.2); color: var(--color-on-dark-muted); }
 
 /* ===== STRUCTURAL PATTERNS (MongoDB DNA) ===== */
 

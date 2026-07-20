@@ -65,12 +65,12 @@ export function PoliciesPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
+    <main className="repl-page">
+      <header className="page-header">
         <div>
-          <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Policy management</p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Reimbursement policies</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Maintain corporate reimbursement limits and upload/extract policy rules from Excel/PDF files.</p>
+          <p className="repl-eyebrow">Policy management</p>
+          <h1 className="repl-title">Reimbursement policies</h1>
+          <p className="repl-lede">Corporate reimbursement limits and policy documents. {!isAdmin && "Contact your administrator to make changes."}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <a
@@ -159,7 +159,13 @@ export function PoliciesPage() {
               )}
 
               <div className="mt-5">
-                <PolicyUpload currentDocumentUrl={policy.document_url} onUploaded={handleDocumentUploaded} policyId={policy.id} />
+                {isAdmin ? (
+                  <PolicyUpload currentDocumentUrl={policy.document_url} onUploaded={handleDocumentUploaded} policyId={policy.id} />
+                ) : policy.document_url ? (
+                  <a href={policy.document_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brand-green-dark)] hover:underline">
+                    <FilePdf size={16} /> Download Policy Document
+                  </a>
+                ) : null}
               </div>
               <div className="mt-5">
                 <PolicyAssistantPanel policy={policy} />

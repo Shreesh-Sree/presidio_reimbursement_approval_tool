@@ -41,7 +41,7 @@ const navigation: readonly NavigationItem[] = [
   { to: "/payments", label: "Payments", permission: "payment:manage", Icon: Bank },
   { to: "/approvals", label: "Approvals", permission: "report:approve", Icon: ListChecks, tag: "AI" },
   { to: "/delegations", label: "Delegations", permission: "report:approve", Icon: UserSwitch },
-  { to: "/policies", label: "Policies", permission: "policy:manage", Icon: Files, tag: "AI" },
+  { to: "/policies", label: "Policies", permission: "category:read", Icon: Files, tag: "AI" },
   { to: "/categories", label: "Categories", permission: "category:manage", Icon: ListChecks },
   { to: "/workflows", label: "Workflows", permission: "workflow:manage", Icon: GitBranch },
   { to: "/vendors", label: "Vendors", permission: "vendor:manage", Icon: Storefront },

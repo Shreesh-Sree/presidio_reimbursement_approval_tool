@@ -154,7 +154,7 @@ def seed_users(db: Session, org: Organization, depts: dict[str, Department]) -> 
 def seed_categories(db: Session, org: Organization) -> dict[str, ExpenseCategory]:
     cats: dict[str, ExpenseCategory] = {}
     for code, name in CATEGORIES:
-        c = ExpenseCategory(organization_id=org.id, code=code, name=name, is_active=True)
+        c = ExpenseCategory(organization_id=org.id, code=code, name=name, receipt_required=True)
         db.add(c)
         cats[code] = c
     db.flush()

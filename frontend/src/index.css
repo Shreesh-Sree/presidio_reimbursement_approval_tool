@@ -95,6 +95,10 @@ code, pre, .font-mono { font-family: var(--font-code); }
 .sidebar-nav a.active .nav-icon { color: var(--color-on-primary); }
 .sidebar-nav a.active .service-tag { background: rgba(0,30,43,.2); border-color: transparent; color: var(--color-on-primary); }
 .sidebar-foot { align-items: flex-start; border-top: 1px solid rgba(255,255,255,.08); color: var(--color-on-dark-muted); display: flex; font-size: 12px; gap: 8px; line-height: 1.4; margin-top: auto; padding: 20px 12px 0; }
+/* Sidebar-scoped button overrides (sidebar is always dark regardless of theme) */
+.sidebar .icon-button { color: var(--color-on-dark); }
+.sidebar .icon-button:hover { background: rgba(255,255,255,.1); }
+.sidebar .icon-button:focus-visible { outline-color: var(--color-brand-green); }
 
 /* Collapsed sidebar */
 .sidebar.collapsed .wordmark { font-size: 0; padding: 0; }

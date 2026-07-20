@@ -31,6 +31,8 @@ COPY --from=builder --chown=app:app /build/app /app/app
 COPY --from=builder --chown=app:app /build/alembic /app/alembic
 COPY --from=builder --chown=app:app /build/alembic.ini /app/alembic.ini
 
+RUN mkdir -p /app/.local-storage && chown app:app /app/.local-storage
+
 USER app
 EXPOSE 8000
 

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_permission
+from app.core.deps import get_current_user, require_permission
 from app.services import policy_assistant_client, policy_document_text, policy_service, policy_template_service, storage_service
 from app.services.upload_guard import UploadTooLargeError, read_bounded_upload_sync
 
@@ -129,7 +129,7 @@ def _policy_error(exc: Exception) -> None:
 @router.get("")
 def list_policies(
     db: Session = Depends(get_db),
-    user: dict[str, object] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(get_current_user),
 ):
     return [
         policy_service.policy_payload(db, policy)
@@ -162,7 +162,7 @@ def create_policy(
 def get_policy(
     policy_id: str,
     db: Session = Depends(get_db),
-    user: dict[str, object] = Depends(require_permission("policy:manage")),
+    user: dict[str, object] = Depends(get_current_user),
 ):
     try:
         return policy_service.policy_payload(

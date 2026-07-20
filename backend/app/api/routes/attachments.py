@@ -137,23 +137,12 @@ def download_attachment(
         if report is None or not report_service.can_read_report(db, report, user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
     elif attachment.entity_type == "policy_document":
-        permissions = set(user.get("permissions", []))
-        is_global_operator = "*" in permissions
-        if not is_global_operator and "policy:manage" not in permissions:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
         policy_query = select(Policy).where(
             Policy.id == attachment.entity_id,
             Policy.uploaded_document_attachment_id == attachment.id,
             Policy.is_deleted.is_(False),
+            Policy.organization_id == uuid.UUID(str(user["organization_id"])),
         )
-        # Tenant administrators are never authorized merely because they hold
-        # a broad policy permission.  Resolve the attachment's owner first and
-        # apply the same tenant boundary used by policy administration.  ``*``
-        # is reserved for an explicitly provisioned platform operator.
-        if not is_global_operator:
-            policy_query = policy_query.where(
-                Policy.organization_id == uuid.UUID(str(user["organization_id"]))
-            )
         if db.scalar(policy_query) is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this attachment")
     else:

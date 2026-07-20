@@ -123,16 +123,34 @@ export function PoliciesPage() {
               <div className="mt-4 space-y-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Category Rules ({policy.rules.length})</p>
                 {policy.rules.length > 0 ? (
-                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-100 bg-slate-50/50 text-xs dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-950/40">
-                    {policy.rules.map((rule, idx) => (
-                      <div className="flex items-center justify-between p-2.5" key={rule.id || idx}>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">{rule.category_name || "General"}</span>
-                        <div className="flex gap-2 text-slate-600 dark:text-slate-400">
-                          {rule.max_per_day != null && <span>Max: ${rule.max_per_day}/day</span>}
-                          {rule.receipt_required_above != null && <span>Receipt &gt; ${rule.receipt_required_above}</span>}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="max-h-64 overflow-auto rounded-lg border border-slate-100 dark:border-slate-800">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-[var(--color-brand-teal-deep)] text-white">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold">Category</th>
+                          <th className="px-3 py-2 text-right font-semibold">Max Per Day (INR)</th>
+                          <th className="px-3 py-2 text-right font-semibold">Max Per Trip (INR)</th>
+                          <th className="px-3 py-2 text-right font-semibold">Receipt Required Above</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {policy.rules.map((rule, idx) => {
+                          const perDay = rule.max_per_day != null && Number(rule.max_per_day) > 0 ? Number(rule.max_per_day).toLocaleString("en-IN") : "—";
+                          const perTrip = rule.max_per_trip != null && Number(rule.max_per_trip) > 0 ? Number(rule.max_per_trip).toLocaleString("en-IN") : "—";
+                          const receiptAbove = rule.receipt_required_above != null
+                            ? Number(rule.receipt_required_above) === 0 ? "All" : Number(rule.receipt_required_above).toLocaleString("en-IN")
+                            : "—";
+                          return (
+                            <tr key={rule.id || idx} className="bg-white dark:bg-slate-900 even:bg-slate-50/50 dark:even:bg-slate-950/40">
+                              <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-200">{rule.category_name || "General"}</td>
+                              <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-400">{perDay}</td>
+                              <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-400">{perTrip}</td>
+                              <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-400">{receiptAbove}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">No category rules defined for this policy.</p>
